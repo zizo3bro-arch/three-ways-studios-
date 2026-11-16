@@ -496,7 +496,7 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
                   <tr key={p.id} className="hover:bg-white/[0.02]">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="tws-card-surface h-14 w-11 shrink-0 overflow-hidden border border-white/10">
+                        <div className="h-14 w-11 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#150d0f]">
                           {p.images?.[0]?.url && (
                             <img
                               src={p.images[0].url}

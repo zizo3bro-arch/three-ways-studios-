@@ -1,213 +1,184 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --tws-black: #060405;
-    --tws-charcoal: #0f090a;
-    --tws-crimson-dark: #4a060a;
-    --tws-blood: #b30e16;
-    --tws-crimson: #d4121b;
-    --tws-offwhite: #f2eded;
-    --tws-muted: #9e9494;
-  }
+@theme {
+  /* Modern-vintage luxury palette — Three Ways Studios */
+  --color-cream: #f5f2eb;
+  --color-cream-deep: #edeae1;
+  --color-cream-card: #fbfaf6;
+  --color-ink: #201d1a;
+  --color-ink-deep: #141210;
+  --color-ink-soft: #57514b;
+  --color-ink-faint: #8d867d;
+  --color-crimson: #a91420;
+  --color-crimson-deep: #8e0f18;
+  --color-crimson-bright: #b30e16;
+  --color-navy-glow: #152c4e;
+  --color-navy-deep: #0a1628;
+  --color-onyx-glow: #18181b;
+  --color-onyx-deep: #09090b;
 
+  --font-display: "Anton", Impact, sans-serif;
+  --font-script: "Alex Brush", cursive;
+  --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@layer base {
   html {
     scroll-behavior: smooth;
-    background-color: #060405;
-    color: #f2eded;
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    scroll-padding-top: 6.5rem;
+    background-color: #f5f2eb;
+    color: #201d1a;
+    font-family: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 
   body {
-    background-color: #060405;
-    color: #f2eded;
+    background-color: #f5f2eb;
+    color: #201d1a;
     overflow-x: hidden;
   }
-}
 
-.font-display-tall {
-  font-family: 'Anton', Impact, sans-serif;
-}
-
-.font-script {
-  font-family: 'Alex Brush', cursive;
-}
-
-.font-sans-ui {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  :focus-visible {
+    outline: 2px solid #b30e16;
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
 }
 
 /* =========================================================
-   CODE-GENERATED ANIMATED RED SMOKE & ATMOSPHERIC SURFACE
-   (No static smoke images, no GIFs, no videos)
+   ARCHIVAL PAPER SURFACE — static SVG grain, zero runtime cost
    ========================================================= */
+.tws-paper {
+  background-color: #f5f2eb;
+  background-image:
+    radial-gradient(1200px 800px at 50% -10%, rgba(169, 20, 32, 0.055), transparent 60%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  background-size: auto, 210px 210px;
+}
 
-@keyframes smokeDriftA {
-  0% {
-    transform: translate3d(-6%, -4%, 0) scale(1) rotate(0deg);
-    opacity: 0.42;
+.tws-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 210px 210px;
+  opacity: 0.05;
+  mix-blend-mode: multiply;
+}
+
+/* =========================================================
+   HERO — layered editorial typography (static paint layers)
+   ========================================================= */
+.tws-hero-word {
+  color: #a91420;
+  letter-spacing: -0.015em;
+  line-height: 0.82;
+  text-shadow:
+    0 1px 0 rgba(94, 8, 14, 0.55),
+    0 18px 44px rgba(94, 8, 14, 0.35);
+}
+
+.tws-hero-word-ghost {
+  color: rgba(32, 29, 26, 0.09);
+  letter-spacing: -0.015em;
+  line-height: 0.82;
+}
+
+.tws-script-ink {
+  color: #201d1a;
+  text-shadow: 0 2px 14px rgba(32, 29, 26, 0.22);
+}
+
+/* =========================================================
+   PRODUCTS SHOWCASE — GPU crossfading ambient backdrops
+   ========================================================= */
+.tws-showcase-navy {
+  background:
+    radial-gradient(130% 105% at 50% 38%, #152c4e 0%, #0d1f38 42%, #0a1628 78%, #070f1d 100%);
+}
+
+.tws-showcase-onyx {
+  background:
+    radial-gradient(130% 105% at 50% 38%, #18181b 0%, #101013 46%, #09090b 82%, #050506 100%);
+}
+
+.tws-spotlight-navy {
+  background: radial-gradient(58% 62% at 50% 44%, rgba(176, 210, 255, 0.24) 0%, rgba(140, 180, 230, 0.1) 42%, transparent 74%);
+}
+
+.tws-spotlight-onyx {
+  background: radial-gradient(56% 60% at 50% 44%, rgba(228, 228, 231, 0.34) 0%, rgba(200, 200, 208, 0.14) 40%, rgba(150, 150, 160, 0.05) 62%, transparent 78%);
+}
+
+.tws-floor-shadow {
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.28) 45%, transparent 78%);
+}
+
+.tws-pants-shadow {
+  filter: drop-shadow(0 34px 44px rgba(0, 0, 0, 0.52)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.38));
+}
+
+.tws-pants-shadow-light {
+  filter: drop-shadow(0 34px 48px rgba(0, 0, 0, 0.65))
+    drop-shadow(0 0 64px rgba(226, 232, 240, 0.22));
+}
+
+.tws-pants-stage {
+  opacity: 0;
+  transform: translate3d(7%, 2.5%, 0) scale(0.96);
+  transition:
+    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.tws-pants-stage[data-active="true"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  pointer-events: auto;
+}
+
+
+/* Keyed content swap (headline / price / tagline) */
+@keyframes tws-swap-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
   }
-  33% {
-    transform: translate3d(5%, 3%, 0) scale(1.12) rotate(6deg);
-    opacity: 0.62;
-  }
-  66% {
-    transform: translate3d(-2%, 8%, 0) scale(0.95) rotate(-5deg);
-    opacity: 0.48;
-  }
-  100% {
-    transform: translate3d(-6%, -4%, 0) scale(1) rotate(0deg);
-    opacity: 0.42;
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
-@keyframes smokeDriftB {
-  0% {
-    transform: translate3d(8%, 2%, 0) scale(1.05) rotate(0deg);
-    opacity: 0.35;
-  }
-  40% {
-    transform: translate3d(-7%, -6%, 0) scale(1.18) rotate(-8deg);
-    opacity: 0.58;
-  }
-  75% {
-    transform: translate3d(4%, 9%, 0) scale(0.92) rotate(5deg);
-    opacity: 0.38;
-  }
-  100% {
-    transform: translate3d(8%, 2%, 0) scale(1.05) rotate(0deg);
-    opacity: 0.35;
-  }
+.tws-swap-in {
+  animation: tws-swap-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes smokeDriftC {
-  0% {
-    transform: translate3d(0%, 6%, 0) scale(0.96) rotate(-3deg);
-    opacity: 0.28;
-  }
-  50% {
-    transform: translate3d(-8%, -4%, 0) scale(1.15) rotate(7deg);
-    opacity: 0.52;
-  }
-  100% {
-    transform: translate3d(0%, 6%, 0) scale(0.96) rotate(-3deg);
-    opacity: 0.28;
-  }
-}
-
-@keyframes smokePulseCore {
+/* Scroll cue — transform-only bounce */
+@keyframes tws-scroll-cue {
   0%,
   100% {
-    transform: translate3d(0, 0, 0) scale(1);
-    opacity: 0.5;
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translate3d(2%, -2%, 0) scale(1.09);
-    opacity: 0.72;
+    transform: translate3d(0, 9px, 0);
   }
 }
 
-.tws-smoke-plume-a {
-  background: radial-gradient(
-    ellipse 58% 46% at 50% 42%,
-    rgba(190, 14, 22, 0.55) 0%,
-    rgba(122, 9, 16, 0.32) 38%,
-    rgba(56, 4, 8, 0.14) 68%,
-    transparent 100%
-  );
-  filter: url(#tws-smoke-turbulence) blur(44px);
-  animation: smokeDriftA 24s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.tws-smoke-plume-b {
-  background: radial-gradient(
-    ellipse 52% 62% at 74% 38%,
-    rgba(212, 18, 27, 0.42) 0%,
-    rgba(130, 10, 18, 0.26) 44%,
-    rgba(40, 4, 6, 0.08) 74%,
-    transparent 100%
-  );
-  filter: url(#tws-smoke-turbulence) blur(56px);
-  animation: smokeDriftB 31s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.tws-smoke-plume-c {
-  background: radial-gradient(
-    ellipse 64% 54% at 84% 78%,
-    rgba(176, 12, 20, 0.48) 0%,
-    rgba(92, 6, 11, 0.26) 45%,
-    transparent 78%
-  );
-  filter: url(#tws-smoke-turbulence) blur(52px);
-  animation: smokeDriftC 27s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-.tws-smoke-core {
-  background: radial-gradient(
-    ellipse 68% 42% at 50% 34%,
-    rgba(205, 16, 24, 0.34) 0%,
-    rgba(105, 8, 14, 0.2) 52%,
-    transparent 82%
-  );
-  filter: blur(60px);
-  animation: smokePulseCore 16s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-/* Subtle film grain & fine editorial scratches */
-.tws-film-grain {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.88' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
-  opacity: 0.065;
-  mix-blend-mode: overlay;
-}
-
-.tws-editorial-scratches {
-  background-image:
-    linear-gradient(127deg, transparent 49.4%, rgba(255, 235, 235, 0.03) 49.8%, transparent 50.2%),
-    linear-gradient(28deg, transparent 71.6%, rgba(255, 210, 210, 0.025) 71.9%, transparent 72.2%),
-    radial-gradient(circle at 22% 38%, rgba(255, 255, 255, 0.035) 0.5px, transparent 1px),
-    radial-gradient(circle at 76% 64%, rgba(255, 255, 255, 0.03) 0.5px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 190px 190px, 260px 260px;
-}
-
-/* Product card subtle textured canvas */
-.tws-card-surface {
-  background:
-    radial-gradient(circle at 18% 84%, rgba(165, 10, 18, 0.28) 0%, transparent 55%),
-    radial-gradient(circle at 82% 18%, rgba(92, 8, 14, 0.22) 0%, transparent 50%),
-    linear-gradient(160deg, rgba(24, 15, 16, 0.88) 0%, rgba(12, 8, 9, 0.92) 100%);
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
-}
-
-::-webkit-scrollbar-track {
-  background: #070405;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #3d0c10;
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #8a0e16;
+.tws-scroll-cue {
+  animation: tws-scroll-cue 2.1s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tws-smoke-plume-a,
-  .tws-smoke-plume-b,
-  .tws-smoke-plume-c,
-  .tws-smoke-core {
-    animation: none !important;
-  }
   html {
     scroll-behavior: auto;
+  }
+  .tws-scroll-cue {
+    animation: none;
+  }
+  .tws-swap-in {
+    animation: none;
+  }
+  .tws-pants-stage {
+    transition-duration: 0.01ms;
   }
 }
