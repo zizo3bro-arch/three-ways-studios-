@@ -1,0 +1,213 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --tws-black: #060405;
+    --tws-charcoal: #0f090a;
+    --tws-crimson-dark: #4a060a;
+    --tws-blood: #b30e16;
+    --tws-crimson: #d4121b;
+    --tws-offwhite: #f2eded;
+    --tws-muted: #9e9494;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background-color: #060405;
+    color: #f2eded;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  body {
+    background-color: #060405;
+    color: #f2eded;
+    overflow-x: hidden;
+  }
+}
+
+.font-display-tall {
+  font-family: 'Anton', Impact, sans-serif;
+}
+
+.font-script {
+  font-family: 'Alex Brush', cursive;
+}
+
+.font-sans-ui {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* =========================================================
+   CODE-GENERATED ANIMATED RED SMOKE & ATMOSPHERIC SURFACE
+   (No static smoke images, no GIFs, no videos)
+   ========================================================= */
+
+@keyframes smokeDriftA {
+  0% {
+    transform: translate3d(-6%, -4%, 0) scale(1) rotate(0deg);
+    opacity: 0.42;
+  }
+  33% {
+    transform: translate3d(5%, 3%, 0) scale(1.12) rotate(6deg);
+    opacity: 0.62;
+  }
+  66% {
+    transform: translate3d(-2%, 8%, 0) scale(0.95) rotate(-5deg);
+    opacity: 0.48;
+  }
+  100% {
+    transform: translate3d(-6%, -4%, 0) scale(1) rotate(0deg);
+    opacity: 0.42;
+  }
+}
+
+@keyframes smokeDriftB {
+  0% {
+    transform: translate3d(8%, 2%, 0) scale(1.05) rotate(0deg);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translate3d(-7%, -6%, 0) scale(1.18) rotate(-8deg);
+    opacity: 0.58;
+  }
+  75% {
+    transform: translate3d(4%, 9%, 0) scale(0.92) rotate(5deg);
+    opacity: 0.38;
+  }
+  100% {
+    transform: translate3d(8%, 2%, 0) scale(1.05) rotate(0deg);
+    opacity: 0.35;
+  }
+}
+
+@keyframes smokeDriftC {
+  0% {
+    transform: translate3d(0%, 6%, 0) scale(0.96) rotate(-3deg);
+    opacity: 0.28;
+  }
+  50% {
+    transform: translate3d(-8%, -4%, 0) scale(1.15) rotate(7deg);
+    opacity: 0.52;
+  }
+  100% {
+    transform: translate3d(0%, 6%, 0) scale(0.96) rotate(-3deg);
+    opacity: 0.28;
+  }
+}
+
+@keyframes smokePulseCore {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: translate3d(2%, -2%, 0) scale(1.09);
+    opacity: 0.72;
+  }
+}
+
+.tws-smoke-plume-a {
+  background: radial-gradient(
+    ellipse 58% 46% at 50% 42%,
+    rgba(190, 14, 22, 0.55) 0%,
+    rgba(122, 9, 16, 0.32) 38%,
+    rgba(56, 4, 8, 0.14) 68%,
+    transparent 100%
+  );
+  filter: url(#tws-smoke-turbulence) blur(44px);
+  animation: smokeDriftA 24s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.tws-smoke-plume-b {
+  background: radial-gradient(
+    ellipse 52% 62% at 74% 38%,
+    rgba(212, 18, 27, 0.42) 0%,
+    rgba(130, 10, 18, 0.26) 44%,
+    rgba(40, 4, 6, 0.08) 74%,
+    transparent 100%
+  );
+  filter: url(#tws-smoke-turbulence) blur(56px);
+  animation: smokeDriftB 31s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.tws-smoke-plume-c {
+  background: radial-gradient(
+    ellipse 64% 54% at 84% 78%,
+    rgba(176, 12, 20, 0.48) 0%,
+    rgba(92, 6, 11, 0.26) 45%,
+    transparent 78%
+  );
+  filter: url(#tws-smoke-turbulence) blur(52px);
+  animation: smokeDriftC 27s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.tws-smoke-core {
+  background: radial-gradient(
+    ellipse 68% 42% at 50% 34%,
+    rgba(205, 16, 24, 0.34) 0%,
+    rgba(105, 8, 14, 0.2) 52%,
+    transparent 82%
+  );
+  filter: blur(60px);
+  animation: smokePulseCore 16s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Subtle film grain & fine editorial scratches */
+.tws-film-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.88' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  opacity: 0.065;
+  mix-blend-mode: overlay;
+}
+
+.tws-editorial-scratches {
+  background-image:
+    linear-gradient(127deg, transparent 49.4%, rgba(255, 235, 235, 0.03) 49.8%, transparent 50.2%),
+    linear-gradient(28deg, transparent 71.6%, rgba(255, 210, 210, 0.025) 71.9%, transparent 72.2%),
+    radial-gradient(circle at 22% 38%, rgba(255, 255, 255, 0.035) 0.5px, transparent 1px),
+    radial-gradient(circle at 76% 64%, rgba(255, 255, 255, 0.03) 0.5px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 190px 190px, 260px 260px;
+}
+
+/* Product card subtle textured canvas */
+.tws-card-surface {
+  background:
+    radial-gradient(circle at 18% 84%, rgba(165, 10, 18, 0.28) 0%, transparent 55%),
+    radial-gradient(circle at 82% 18%, rgba(92, 8, 14, 0.22) 0%, transparent 50%),
+    linear-gradient(160deg, rgba(24, 15, 16, 0.88) 0%, rgba(12, 8, 9, 0.92) 100%);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #070405;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3d0c10;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8a0e16;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tws-smoke-plume-a,
+  .tws-smoke-plume-b,
+  .tws-smoke-plume-c,
+  .tws-smoke-core {
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
