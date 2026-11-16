@@ -1,40 +1,49 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { Banknote, CheckCircle2, Printer } from 'lucide-react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Banknote, CheckCircle2, Printer } from 'lucide-react';
 import { fetchOrderConfirmation } from '../lib/api';
 import { formatEGP } from '../lib/format';
+import { ColourChip } from '../components/ui/ColourChip';
+import { SprayType } from '../components/ui/SprayType';
 import type { OrderConfirmationData } from '../types/database';
+
+/* =========================================================
+   ORDER CONFIRMATION — the receipt plate. The order can always be
+   re-opened from the reference alone: enter the email used at
+   checkout (or arrive from the account panel's tracking link).
+   ========================================================= */
 
 export function OrderConfirmationPage() {
   const { orderRef } = useParams<{ orderRef: string }>();
+  const [params] = useSearchParams();
   const [order, setOrder] = useState<OrderConfirmationData | null>(() => {
     if (!orderRef) return null;
     try {
-      const raw = sessionStorage.getItem(`tws_order_${orderRef}`);
+      const raw = window.sessionStorage.getItem(`tws_order_${orderRef}`);
       return raw ? (JSON.parse(raw) as OrderConfirmationData) : null;
     } catch {
       return null;
     }
   });
-  const [lookupEmail, setLookupEmail] = useState('');
+  const [lookupEmail, setLookupEmail] = useState(params.get('email') ?? '');
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     document.title = orderRef
       ? `Order ${orderRef} — THREE WAYS STUDIOS`
-      : 'Order Confirmation — THREE WAYS STUDIOS';
+      : 'Order confirmation — THREE WAYS STUDIOS';
   }, [orderRef]);
 
-  const handleLookup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLookup = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!orderRef || !lookupEmail.trim()) return;
     setLoading(true);
     setLookupError(null);
     const { order: found, error } = await fetchOrderConfirmation(orderRef, lookupEmail);
     setLoading(false);
     if (error || !found) {
-      setLookupError(error ?? 'No order matched that reference number and email address.');
+      setLookupError(error ?? 'No order matched that reference and email address.');
       return;
     }
     setOrder(found);
@@ -42,158 +51,207 @@ export function OrderConfirmationPage() {
 
   if (!order) {
     return (
-      <main className="mx-auto max-w-lg px-5 pt-36 pb-28">
-        <div className="rounded-3xl border border-[#201D1A]/12 bg-[#FCFBF7] p-7 shadow-[0_2px_18px_rgba(20,18,16,0.05)]">
-          <p className="text-[10px] tracking-[0.24em] text-[#B30E16] uppercase">
-            Order Verification
-          </p>
-          <h1 className="mt-2 text-xl font-normal text-[#201D1A]">
-            View Order {orderRef}
+      <section className="relative flex min-h-[86svh] items-center justify-center overflow-hidden px-4 py-24">
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 opacity-[0.4]">
+          <SprayType text="VERIFY" />
+        </div>
+        <div className="tws-plate-card relative z-10 w-full max-w-md p-6 sm:p-8">
+          <p className="tws-eyebrow text-crimson-bright">Order verification</p>
+          <h1 className="mt-3 font-display text-[1.9rem] uppercase leading-[0.95] text-ink">
+            Order {orderRef}
           </h1>
-          <p className="mt-2 text-xs leading-relaxed text-[#6E6862]">
-            Enter the email address used during checkout to securely view your order details.
+          <p className="mt-2.5 text-[13px] leading-relaxed text-ink-soft">
+            Enter the email address used at checkout to open the receipt.
           </p>
-          <form onSubmit={handleLookup} className="mt-5 space-y-4">
-            <input
-              type="email"
-              required
-              value={lookupEmail}
-              onChange={(e) => setLookupEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full rounded-xl border border-[#201D1A]/15 bg-white px-3.5 py-2.5 text-xs text-[#201D1A] placeholder-[#A39C93] focus:border-[#b30e16] focus:outline-none"
-            />
-            {lookupError && <p className="text-xs text-[#B3261E]">{lookupError}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full h-12 rounded-full bg-[#B30E16] py-3 text-[10px] font-bold uppercase tracking-[0.26em] text-[#F5F2EB] transition-colors hover:bg-[#8F0B12]"
-            >
-              {loading ? 'Verifying...' : 'View Order'}
+          <form onSubmit={handleLookup} className="mt-5 space-y-3">
+            <div>
+              <label htmlFor="confirm-email" className="tws-label">
+                Email *
+              </label>
+              <input
+                id="confirm-email"
+                type="email"
+                required
+                autoComplete="email"
+                value={lookupEmail}
+                onChange={(event) => setLookupEmail(event.target.value)}
+                placeholder="you@example.com"
+                className="tws-field mt-1.5"
+              />
+            </div>
+            {lookupError ? (
+              <p role="alert" className="text-[11.5px] font-semibold text-crimson-bright">
+                {lookupError}
+              </p>
+            ) : null}
+            <button type="submit" disabled={loading} className="tws-pill h-13 w-full justify-center disabled:opacity-60">
+              {loading ? 'Verifying…' : 'Open the receipt'}
+              <ArrowRight className="h-4 w-4" strokeWidth={2} />
             </button>
           </form>
+          <Link
+            to="/shop"
+            className="mt-4 block text-center text-[9px] font-bold uppercase tracking-[0.2em] text-ink-faint transition-colors hover:text-crimson-bright"
+          >
+            Back to the shop
+          </Link>
         </div>
-      </main>
+      </section>
     );
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-5 pt-32 pb-24 sm:px-8">
-      <div className="rounded-3xl border border-[#201D1A]/12 bg-[#FCFBF7] p-6 shadow-[0_2px_18px_rgba(20,18,16,0.05)] sm:p-10">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#201D1A]/12 pb-6">
-          <div>
-            <div className="flex items-center gap-2 text-[#B30E16]">
-              <CheckCircle2 className="h-5 w-5 text-[#B30E16]" />
-              <span className="text-xs font-medium tracking-[0.2em] uppercase">
-                Order Confirmed
-              </span>
+    <div className="mx-auto w-full max-w-[940px] px-4 pb-20 pt-[104px] sm:px-6 sm:pt-[136px]">
+      <div className="tws-plate-card overflow-hidden">
+        {/* the stamp */}
+        <div className="relative border-b border-ink/12 px-5 py-8 sm:px-9 sm:py-10">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-1 opacity-[0.32]">
+            <SprayType text="CONFIRMED" />
+          </div>
+          <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
+            <div>
+              <p className="tws-eyebrow flex items-center gap-2 text-crimson-bright">
+                <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+                Order confirmed
+              </p>
+              <h1 className="mt-3 font-display uppercase leading-[0.9] tracking-[0.002em] text-ink text-[clamp(1.9rem,5.4vw,3rem)]">
+                Thank you,
+                <span className="block">{order.customer_name.split(' ')[0] || 'friend'}</span>
+              </h1>
+              <p className="mt-3 text-[12px] uppercase tracking-[0.14em] text-ink-faint">
+                Reference{' '}
+                <span className="font-mono text-[12.5px] font-semibold tracking-normal text-ink">
+                  {order.order_reference}
+                </span>
+                {' · '}
+                {new Date(order.created_at).toLocaleDateString('en-GB', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </p>
             </div>
-            <h1 className="mt-2 text-2xl font-normal text-[#201D1A] sm:text-3xl">
-              Thank You, {order.customer_name}
-            </h1>
-            <p className="mt-1.5 text-xs text-[#6E6862]">
-              Order Reference:{' '}
-              <span className="font-mono font-semibold text-[#201D1A]">{order.order_reference}</span>
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="inline-flex items-center gap-2 rounded-full border border-[#201D1A]/20 px-4 py-2 text-[11px] tracking-[0.16em] text-[#33302C] uppercase hover:border-[#201D1A] print:hidden"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            Print Receipt
-          </button>
-        </div>
-
-        {/* COD Payment Box */}
-        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-[#B30E16]/30 bg-[#FAECE7] p-4">
-          <Banknote className="mt-0.5 h-5 w-5 shrink-0 text-[#B30E16]" />
-          <div className="text-xs leading-relaxed">
-            <p className="font-medium text-[#201D1A]">Payment Method: Cash on Delivery (COD)</p>
-            <p className="mt-1 text-[#33302C]">
-              Amount due upon delivery:{' '}
-              <span className="font-semibold text-[#201D1A]">{formatEGP(order.total_amount)}</span>.
-              Our dispatch team will contact {order.customer_phone} before courier arrival.
-            </p>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="tws-pill tws-pill--outline h-11 print:hidden"
+            >
+              <Printer className="h-3.5 w-3.5" strokeWidth={1.9} />
+              Print receipt
+            </button>
           </div>
         </div>
 
-        {/* Delivery Info */}
-        <div className="mt-6 grid grid-cols-1 gap-6 border-b border-[#201D1A]/10 pb-6 text-xs sm:grid-cols-2">
+        {/* COD box */}
+        <div className="mx-5 mt-6 flex items-start gap-4 rounded-[1.1rem] border border-crimson-bright/25 bg-crimson-mist px-4 py-4 sm:mx-9">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-crimson-bright text-ivory">
+            <Banknote className="h-4 w-4" strokeWidth={1.9} />
+          </span>
+          <p className="text-[12.5px] leading-relaxed text-crimson-deep">
+            <span className="font-bold uppercase tracking-[0.12em] text-ink">
+              Payment — cash on delivery
+            </span>
+            <br />
+            {formatEGP(order.total_amount)} due to the courier on arrival. Dispatch will call{' '}
+            {order.customer_phone} before the parcel leaves the atelier.
+          </p>
+        </div>
+
+        {/* details */}
+        <div className="grid gap-6 px-5 py-7 sm:grid-cols-2 sm:px-9">
           <div>
-            <p className="text-[10px] tracking-[0.2em] text-[#6E6862] uppercase">Delivery To</p>
-            <p className="mt-2 font-medium text-[#201D1A]">{order.customer_name}</p>
-            <p className="mt-1 text-[#33302C]">{order.delivery_address}</p>
-            <p className="text-[#33302C]">
+            <p className="tws-eyebrow text-ink-faint">Delivering to</p>
+            <p className="mt-2.5 text-[13px] font-semibold leading-snug text-ink">{order.customer_name}</p>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-ink-soft">{order.delivery_address}</p>
+            <p className="text-[12.5px] text-ink-soft">
               {order.city}, {order.governorate}
             </p>
           </div>
           <div>
-            <p className="text-[10px] tracking-[0.2em] text-[#6E6862] uppercase">Contact</p>
-            <p className="mt-2 text-[#33302C]">{order.customer_email}</p>
-            <p className="mt-1 text-[#33302C]">{order.customer_phone}</p>
-            {order.order_notes && (
-              <p className="mt-2 text-[#6E6862]">Notes: {order.order_notes}</p>
-            )}
+            <p className="tws-eyebrow text-ink-faint">Contact</p>
+            <p className="mt-2.5 text-[12.5px] text-ink-soft">{order.customer_email}</p>
+            <p className="mt-1 text-[12.5px] text-ink-soft">{order.customer_phone}</p>
+            {order.order_notes ? (
+              <p className="mt-2 text-[12px] italic leading-relaxed text-ink-faint">Note: {order.order_notes}</p>
+            ) : null}
+            <p className="mt-3 inline-flex rounded-full border border-ink/15 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-ink-soft">
+              Status · {order.status}
+            </p>
           </div>
         </div>
 
-        {/* Items */}
-        <div className="mt-6 space-y-3 border-b border-[#201D1A]/10 pb-6">
-          <p className="text-[10px] tracking-[0.2em] text-[#6E6862] uppercase">Items Ordered</p>
-          {order.items.map((item, idx) => (
-            <div key={idx} className="flex items-center justify-between gap-4 text-xs">
-              <div>
-                <p className="font-medium text-[#201D1A]">{item.product_name}</p>
-                <p className="text-[#6E6862]">
-                  {item.color_name} · Size {item.size_name} · Qty {item.quantity}
-                </p>
+        {/* items */}
+        <div className="border-t border-ink/12 px-5 py-6 sm:px-9">
+          <p className="tws-eyebrow text-ink-faint">Pieces</p>
+          <ul className="mt-3.5 space-y-3.5">
+            {order.items.map((item, index) => (
+              <li key={`${item.variant_id ?? 'line'}-${index}`} className="flex items-center gap-4">
+                <span className="flex h-[74px] w-12 shrink-0 items-end justify-center overflow-hidden rounded-[3px] border border-ink/10 bg-paper">
+                  {item.product_image ? (
+                    <img src={item.product_image} alt={item.product_name} loading="lazy" className="h-full w-auto object-contain object-bottom" />
+                  ) : null}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12.5px] font-bold uppercase tracking-[0.06em] text-ink">
+                    {item.product_name}
+                  </span>
+                  <span className="mt-1 block">
+                    <ColourChip label={`${item.color_name} · Size ${item.size_name} · Qty ${item.quantity}`} />
+                  </span>
+                </span>
+                <span className="text-[12.5px] font-bold tabular-nums text-ink">{formatEGP(item.line_total)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* totals */}
+        <div className="border-t border-ink/12 bg-ivory/70 px-5 py-6 sm:px-9">
+          <dl className="ml-auto max-w-sm space-y-2 text-[12.5px]">
+            <div className="flex items-baseline justify-between">
+              <dt className="text-ink-soft">Subtotal</dt>
+              <dd className="font-semibold text-ink">{formatEGP(order.subtotal)}</dd>
+            </div>
+            {order.email_discount_amount > 0 ? (
+              <div className="flex items-baseline justify-between text-crimson-bright">
+                <dt>Email privilege</dt>
+                <dd>−{formatEGP(order.email_discount_amount)}</dd>
               </div>
-              <span className="font-medium text-[#201D1A]">{formatEGP(item.line_total)}</span>
+            ) : null}
+            {order.promo_discount_amount > 0 ? (
+              <div className="flex items-baseline justify-between text-crimson-bright">
+                <dt>Promo {order.applied_promo_code}</dt>
+                <dd>−{formatEGP(order.promo_discount_amount)}</dd>
+              </div>
+            ) : null}
+            {order.shipping_cost !== undefined ? (
+              <div className="flex items-baseline justify-between">
+                <dt className="text-ink-soft">Delivery</dt>
+                <dd className="font-semibold text-ink">
+                  {order.shipping_cost === 0 ? 'Free' : formatEGP(order.shipping_cost)}
+                </dd>
+              </div>
+            ) : null}
+            <div className="flex items-baseline justify-between border-t border-ink/12 pt-3">
+              <dt className="tws-eyebrow text-ink">Total due on delivery</dt>
+              <dd className="font-display text-[1.5rem] leading-none tracking-[0.01em] text-ink">
+                {formatEGP(order.total_amount)}
+              </dd>
             </div>
-          ))}
+          </dl>
         </div>
 
-        {/* Financial Breakdown */}
-        <div className="mt-5 space-y-2 text-xs">
-          <div className="flex justify-between text-[#33302C]">
-            <span>Subtotal</span>
-            <span>{formatEGP(order.subtotal)}</span>
-          </div>
-          {order.email_discount_amount > 0 && (
-            <div className="flex justify-between text-[#B30E16]">
-              <span>Email Checkout Discount</span>
-              <span>-{formatEGP(order.email_discount_amount)}</span>
-            </div>
-          )}
-          {order.promo_discount_amount > 0 && (
-            <div className="flex justify-between text-[#B30E16]">
-              <span>Promo Discount ({order.applied_promo_code})</span>
-              <span>-{formatEGP(order.promo_discount_amount)}</span>
-            </div>
-          )}
-          {order.shipping_cost !== undefined && (
-            <div className="flex justify-between text-[#33302C]">
-              <span>Shipping</span>
-              <span>{order.shipping_cost === 0 ? 'FREE' : formatEGP(order.shipping_cost)}</span>
-            </div>
-          )}
-          <div className="flex justify-between border-t border-[#201D1A]/12 pt-3 text-base font-medium text-[#201D1A]">
-            <span>Total (COD)</span>
-            <span>{formatEGP(order.total_amount)}</span>
-          </div>
-        </div>
-
-        <div className="mt-8 flex justify-end print:hidden">
-          <Link
-            to="/#products"
-            className="rounded-full border border-[#201D1A]/25 px-7 py-2.5 text-xs tracking-[0.2em] text-[#201D1A] uppercase hover:border-[#201D1A]"
-          >
-            Continue Shopping
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink/12 px-5 py-5 sm:px-9">
+          <p className="max-w-sm text-[11.5px] leading-relaxed text-ink-faint">
+            Keep the reference. Dispatch calls before the courier arrives, and returns are open for
+            14 days from delivery.
+          </p>
+          <Link to="/shop" className="tws-pill h-12 print:hidden">
+            Continue shopping
+            <ArrowRight className="h-4 w-4" strokeWidth={2} />
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
