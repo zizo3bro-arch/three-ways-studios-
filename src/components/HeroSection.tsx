@@ -1,20 +1,20 @@
 import { ArrowDown, ArrowRight } from 'lucide-react';
 
-export function HeroSection() {
-  const scrollToProducts = () => {
-    document.getElementById('products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+interface HeroSectionProps {
+  onShopNow: () => void;
+}
 
+export function HeroSection({ onShopNow }: HeroSectionProps) {
   return (
     <section
       id="top"
       aria-label="THREE WAYS STUDIOS — introduction"
-      className="tws-paper relative overflow-hidden"
+      className="tws-paper relative flex h-[100svh] flex-col overflow-hidden"
     >
       {/* Static archival grain */}
       <div aria-hidden="true" className="tws-grain pointer-events-none absolute inset-0" />
 
-      <div className="relative mx-auto flex min-h-[80vh] max-h-[880px] max-w-[1600px] flex-col px-5 pb-6 pt-20 sm:px-8 sm:pt-24 lg:px-12">
+      <div className="relative mx-auto flex h-full w-full max-w-[1600px] flex-col px-5 pb-5 pt-[4.75rem] sm:px-8 sm:pb-6 sm:pt-24 lg:px-12">
         {/* ——— Top editorial micro-labels ——— */}
         <div className="flex items-start justify-between text-[8px] font-bold uppercase leading-relaxed tracking-[0.3em] text-ink-soft sm:text-[9px]">
           <p>
@@ -28,14 +28,14 @@ export function HeroSection() {
         </div>
 
         {/* ——— Center stack: crimson titan + charcoal script ——— */}
-        <div className="relative flex flex-1 flex-col items-center justify-center py-6">
+        <div className="relative flex flex-1 flex-col items-center justify-center py-4 sm:py-6">
           <h1
             aria-label="THREE WAYS STUDIOS"
             className="select-none text-center font-display uppercase"
           >
             <span
               aria-hidden="true"
-              className="tws-hero-word block whitespace-nowrap text-[clamp(2.6rem,12vw,11.25rem)]"
+              className="tws-hero-word tws-hero-title block whitespace-nowrap"
             >
               THREE WAYS
             </span>
@@ -46,7 +46,7 @@ export function HeroSection() {
             aria-hidden="true"
             className="tws-script-ink pointer-events-none absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-script"
           >
-            <span className="block rotate-[-4deg] text-[clamp(1.9rem,8.6vw,6.75rem)] leading-none">
+            <span className="tws-hero-script block rotate-[-4deg] leading-none">
               Three Ways Studios
               <sup className="ml-1 align-super font-sans text-[0.16em] font-medium tracking-normal">
                 ®
@@ -55,7 +55,7 @@ export function HeroSection() {
           </p>
 
           {/* Sharp ultra-condensed charcoal center lockup */}
-          <div className="mt-5 flex items-center gap-3 sm:mt-7 sm:gap-5">
+          <div className="mt-4 flex items-center gap-3 sm:mt-7 sm:gap-5">
             <span aria-hidden="true" className="h-px w-10 bg-ink/35 sm:w-20" />
             <p className="font-display text-[10px] uppercase tracking-[0.58em] text-ink sm:text-xs lg:text-sm">
               Three Ways Studios
@@ -78,11 +78,11 @@ export function HeroSection() {
               <br />
               Limits.
             </p>
-            <span aria-hidden="true" className="h-12 w-px bg-ink/25" />
+            <span aria-hidden="true" className="hidden h-12 w-px bg-ink/25 sm:block" />
             <button
               type="button"
-              onClick={scrollToProducts}
-              aria-label="Scroll down to the products"
+              onClick={onShopNow}
+              aria-label="Enter the drop and see the products"
               className="group flex flex-col items-center gap-2"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full border border-ink/30 text-ink transition-colors duration-300 group-hover:border-crimson-bright group-hover:bg-crimson-bright group-hover:text-cream">
@@ -106,7 +106,8 @@ export function HeroSection() {
             </p>
             <button
               type="button"
-              onClick={scrollToProducts}
+              onClick={onShopNow}
+              aria-label="Shop now — enter the drop"
               className="group inline-flex h-11 items-center gap-2.5 rounded-full bg-ink pl-6 pr-2 text-[10px] font-bold uppercase tracking-[0.24em] text-cream transition-colors duration-300 hover:bg-crimson-bright sm:h-12 sm:pl-7 sm:text-[11px]"
             >
               Shop Now

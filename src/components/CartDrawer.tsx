@@ -3,6 +3,7 @@ import { ArrowRight, Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { formatEGP } from '../lib/format';
+import { requestSectionReveal } from '../lib/heroGate';
 
 export function CartDrawer() {
   const {
@@ -18,9 +19,12 @@ export function CartDrawer() {
 
   const exploreProducts = () => {
     closeDrawer();
-    window.setTimeout(() => {
-      document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
-    }, 120);
+    if (window.location.pathname !== '/') {
+      navigate('/');
+      window.setTimeout(() => requestSectionReveal('products'), 340);
+      return;
+    }
+    window.setTimeout(() => requestSectionReveal('products'), 120);
   };
 
   return (

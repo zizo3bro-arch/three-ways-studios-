@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingBag } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { requestSectionReveal } from '../lib/heroGate';
 
 export function Navbar() {
   const { itemCount, openDrawer } = useCart();
@@ -10,12 +11,11 @@ export function Navbar() {
 
   const scrollToId = useCallback(
     (id: string) => {
-      const jump = () => {
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      };
+      // The home page owns the hero lock, so we only declare intent.
+      const jump = () => requestSectionReveal(id);
       if (location.pathname !== '/') {
         navigate('/');
-        window.setTimeout(jump, 260);
+        window.setTimeout(jump, 320);
       } else {
         jump();
       }
