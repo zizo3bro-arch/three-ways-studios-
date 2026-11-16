@@ -1,93 +1,114 @@
 # THREE WAYS STUDIOS
 
-A production-ready storefront for **THREE WAYS STUDIOS** — a luxury editorial streetwear house engineered around architectural wide-flare pants. Modern-vintage luxury on a warm off-white (`#F5F2EB`) canvas, built to be short, sleek, and completely lag-free.
+The storefront for **THREE WAYS STUDIOS** — an independent Cairo fashion house built around architectural wide-flare denim. The site is one cinematic sequence on warm ivory paper: the campaign frame, a smouldering brand chapter, the collection, then the pieces. Not a Shopify template.
 
-## Key Features
-
-- **Archival-Paper Hero**
-  - Warm off-white (`#F5F2EB`) canvas with a static, lightweight SVG-grain paper feel.
-  - Giant deep-crimson ultra-condensed "THREE WAYS" titan type, layered with a sweeping charcoal Alex Brush calligraphic flourish and a sharp ultra-condensed charcoal center lockup.
-  - Minimalist editorial corner micro-labels, a `SHOP NOW` pill, and a scroll cue. Hero is capped at ~80vh so the interactive collection is immediately in reach.
-- **Frosted-Glass Pill Navigation**
-  - Centered frosted pill: Products · Information · Checkout, with a charcoal bag button and live item count.
-- **Interactive "Drop 01" Products Showcase (horizontal switcher)**
-  - One rounded full-width container with GPU-accelerated crossfades between two ambient radial backdrops:
-    - **The Midnight Wide-Flare** (navy) — `#0A1628` → `#152C4E` with a soft cool spotlight.
-    - **The Onyx Super-Flare** (black) — `#09090B` → `#18181B` with a silver/charcoal radial spotlight pool keeping the black fabric sharp.
-  - 3-column editorial layout: headline + 3-line blurb + `Get the look` pill CTA + socials · floating transparent garment with drop shadow and crossfade/slide switching · dynamic price, circular next-item arrow, `S / M / L / XL` size selector with active ring, and a tap-to-switch thumbnail of the other piece.
-  - Both garment images are preloaded in `index.html` and mounted once, so switching is instantaneous. Transitions use `transform`/`opacity` only — no real-time `filter: blur()` loops, no scroll listeners, fixed `aspect-ratio` stage (zero layout shift, 60fps).
-- **Focused Bottom — Information + Studio List**
-  - Hairline-divided off-white split section: refined studio `Information` on the left, `Name` + `Email` form with charcoal pill submit on the right (wired to the newsletter backend + `WELCOME10` welcome code).
-- **Cash on Delivery (COD) across Egypt**
-  - Backend-validated pricing, 10% email discount, atomic stock locking and decrement (PostgreSQL `SECURITY DEFINER` RPCs), followed by an order confirmation page.
-- **Private Admin Dashboard (`/admin`)**
-  - Products, inventory, orders, customers, discounts and site content — protected by Supabase Auth + `public.admin_users` RLS. Unchanged by the redesign.
-- **Performance-First Delivery**
-  - Code-splitting (admin, checkout, confirmation lazy-loaded), preloaded hero imagery, fixed aspect ratios, `React.memo`-free lightweight tree, and zero layout-shift switching — smooth 60fps scrolling on mobile and desktop.
+- Canvas: warm ivory `#F4F1E9` · plates: white `#FFFFFF` · ink `#16130F` · crimson `#BE1119`
+- Type: **Anton** (titan display) · **Alex Brush / Hurricane** (handwritten lockup) · **Newsreader** italic (editorial) · **Plus Jakarta Sans** (UI)
+- Motion: line-mask headline reveals, clip-path uncovers, slow parallax, two static blur passes for the spray paint — opacity + transform only, `prefers-reduced-motion` respected throughout
 
 ---
 
-## 1. Supabase Backend Setup
+## 1. The experience
 
-1. Create a new project at [supabase.com](https://supabase.com).
-2. Open the **SQL Editor** in your Supabase Dashboard and execute the full setup script:
-   - Copy and run `supabase/full_setup.sql` (or run `supabase/migrations/001_schema.sql` through `004_initial_config.sql` in order).
-   - This creates:
-     - Relational tables (`admin_users`, `products`, `product_images`, `product_variants`, `size_charts`, `customers`, `orders`, `order_items`, `discount_rules`, `discount_usage`, `newsletter_subscribers`, `site_settings`)
-     - Strict RLS policies (`public.is_admin()`)
-     - Backend RPCs (`quote_cod_order`, `create_cod_order`, `get_order_confirmation`, `admin_update_order_status`)
-     - Public `product-images` Storage bucket + admin-only upload/delete policies
-     - Default `EMAIL10` (10% email checkout discount rule) and `site_settings`
-3. **Create your Admin User**:
-   - In Supabase Dashboard → **Authentication → Users**, click **Add user** (email + strong password) and copy the generated User UUID.
-   - Run this SQL in the Supabase SQL Editor (replacing with your actual UUID and email):
-     ```sql
-     INSERT INTO public.admin_users (id, email, full_name, role)
-     VALUES ('YOUR-AUTH-USER-UUID', 'your-admin-email@example.com', 'Studio Admin', 'super_admin');
-     ```
-4. **Verify Storage**:
-   - In Supabase Dashboard → **Storage**, confirm the `product-images` bucket exists and is set to **Public**.
+| Section | What it does |
+| --- | --- |
+| **Hero — campaign frame** | Ivory paper, giant crimson **spray-painted `THREE WAYS`** (three stacked blur layers + overspray speckle, `mix-blend-mode: multiply` so the paint sits *in* the paper), the white handwritten `Three Ways Studios®™` signature with its flourish, minimal nav, `FASHION / BEYOND / LIMITS.` + scroll cue bottom-left, `NEW / COLLECTION / / 2026` + `SHOP NOW` pill bottom-right. Type is 19vw and bleeds to the edges on every breakpoint. |
+| **Chapter 01 — brand** | Full-screen cinematic statement (`WE CUT / THE LEG / LONG, WIDE / AND LOUD.`) over slow-moving red smoke. Line-by-line mask reveal, restrained drift, nothing else. |
+| **Chapter 02 — the collection** | The campaign plate uncovers with a clip-path wipe while the image breathes on scroll; title, short description, spec sheet, **DISCOVER THE COLLECTION** → `/collections`. |
+| **Chapter 03 — the pieces** | Only now the product: two monumental plates of the real studio photography, `S–XL` selection with live stock, quick add, save, and quick view. |
+| **Chapter 04 — the journal** | House writing, masthead layout, links to real entry pages. |
+| **Studio list** | Newsletter with validation + the `WELCOME10` code, wired to the real subscription path. |
 
----
+Interior pages: `/shop` (filter + sort), `/collections` and `/collections/:slug` (built from `products.collection_name`), `/product/:slug`, `/about` (manifesto, size table, service), `/journal`, `/journal/:slug`, `/checkout`, `/order-confirmation/:ref`, plus a designed 404.
 
-## 2. Local Development
+### Red smoke
 
-1. Clone the repository and install dependencies:
-   ```bash
-   npm install
-   ```
-2. Create a `.env` file from `.env.example` (never commit `.env` to GitHub):
-   ```bash
-   cp .env.example .env
-   ```
-   Fill in your Supabase project credentials:
-   ```env
-   VITE_SUPABASE_URL=https://your-project-id.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-   ```
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-4. Visit `http://localhost:5173` for the storefront and `http://localhost:5173/admin` to sign in and publish your women's pants collection.
+`SmokeField` composites the real smoke plate (`/media/red-smoke.jpg`) twice, multiply-blended and blurred, plus two crimson hazes. It is **section-scoped** (brand chapter at full strength, soft/low behind the collection and the studio list) — never a global tint. Animation is `transform` only; the blur is baked into the layer, so it costs nothing per frame, and the soft variant renders a single layer on mobile.
+
+### Fixed visual identity
+
+The palette is defined once in `@theme` and **no product data feeds it**:
+
+- `ColourChip` (`src/components/ui/ColourChip.tsx`) is the colour display element: a **permanently white** square with a hairline border, used identically on the plate, quick view, PDP, bag, checkout and receipt. The garment colour is communicated as **words** (`Midnight Navy`, `Onyx Black`), never as paint.
+- Selecting a piece or a size changes images and copy only — backgrounds, section colours and the swatch never change.
+- `color_hex` survives only as order/customer data (what the courier ticket needs); it is not read by any storefront component.
 
 ---
 
-## 3. Deploying to Vercel
+## 2. What this rebuild fixed
 
-1. Push this repository to GitHub (keep `.env` untracked).
-2. Go to [vercel.com](https://vercel.com) → **Add New Project** → import `zizo3bro-arch/three-ways-studios-`.
-3. Vercel automatically detects **Vite** and uses `vercel.json` for SPA client-side routing.
-4. Under **Environment Variables**, add:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-5. Click **Deploy**.
-6. In Supabase Dashboard → **Authentication → URL Configuration**, add your production Vercel URL to **Site URL** and **Redirect URLs**.
+The previous implementation had structural and functional problems; each is resolved rather than restyled:
+
+1. **Fake navigation** — `PRODUCTS · COLLECTIONS · ABOUT · CHECKOUT` were anchor-scroll buttons (Collections scrolled to a one-line strip, About scrolled to the newsletter form, Checkout did not belong in the nav). Now: four links to four real routes, plus a working `SHOP` menu.
+2. **Decorative icons** — Search and Account did `scrollIntoView`. Search now opens a real indexed overlay (pieces + journal + pages, arrow keys, Enter, no-results state, recent searches); Account opens saved pieces, the bag summary and an order lookup that calls the actual confirmation query.
+3. **Admin content was dead weight** — `site_settings.nav_links` was never read. Nav/footer links, hero copy, the collection label, newsletter text, tagline, copyright and socials are now consumed through `buildNavLinks` / `resolveNavPath`, which drops any path that does not resolve, so a bad setting cannot produce a dead link.
+4. **No product pages** — `fetchProductBySlug()` existed with related-product logic but no route used it. `/product/:slug` now uses the API layer, and quick view is URL-driven (`?piece=slug`) so it survives refresh and the Back button.
+5. **Product colour leaking into the interface** — swatches were `backgroundColor: colorway.hex` / `item.color_hex`. Replaced by the fixed white `ColourChip`.
+6. **Cart bug** — `addItem` set the `exceeded` flag *inside* the state updater and read it immediately after, so the "max stock added" message was unreliable. Stock and clamping are now computed synchronously from a ref mirror of the bag.
+7. **Global smoke + three different off-whites** — smoke painted every page (including checkout) and the canvas disagreed between `#e6e3dc`, `#e8e5df` and `#F5F2EB`. One ivory token now drives `html`, `body`, the layout and `theme-color`.
+8. **Dead code** — `AmbientSmoke`, `heroGate` (`HERO_UNLOCK_EVENT` unlock flow that unlocked nothing), `sizeFinder` (a second, unused size engine competing with `fitCalculator`), the unused `WishlistProvider`, and the `ProductDetailsView`/`ProductsSection` pair were removed; the wishlist provider is now actually consumed.
+9. **Wasted preloads** — `index.html` preloaded both 670 KB product PNGs at `fetchpriority=high` for a hero that no longer shows products. Removed; the hero paints with type + CSS only.
+10. **No mobile navigation** — the nav simply overflowed under 640 px. There is now a menu sheet with the same destinations, the bag count, search and account.
+11. **Broken links** — `/#products` targets (old InformationSection CTA, confirmation page CTA, empty-bag CTA) and settings defaults pointing at non-existent `/contact` are gone.
+12. **Checkout correctness** — added real field validation (Egyptian mobile pattern), per-field errors, and the delivery/shipping line is shown in the bag as well as at checkout, so `EGP 75 / free over 3,500` is never a surprise.
+13. **Accessibility** — skip link, one `<main>` per page, focus trap + focus restore + `Escape` in the shared `Overlay` (bag, search, account, menu, quick view), `aria-pressed`/`role="radio"` on size and save controls, `aria-live` add-to-bag toast, no interactive elements nested inside anchors.
+14. **Performance** — no animated filters, no per-frame `blur()`, no scroll listeners doing layout (parallax runs on a spring-mapped `useScroll`), lazy route chunks, `aspect-ratio` locked media boxes so nothing shifts, and `will-change` only where a transform is actually animated.
 
 ---
 
-## Security Notes
+## 3. Architecture
 
-- Never place the `SUPABASE_SERVICE_ROLE_KEY` in frontend code or `VITE_*` variables.
-- All price calculations, inventory checks, 10% email discount validation, and stock decrements execute inside PostgreSQL `SECURITY DEFINER` transactions.
-- Public visitors can only read published products and `site_settings`; private orders, customers, and discount rules are protected by strict RLS policies.
+```
+src/
+  App.tsx                     providers, routes, titles, scroll + skip link, shell overlays
+  components/
+    home/                     HeroSection · BrandChapter · FeaturedCollection · PiecesSection · JournalTeaser · StudioListSection
+    layout/                   Navbar · MobileMenu · SiteFooter · CartDrawer · SocialLinks · PageIntro
+    overlays/                 SearchOverlay · AccountPanel
+    shop/                     ProductPlate · QuickView · SizeRow (+ FindSizeModal)
+    ui/                       Overlay · Reveal · Parallax · SmokeField · SprayType · Emblem · ColourChip · ScrollProgress
+  context/                    Cart · Wishlist · Auth · SiteSettings · UI (overlay + quick view state)
+  data/                       demoProducts (real records) · catalog (editorial framing, sizes, images) · journal · navigation
+  hooks/                      useCatalog · useAddToBag
+  lib/                        api (quote/create/confirm) · format · fitCalculator · scrollLock · supabase · motion
+```
+
+Order flow is unchanged in substance: `quote_cod_order` → `create_cod_order` → `get_order_confirmation` PostgreSQL RPCs (pricing, 10% email privilege, promo validation, atomic stock locking) with a local-order fallback when Supabase is not configured, so the demo is fully clickable.
+
+Optional local check: `npx vite build -c vite.smoke.config.ts && node .smoke/smoke.mjs` renders every route through `react-dom/server` and asserts the expected markers (output is git-ignored).
+
+---
+
+## 4. Supabase backend setup
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. In the **SQL Editor**, run `supabase/full_setup.sql` (or `001_schema.sql` → `004_initial_config.sql` in order). This creates the tables (`products`, `product_images`, `product_variants`, `product_size_charts`, `customers`, `orders`, `order_items`, `discount_rules`, `discount_usage`, `newsletter_subscribers`, `site_settings`, `admin_users`), strict RLS via `public.is_admin()`, the COD RPCs, the public `product-images` bucket, and the default `EMAIL10` rule + `site_settings`.
+3. **Admin user** — Authentication → Users → *Add user*, copy the UUID, then:
+   ```sql
+   INSERT INTO public.admin_users (id, email, full_name, role)
+   VALUES ('YOUR-AUTH-USER-UUID', 'your-admin-email@example.com', 'Studio Admin', 'super_admin');
+   ```
+4. **Storage** — confirm the `product-images` bucket is **Public**.
+
+## 5. Local development
+
+```bash
+npm install
+cp .env.example .env        # never commit .env
+# VITE_SUPABASE_URL=…  VITE_SUPABASE_ANON_KEY=…
+npm run dev                 # storefront / · shop · collections · product · about · journal, dashboard at /admin
+npm run typecheck && npm run build
+```
+
+## 6. Deploying to Vercel
+
+1. Push the repository (keep `.env` untracked).
+2. Vercel → **Add New Project** → import `zizo3bro-arch/three-ways-studios-`; `vercel.json` handles SPA rewrites and security headers.
+3. Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+4. In Supabase → Authentication → URL Configuration, add the production URL to **Site URL** and **Redirect URLs**.
+
+## 7. Security notes
+
+- Never place `SUPABASE_SERVICE_ROLE_KEY` in frontend code or `VITE_*` variables.
+- Price maths, stock checks, discount validation and stock decrements run inside `SECURITY DEFINER` Postgres transactions.
+- Public visitors read only published products and `site_settings`; orders, customers and discount rules are RLS-protected.
