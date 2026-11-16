@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCallback } from 'react';
+import { requestSectionReveal } from '../lib/heroGate';
 
 export function SiteFooter() {
   const location = useLocation();
@@ -7,10 +8,10 @@ export function SiteFooter() {
 
   const scrollToId = useCallback(
     (id: string) => {
-      const jump = () => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+      const jump = () => requestSectionReveal(id);
       if (location.pathname !== '/') {
         navigate('/');
-        window.setTimeout(jump, 260);
+        window.setTimeout(jump, 320);
       } else {
         jump();
       }
@@ -20,17 +21,17 @@ export function SiteFooter() {
 
   return (
     <footer className="border-t border-ink/12 bg-cream text-ink">
-      <div className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-12">
-        <div className="flex flex-col items-center justify-between gap-6 sm:flex-row sm:gap-8">
+      <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:px-12">
+        <div className="flex flex-col items-center justify-between gap-5 sm:flex-row sm:gap-8">
           {/* Mini brand */}
           <Link to="/" aria-label="THREE WAYS STUDIOS — home" className="flex items-center gap-3">
             <img
               src="/assets/three-ways-studios-logo.png"
               alt=""
               aria-hidden="true"
-              width={40}
-              height={40}
-              className="h-10 w-10 object-contain drop-shadow-[0_1px_1px_rgba(20,18,16,0.4)]"
+              width={36}
+              height={36}
+              className="h-9 w-9 object-contain drop-shadow-[0_1px_1px_rgba(20,18,16,0.4)]"
             />
             <span className="leading-none">
               <span className="block font-display text-xs uppercase tracking-[0.05em] text-ink">
@@ -66,14 +67,9 @@ export function SiteFooter() {
             </Link>
           </nav>
 
-          <p className="text-[8px] font-semibold uppercase tracking-[0.3em] text-ink-faint">
-            Est. MMXXVI — Cairo
+          <p className="text-[9px] font-semibold uppercase tracking-[0.28em] text-ink-faint">
+            © {new Date().getFullYear()} Three Ways Studios · Cairo
           </p>
-        </div>
-
-        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-ink/10 pt-6 text-[9px] uppercase tracking-[0.22em] text-ink-faint sm:flex-row">
-          <p>© {new Date().getFullYear()} Three Ways Studios. All rights reserved.</p>
-          <p>COD Nationwide · Raw Selvedge · Drop 01 / 2026</p>
         </div>
       </div>
     </footer>

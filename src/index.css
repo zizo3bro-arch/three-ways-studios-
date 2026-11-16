@@ -26,6 +26,7 @@
   html {
     scroll-behavior: smooth;
     scroll-padding-top: 6.5rem;
+    scrollbar-gutter: stable;
     background-color: #f5f2eb;
     color: #201d1a;
     font-family: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -66,6 +67,15 @@
 /* =========================================================
    HERO — layered editorial typography (static paint layers)
    ========================================================= */
+.tws-hero-title {
+  /* Scales with width and viewport height so the locked gate always fits. */
+  font-size: clamp(2.1rem, min(10.5vw, 13vh), 11.25rem);
+}
+
+.tws-hero-script {
+  font-size: clamp(1.6rem, min(7.6vw, 9vh), 6.75rem);
+}
+
 .tws-hero-word {
   color: #a91420;
   letter-spacing: -0.015em;
@@ -111,29 +121,117 @@
   background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.28) 45%, transparent 78%);
 }
 
-.tws-pants-shadow {
-  filter: drop-shadow(0 34px 44px rgba(0, 0, 0, 0.52)) drop-shadow(0 6px 14px rgba(0, 0, 0, 0.38));
+/* =========================================================
+   HERO GATE — the first screen stays locked until "Shop Now"
+   ========================================================= */
+.tws-hero-locked {
+  height: 100svh;
+  overflow: hidden;
 }
 
-.tws-pants-shadow-light {
-  filter: drop-shadow(0 34px 48px rgba(0, 0, 0, 0.65))
-    drop-shadow(0 0 64px rgba(226, 232, 240, 0.22));
+html.tws-scroll-locked {
+  overflow: hidden !important;
+  overscroll-behavior: none;
 }
 
-.tws-pants-stage {
-  opacity: 0;
-  transform: translate3d(7%, 2.5%, 0) scale(0.96);
-  transition:
-    opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform, opacity;
+html.tws-scroll-locked body {
+  overflow: hidden !important;
+}
+
+/* =========================================================
+   SWIPEABLE GARMENT STAGE — transform-only, GPU friendly
+   ========================================================= */
+.tws-swipe-stage {
+  -webkit-tap-highlight-color: transparent;
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.tws-swipe-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.tws-swipe-stage.is-dragging .tws-swipe-slide img {
+  /* Kill hover/scroll jank mid-gesture; nothing but the track moves. */
   pointer-events: none;
 }
 
-.tws-pants-stage[data-active="true"] {
-  opacity: 1;
-  transform: translate3d(0, 0, 0) scale(1);
-  pointer-events: auto;
+.tws-swipe-track {
+  display: flex;
+  width: 200%;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.tws-swipe-slide {
+  flex: 0 0 50%;
+  width: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tws-swipe-slide img {
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* =========================================================
+   PRODUCT DETAILS / FIND SIZE OVERLAYS
+   ========================================================= */
+@keyframes tws-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tws-fade-in {
+  animation: tws-fade-in 0.28s ease-out both;
+}
+
+@keyframes tws-panel-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.tws-panel-in {
+  animation: tws-panel-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes tws-sheet-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 32px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.tws-sheet-in {
+  animation: tws-sheet-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Accordion — grid row trick keeps the height transition smooth */
+.tws-accordion-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.tws-accordion-grid[data-open="true"] {
+  grid-template-rows: 1fr;
 }
 
 
@@ -178,7 +276,15 @@
   .tws-swap-in {
     animation: none;
   }
-  .tws-pants-stage {
+  .tws-swipe-track {
+    transition-duration: 0.01ms !important;
+  }
+  .tws-fade-in,
+  .tws-panel-in,
+  .tws-sheet-in {
+    animation-duration: 0.01ms;
+  }
+  .tws-accordion-grid {
     transition-duration: 0.01ms;
   }
 }
