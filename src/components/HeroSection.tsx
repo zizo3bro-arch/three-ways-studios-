@@ -8,114 +8,235 @@ export function HeroSection({ onShopNow }: HeroSectionProps) {
   return (
     <section
       id="top"
-      aria-label="THREE WAYS STUDIOS — introduction"
-      className="tws-paper relative flex h-[100svh] flex-col overflow-hidden"
+      aria-label="Three Ways Studios — Fashion Beyond Limits"
+      className="relative flex min-h-[100svh] w-full flex-col justify-between overflow-hidden pt-20 sm:pt-24"
     >
-      {/* Static archival grain */}
+      {/* Subtle static surface scuffs & concrete grain */}
       <div aria-hidden="true" className="tws-grain pointer-events-none absolute inset-0" />
 
-      <div className="relative mx-auto flex h-full w-full max-w-[1600px] flex-col px-5 pb-5 pt-[4.75rem] sm:px-8 sm:pb-6 sm:pt-24 lg:px-12">
-        {/* ——— Top editorial micro-labels ——— */}
-        <div className="flex items-start justify-between text-[8px] font-bold uppercase leading-relaxed tracking-[0.3em] text-ink-soft sm:text-[9px]">
-          <p>
-            Est. MMXXVI
-            <span className="block text-ink-faint">Cairo — Egypt</span>
-          </p>
-          <p className="text-right">
-            Drop 01 / 2026
-            <span className="block text-ink-faint">Wide-Flare Denim</span>
-          </p>
-        </div>
+      {/* ——— CENTERpiece: Giant spray-painted red THREE WAYS + crisp white handwritten script ——— */}
+      <div className="relative mx-auto flex w-full max-w-[1680px] flex-1 items-center justify-center px-2 py-8 sm:px-6 lg:px-10">
+        <h1 className="sr-only">Three Ways Studios — Fashion Beyond Limits</h1>
 
-        {/* ——— Center stack: crimson titan + charcoal script ——— */}
-        <div className="relative flex flex-1 flex-col items-center justify-center py-4 sm:py-6">
-          <h1
-            aria-label="THREE WAYS STUDIOS"
-            className="select-none text-center font-display uppercase"
-          >
-            <span
-              aria-hidden="true"
-              className="tws-hero-word tws-hero-title block whitespace-nowrap"
-            >
-              THREE WAYS
-            </span>
-          </h1>
-
-          {/* Sweeping charcoal calligraphic flourish across the titan type */}
-          <p
+        <div className="relative flex w-full items-center justify-center select-none">
+          {/* Spray-painted crimson stencil letters */}
+          <svg
             aria-hidden="true"
-            className="tws-script-ink pointer-events-none absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-script"
+            viewBox="0 0 1600 580"
+            preserveAspectRatio="xMidYMid meet"
+            className="h-auto w-full max-w-[1580px] overflow-visible"
           >
-            <span className="tws-hero-script block rotate-[-4deg] leading-none">
-              Three Ways Studios
-              <sup className="ml-1 align-super font-sans text-[0.16em] font-medium tracking-normal">
-                ®
-              </sup>
-            </span>
+            <defs>
+              {/* Authentic aerosol spray edge + paint overspray halo + fine speckle */}
+              <filter
+                id="tws-spray-paint"
+                x="-10%"
+                y="-18%"
+                width="120%"
+                height="136%"
+                colorInterpolationFilters="sRGB"
+              >
+                {/* Outer crimson aerosol mist */}
+                <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="mistOuter" />
+                <feColorMatrix
+                  in="mistOuter"
+                  type="matrix"
+                  values="1 0 0 0 0.06
+                          0 1 0 0 0
+                          0 0 1 0 0
+                          0 0 0 0.58 0"
+                  result="mistSoft"
+                />
+
+                {/* Organic edge roughening for spray stencil */}
+                <feTurbulence
+                  type="fractalNoise"
+                  baseFrequency="0.042 0.055"
+                  numOctaves="3"
+                  seed="17"
+                  result="edgeNoise"
+                />
+                <feDisplacementMap
+                  in="SourceGraphic"
+                  in2="edgeNoise"
+                  scale="15"
+                  xChannelSelector="R"
+                  yChannelSelector="G"
+                  result="roughened"
+                />
+                <feGaussianBlur in="roughened" stdDeviation="4.2" result="coreSoft" />
+
+                {/* Merge outer mist + dense crimson core */}
+                <feMerge result="paintBase">
+                  <feMergeNode in="mistSoft" />
+                  <feMergeNode in="coreSoft" />
+                </feMerge>
+
+                {/* Fine surface grit / concrete bleed-through inside the red paint */}
+                <feTurbulence
+                  type="fractalNoise"
+                  baseFrequency="0.75"
+                  numOctaves="2"
+                  seed="5"
+                  result="fineGrit"
+                />
+                <feColorMatrix
+                  in="fineGrit"
+                  type="matrix"
+                  values="0 0 0 0 0.56
+                          0 0 0 0 0.02
+                          0 0 0 0 0.04
+                          0 0 0 0.24 0.84"
+                  result="gritAlpha"
+                />
+                <feComposite in="paintBase" in2="gritAlpha" operator="in" result="texturedPaint" />
+                <feBlend in="paintBase" in2="texturedPaint" mode="multiply" />
+              </filter>
+
+              <linearGradient id="tws-crimson-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#9e0c14" />
+                <stop offset="48%" stopColor="#89070e" />
+                <stop offset="100%" stopColor="#72040a" />
+              </linearGradient>
+            </defs>
+
+            {/* Giant condensed red spray-painted letters */}
+            <g filter="url(#tws-spray-paint)">
+              <text
+                x="390"
+                y="455"
+                textAnchor="middle"
+                fill="url(#tws-crimson-grad)"
+                fontFamily="Anton, Impact, sans-serif"
+                fontSize="430"
+                letterSpacing="-4"
+                textLength="680"
+                lengthAdjust="spacingAndGlyphs"
+              >
+                THREE
+              </text>
+              <text
+                x="1195"
+                y="455"
+                textAnchor="middle"
+                fill="url(#tws-crimson-grad)"
+                fontFamily="Anton, Impact, sans-serif"
+                fontSize="430"
+                letterSpacing="-4"
+                textLength="710"
+                lengthAdjust="spacingAndGlyphs"
+              >
+                WAYS
+              </text>
+            </g>
+
+            {/* Subtle vintage concrete scratch lines across the paint */}
+            <g stroke="#e6e3dc" strokeOpacity="0.24" strokeLinecap="round" fill="none">
+              <path d="M260 150 L278 245" strokeWidth="1.2" />
+              <path d="M685 128 L668 232" strokeWidth="1.1" />
+              <path d="M1118 168 L1138 290" strokeWidth="1.2" />
+              <path d="M1365 210 L1348 345" strokeWidth="1" />
+            </g>
+          </svg>
+
+          {/* Crisp white handwritten script overlay + flourish underline */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          >
+            <div className="relative -mt-1 -rotate-[6deg] px-4 sm:-mt-2">
+              <span
+                className="block whitespace-nowrap font-script text-[clamp(3.1rem,11.2vw,10.6rem)] leading-[0.86] tracking-[0.01em] text-[#fbfaf7]"
+                style={{
+                  textShadow:
+                    '0 2px 14px rgba(55, 4, 8, 0.42), 0 1px 2px rgba(35, 3, 6, 0.55)',
+                }}
+              >
+                Three Ways Studios
+              </span>
+
+              {/* Registered marks stacked near the end of Studios, matching the reference */}
+              <span className="absolute -right-1 top-[26%] flex flex-col gap-1.5 text-[9px] font-semibold leading-none text-[#fbfaf7]/95 sm:-right-3 sm:top-[28%] sm:text-[13px]">
+                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#fbfaf7]/85 text-[7px] sm:h-5 sm:w-5 sm:text-[10px]">
+                  R
+                </span>
+                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-[#fbfaf7]/85 text-[7px] sm:h-5 sm:w-5 sm:text-[9px]">
+                  TM
+                </span>
+              </span>
+
+              {/* Handwritten white flourish underline beneath "Studios" */}
+              <svg
+                viewBox="0 0 420 58"
+                fill="none"
+                className="ml-auto -mt-2 mr-1 w-[46%] overflow-visible sm:-mt-4 sm:mr-2"
+              >
+                <path
+                  d="M8 48 C 122 25, 268 11, 412 4"
+                  stroke="#fbfaf7"
+                  strokeWidth="3.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ——— BOTTOM CORNERS: Left tagline + Scroll Down | Right Collection + Shop Now pill ——— */}
+      <div className="relative mx-auto flex w-full max-w-[1640px] items-end justify-between gap-6 px-5 pb-7 sm:px-8 sm:pb-10 lg:px-12">
+        {/* Bottom-left: FASHION BEYOND LIMITS. + vertical hairline + circular SCROLL DOWN */}
+        <div className="flex flex-col items-start">
+          <p className="text-[12px] font-extrabold uppercase leading-[1.12] tracking-[0.04em] text-ink sm:text-[15px]">
+            FASHION
+            <br />
+            BEYOND
+            <br />
+            LIMITS.
           </p>
 
-          {/* Sharp ultra-condensed charcoal center lockup */}
-          <div className="mt-4 flex items-center gap-3 sm:mt-7 sm:gap-5">
-            <span aria-hidden="true" className="h-px w-10 bg-ink/35 sm:w-20" />
-            <p className="font-display text-[10px] uppercase tracking-[0.58em] text-ink sm:text-xs lg:text-sm">
-              Three Ways Studios
-            </p>
-            <span aria-hidden="true" className="h-px w-10 bg-ink/35 sm:w-20" />
-          </div>
-          <p className="mt-2 text-[8px] font-semibold uppercase tracking-[0.42em] text-crimson sm:text-[9px]">
-            Fashion Beyond Limits
-          </p>
+          <span
+            aria-hidden="true"
+            className="my-3.5 ml-[17px] block h-9 w-[1.25px] bg-ink/65 sm:my-4 sm:ml-[19px] sm:h-12"
+          />
+
+          <button
+            type="button"
+            onClick={onShopNow}
+            aria-label="Scroll down to products"
+            className="group inline-flex items-center gap-3.5 text-left"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full border border-ink/75 text-ink transition-colors duration-200 group-hover:border-crimson-bright group-hover:bg-crimson-bright group-hover:text-white sm:h-10 sm:w-10">
+              <ArrowDown className="tws-scroll-cue h-4 w-4" strokeWidth={1.8} />
+            </span>
+            <span className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-ink transition-colors duration-200 group-hover:text-crimson-bright sm:text-[11px]">
+              SCROLL DOWN
+            </span>
+          </button>
         </div>
 
-        {/* ——— Bottom corner micro-labels ——— */}
-        <div className="flex items-end justify-between gap-4">
-          {/* Bottom-left: tagline + scroll cue */}
-          <div className="flex items-end gap-4 sm:gap-5">
-            <p className="font-display text-[11px] uppercase leading-[1.05] tracking-[0.06em] text-ink sm:text-sm">
-              Fashion
-              <br />
-              Beyond
-              <br />
-              Limits.
-            </p>
-            <span aria-hidden="true" className="hidden h-12 w-px bg-ink/25 sm:block" />
-            <button
-              type="button"
-              onClick={onShopNow}
-              aria-label="Enter the drop and see the products"
-              className="group flex flex-col items-center gap-2"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-full border border-ink/30 text-ink transition-colors duration-300 group-hover:border-crimson-bright group-hover:bg-crimson-bright group-hover:text-cream">
-                <ArrowDown className="tws-scroll-cue h-4 w-4" strokeWidth={2} />
-              </span>
-              <span className="text-[7px] font-bold uppercase tracking-[0.3em] text-ink-soft sm:text-[8px]">
-                Scroll Down
-              </span>
-            </button>
-          </div>
+        {/* Bottom-right: NEW COLLECTION / 2026 + solid dark pill SHOP NOW → */}
+        <div className="flex flex-col items-end text-right">
+          <p className="text-[12px] font-extrabold uppercase leading-[1.15] tracking-[0.04em] text-ink sm:text-[15px]">
+            NEW
+            <br />
+            COLLECTION
+            <br />
+            / 2026
+          </p>
 
-          {/* Bottom-right: drop label + pill CTA */}
-          <div className="flex flex-col items-end gap-3 text-right">
-            <p className="font-display text-[11px] uppercase leading-[1.05] tracking-[0.06em] text-ink sm:text-sm">
-              New
-              <br />
-              Collection
-              <span className="mt-1 block text-[9px] tracking-[0.28em] text-ink-soft">
-                / 2026
-              </span>
-            </p>
-            <button
-              type="button"
-              onClick={onShopNow}
-              aria-label="Shop now — enter the drop"
-              className="group inline-flex h-11 items-center gap-2.5 rounded-full bg-ink pl-6 pr-2 text-[10px] font-bold uppercase tracking-[0.24em] text-cream transition-colors duration-300 hover:bg-crimson-bright sm:h-12 sm:pl-7 sm:text-[11px]"
-            >
-              Shop Now
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cream text-ink transition-transform duration-300 group-hover:translate-x-0.5">
-                <ArrowRight className="h-4 w-4" strokeWidth={2} />
-              </span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onShopNow}
+            aria-label="Shop now — scroll to products"
+            className="group mt-4 inline-flex h-12 items-center justify-between gap-6 rounded-full bg-[#111010] px-7 text-[11px] font-bold uppercase tracking-[0.1em] text-white shadow-[0_10px_28px_rgba(17,16,16,0.22)] transition-colors duration-200 hover:bg-crimson-bright sm:mt-5 sm:h-14 sm:min-w-[218px] sm:px-8 sm:text-[12px]"
+          >
+            <span>SHOP NOW</span>
+            <ArrowRight
+              className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
+              strokeWidth={1.9}
+            />
+          </button>
         </div>
       </div>
     </section>

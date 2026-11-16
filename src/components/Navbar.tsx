@@ -1,92 +1,141 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingBag } from 'lucide-react';
+import { ChevronDown, Search, ShoppingBag, User } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { requestSectionReveal } from '../lib/heroGate';
 
 export function Navbar() {
   const { itemCount, openDrawer } = useCart();
   const location = useLocation();
   const navigate = useNavigate();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const next = window.scrollY > 36;
+      setScrolled((prev) => (prev === next ? prev : next));
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const scrollToId = useCallback(
     (id: string) => {
-      // The home page owns the hero lock, so we only declare intent.
-      const jump = () => requestSectionReveal(id);
       if (location.pathname !== '/') {
-        navigate('/');
-        window.setTimeout(jump, 320);
-      } else {
-        jump();
+        navigate(`/#${id}`);
+        return;
+      }
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     },
     [location.pathname, navigate]
   );
 
   const linkClass =
-    'text-[9px] font-bold uppercase tracking-[0.24em] text-ink-soft transition-colors duration-200 hover:text-crimson-bright sm:text-[10px] sm:tracking-[0.28em]';
+    'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-ink transition-colors duration-200 hover:text-crimson-bright sm:text-[11px] sm:tracking-[0.16em]';
 
   return (
-    <header className="pointer-events-none fixed inset-x-0 top-3 z-40 flex justify-center px-3 sm:top-5">
+    <header
+      className={[
+        'fixed inset-x-0 top-0 z-40 transition-colors duration-300',
+        scrolled
+          ? 'border-b border-ink/10 bg-[#e6e3dc]/86 backdrop-blur-md'
+          : 'bg-transparent',
+      ].join(' ')}
+    >
       <nav
         aria-label="Primary navigation"
-        className="pointer-events-auto flex h-14 items-center gap-4 rounded-full border border-ink/10 bg-[#f5f2eb]/78 pl-2 pr-2 shadow-[0_12px_44px_rgba(20,18,16,0.16),inset_0_1px_0_rgba(255,255,255,0.8)] backdrop-blur-xl backdrop-saturate-150 sm:h-16 sm:gap-8 sm:pl-3 sm:pr-3"
+        className="mx-auto flex h-20 w-full max-w-[1640px] items-center justify-between px-4 sm:h-24 sm:px-8 lg:px-12"
       >
-        {/* Brand mark */}
+        {/* Left: Emblem + handwritten script brand mark */}
         <Link
           to="/"
-          aria-label="THREE WAYS STUDIOS — home"
-          className="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-1 transition-transform duration-200 hover:scale-[1.03] active:scale-[0.98] sm:gap-3 sm:pl-1.5 sm:pr-2"
+          aria-label="Three Ways Studios — home"
+          className="group flex items-center gap-2 sm:gap-3"
         >
           <img
             src="/assets/three-ways-studios-logo.png"
             alt=""
             aria-hidden="true"
-            className="h-10 w-10 object-contain drop-shadow-[0_1px_1px_rgba(20,18,16,0.45)] sm:h-12 sm:w-12"
-            width={48}
-            height={48}
+            width={58}
+            height={66}
+            className="h-12 w-auto object-contain transition-transform duration-200 group-hover:scale-[1.03] sm:h-15"
           />
-          <span className="hidden flex-col leading-none min-[420px]:flex">
-            <span className="font-display text-[12px] uppercase leading-[0.95] tracking-[0.04em] text-ink sm:text-[13px]">
-              Three Ways
+          <span className="relative -mt-0.5 hidden select-none min-[380px]:inline-block">
+            <span className="block -rotate-2 font-script text-[1.65rem] leading-none tracking-normal text-ink sm:text-[2.15rem]">
+              Three Ways Studios
+              <sup className="ml-0.5 align-super font-sans text-[7px] font-bold tracking-normal">
+                ®
+              </sup>
             </span>
-            <span className="mt-1 text-[8px] font-bold uppercase tracking-[0.52em] text-crimson sm:text-[9px]">
-              Studios
-            </span>
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -bottom-0.5 right-0 h-[1.5px] w-[42%] -rotate-3 rounded-full bg-ink/85"
+            />
           </span>
         </Link>
 
-        <span aria-hidden="true" className="hidden h-6 w-px bg-ink/15 sm:block" />
-
-        {/* Section links */}
-        <div className="flex items-center gap-3.5 sm:gap-6">
-          <button type="button" onClick={() => scrollToId('products')} className={linkClass}>
-            Products
+        {/* Center: Editorial navigation links */}
+        <div className="flex items-center gap-4 sm:gap-8 lg:gap-10">
+          <button
+            type="button"
+            onClick={() => scrollToId('products')}
+            className={linkClass}
+          >
+            <span>Products</span>
+            <ChevronDown className="h-3 w-3 opacity-80" strokeWidth={2.2} />
           </button>
-          <button type="button" onClick={() => scrollToId('information')} className={linkClass}>
-            Information
+          <button
+            type="button"
+            onClick={() => scrollToId('collection-strip')}
+            className={`${linkClass} hidden md:inline-flex`}
+          >
+            Collections
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToId('information')}
+            className={linkClass}
+          >
+            About
           </button>
           <Link to="/checkout" className={linkClass}>
             Checkout
           </Link>
         </div>
 
-        <span aria-hidden="true" className="h-6 w-px bg-ink/15" />
-
-        {/* Bag */}
-        <button
-          type="button"
-          onClick={openDrawer}
-          aria-label={`Open shopping bag, ${itemCount} ${itemCount === 1 ? 'item' : 'items'}`}
-          className="relative flex h-10 w-10 items-center justify-center rounded-full bg-ink text-cream transition-transform duration-200 hover:scale-105 active:scale-95 sm:h-11 sm:w-11"
-        >
-          <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.8} />
-          {itemCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-crimson-bright px-1 text-[9px] font-bold text-cream ring-2 ring-[#f5f2eb]">
+        {/* Right: Search, Account/Studio List, Bag + counter */}
+        <div className="flex items-center gap-3.5 sm:gap-5">
+          <button
+            type="button"
+            onClick={() => scrollToId('products')}
+            aria-label="Explore products"
+            className="hidden text-ink transition-colors duration-200 hover:text-crimson-bright sm:inline-flex"
+          >
+            <Search className="h-[19px] w-[19px]" strokeWidth={1.7} />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToId('information')}
+            aria-label="Join the Studio List"
+            className="hidden text-ink transition-colors duration-200 hover:text-crimson-bright sm:inline-flex"
+          >
+            <User className="h-[19px] w-[19px]" strokeWidth={1.7} />
+          </button>
+          <button
+            type="button"
+            onClick={openDrawer}
+            aria-label={`Open shopping bag, ${itemCount} ${itemCount === 1 ? 'item' : 'items'}`}
+            className="inline-flex items-center gap-1.5 text-ink transition-colors duration-200 hover:text-crimson-bright"
+          >
+            <ShoppingBag className="h-[19px] w-[19px]" strokeWidth={1.7} />
+            <span className="text-[11px] font-bold tabular-nums tracking-tight text-ink">
               {itemCount}
             </span>
-          )}
-        </button>
+          </button>
+        </div>
       </nav>
     </header>
   );

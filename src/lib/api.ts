@@ -1,9 +1,34 @@
 import { DEMO_PRODUCTS } from '../data/demoProducts';
 import { isSupabaseConfigured, supabase } from './supabase';
-import type { Product, ProductImage, ProductVariant, SizeChartRow } from '../types/database';
+import type {
+  OrderConfirmationData,
+  OrderItem,
+  Product,
+  ProductImage,
+  ProductVariant,
+  QuoteResponse,
+  SizeChartRow,
+} from '../types/database';
 
 const LOCAL_ORDERS_KEY = 'tws_local_orders_v1';
 const LOCAL_NEWSLETTER_KEY = 'tws_newsletter_emails_v1';
+export const STANDARD_SHIPPING_EGP = 75;
+export const FREE_SHIPPING_THRESHOLD_EGP = 3500;
+
+function lookupDemoVariant(variantId: string) {
+  for (const product of DEMO_PRODUCTS) {
+    const variant = product.variants?.find((v) => v.id === variantId);
+    if (variant) {
+      return { product, variant };
+    }
+  }
+  return null;
+}
+
+export function calculateShippingCost(subtotal: number): number {
+  if (subtotal <= 0) return 0;
+  return subtotal >= FREE_SHIPPING_THRESHOLD_EGP ? 0 : STANDARD_SHIPPING_EGP;
+}
 
 export async function fetchPublishedProducts(): Promise<{
   products: Product[];
@@ -121,50 +146,69 @@ export async function quoteCodOrder(params: {
   email?: string;
   discountCode?: string | null;
   promoCode?: string | null;
-}) {
-  const gov = params.governorate || 'Cairo';
-  const subtotal = params.items.reduce((sum, item) => sum + (item.unit_price ?? 2500) * item.quantity, 0);
-  const shippingCost = subtotal >= 3500 ? 0 : gov.toLowerCase().includes('cairo') || gov.toLowerCase().includes('giza') ? 75 : 110;
+}): Promise<{ quote: QuoteResponse; error: string | null }> {
+  const quoteItems = params.items.map((item) => {
+    const demo = lookupDemoVariant(item.variant_id);
+    const unitPrice = demo?.product.price ?? item.unit_price ?? 2650;
+    return {
+      variant_id: item.variant_id,
+      product_id: demo?.product.id ?? '',
+      product_name: demo?.product.name ?? 'THREE WAYS STUDIOS Piece',
+      product_slug: demo?.product.slug ?? '',
+      product_image: demo?.product.images?.[0]?.url ?? null,
+      color_name: demo?.variant.color_name ?? 'Onyx Black',
+      color_hex: demo?.variant.color_hex ?? '#09090b',
+      size_name: demo?.variant.size_name ?? 'M',
+      quantity: item.quantity,
+      available_stock: demo?.variant.stock_quantity ?? 10,
+      unit_price: unitPrice,
+      line_total: unitPrice * item.quantity,
+    };
+  });
+
+  const subtotal = quoteItems.reduce((sum, item) => sum + item.line_total, 0);
+  const shippingCost = calculateShippingCost(subtotal);
+  const cleanEmail = (params.email ?? '').trim().toLowerCase();
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+  const emailDiscountPercent = isEmailValid && subtotal > 0 ? 10 : 0;
+  const emailDiscountAmount = emailDiscountPercent > 0 ? Math.round(subtotal * 0.1) : 0;
+
   const normalizedCode = (params.discountCode ?? params.promoCode)?.trim().toUpperCase() || '';
   const isWelcomeCode = normalizedCode === 'WELCOME10' || normalizedCode === 'TWS10';
-  const localDiscount = isWelcomeCode ? Math.round(subtotal * 0.1) : 0;
-  const fallbackQuote = {
+  const promoError =
+    normalizedCode && !isWelcomeCode ? 'Invalid or inactive promo code.' : null;
+  const promoDiscountPercent = isWelcomeCode ? 10 : 0;
+  const promoDiscountAmount = isWelcomeCode
+    ? Math.round(Math.max(0, subtotal - emailDiscountAmount) * 0.1)
+    : 0;
+
+  const discountTotal = Math.min(subtotal, emailDiscountAmount + promoDiscountAmount);
+  const finalTotal = Math.max(0, subtotal - discountTotal + shippingCost);
+
+  const fallbackQuote: QuoteResponse = {
     valid: true,
-    stock_errors: [] as string[],
+    stock_errors: [],
+    items: quoteItems,
     subtotal,
-    discount_amount: localDiscount,
     shipping_cost: shippingCost,
-    total: Math.max(0, subtotal - localDiscount + shippingCost),
-    discount_valid: isWelcomeCode,
-    email_discount_applied: false,
-    email_discount_percent: 0,
-    email_discount_amount: 0,
-    promo_discount_applied: isWelcomeCode,
-    promo_code: isWelcomeCode ? normalizedCode : null,
-    promo_discount_percent: isWelcomeCode ? 10 : 0,
-    promo_discount_amount: localDiscount,
-    promo_code_applied: isWelcomeCode ? normalizedCode : '',
-    promo_error: null as string | null,
-    discount_total: localDiscount,
-    final_total: Math.max(0, subtotal - localDiscount + shippingCost),
-    free_shipping_threshold: 3500,
-    items: params.items.map((i) => ({
-      variant_id: i.variant_id,
-      product_id: '',
-      product_name: 'THREE WAYS STUDIOS Piece',
-      product_slug: '',
-      product_image: null as string | null,
-      color_name: 'Obsidian',
-      color_hex: '#0c0a0b',
-      size_name: 'M',
-      quantity: i.quantity,
-      available_stock: 10,
-      unit_price: i.unit_price ?? 2500,
-      line_total: (i.unit_price ?? 2500) * i.quantity,
-    })),
+    email_discount_applied: emailDiscountAmount > 0,
+    email_discount_percent: emailDiscountPercent,
+    email_discount_amount: emailDiscountAmount,
+    promo_code_applied: isWelcomeCode ? normalizedCode : null,
+    promo_discount_percent: promoDiscountPercent,
+    promo_discount_amount: promoDiscountAmount,
+    promo_error: promoError,
+    discount_total: discountTotal,
+    final_total: finalTotal,
   };
 
   if (!isSupabaseConfigured || !supabase) {
+    return { quote: fallbackQuote, error: null };
+  }
+
+  // Only query Supabase RPC when variant IDs are database UUIDs (not demo-* IDs)
+  const hasDemoIds = params.items.some((i) => !/^[0-9a-f-]{36}$/i.test(i.variant_id));
+  if (hasDemoIds) {
     return { quote: fallbackQuote, error: null };
   }
 
@@ -174,15 +218,24 @@ export async function quoteCodOrder(params: {
         variant_id: item.variant_id,
         quantity: item.quantity,
       })),
-      p_governorate: params.governorate,
-      p_discount_code: (params.discountCode ?? params.promoCode)?.trim() || null,
+      p_email: params.email?.trim() || null,
+      p_promo_code: (params.discountCode ?? params.promoCode)?.trim() || null,
     });
 
     if (error || !data) {
       return { quote: fallbackQuote, error: null };
     }
 
-    return { quote: data as typeof fallbackQuote, error: null };
+    const rpcQuote = data as QuoteResponse;
+    const rpcShipping = rpcQuote.shipping_cost ?? calculateShippingCost(rpcQuote.subtotal);
+    return {
+      quote: {
+        ...rpcQuote,
+        shipping_cost: rpcShipping,
+        final_total: Math.max(0, rpcQuote.subtotal - rpcQuote.discount_total + rpcShipping),
+      },
+      error: null,
+    };
   } catch {
     return { quote: fallbackQuote, error: null };
   }
@@ -199,7 +252,7 @@ export async function createCodOrder(params: {
   discountCode?: string | null;
   promoCode?: string | null;
   items: Array<{ variant_id: string; quantity: number; unit_price?: number }>;
-}) {
+}): Promise<{ order: OrderConfirmationData | null; error: string | null }> {
   const effectiveCode = params.discountCode ?? params.promoCode ?? null;
   const { quote } = await quoteCodOrder({
     items: params.items,
@@ -208,7 +261,9 @@ export async function createCodOrder(params: {
     discountCode: effectiveCode,
   });
 
-  if (isSupabaseConfigured && supabase) {
+  const hasDemoIds = params.items.some((i) => !/^[0-9a-f-]{36}$/i.test(i.variant_id));
+
+  if (isSupabaseConfigured && supabase && !hasDemoIds) {
     try {
       const { data, error } = await supabase.rpc('create_cod_order', {
         p_full_name: params.fullName.trim(),
@@ -218,39 +273,67 @@ export async function createCodOrder(params: {
         p_city: params.city.trim(),
         p_address: params.address.trim(),
         p_notes: params.notes?.trim() || '',
-        p_discount_code: effectiveCode?.trim() || null,
         p_items: params.items.map((item) => ({
           variant_id: item.variant_id,
           quantity: item.quantity,
         })),
+        p_promo_code: effectiveCode?.trim() || null,
       });
 
       if (!error && data) {
-        return { order: data, error: null };
+        const rpcOrder = data as OrderConfirmationData;
+        const shippingCost = rpcOrder.shipping_cost ?? calculateShippingCost(rpcOrder.subtotal);
+        return {
+          order: {
+            ...rpcOrder,
+            shipping_cost: shippingCost,
+            total_amount: rpcOrder.total_amount + (rpcOrder.shipping_cost !== undefined ? 0 : shippingCost),
+          },
+          error: null,
+        };
       }
     } catch {
-      // Fallback to local order persistence if RPC fails (e.g. demo products)
+      // Fallback to local order persistence if RPC fails
     }
   }
 
-  const orderNumber = `TWS-${Math.floor(100000 + Math.random() * 900000)}`;
-  const orderRecord = {
-    order_number: orderNumber,
-    full_name: params.fullName.trim(),
-    email: params.email.trim(),
-    phone: params.phone.trim(),
+  const orderRef = `TWS-${Math.floor(100000 + Math.random() * 900000)}`;
+  const orderItems: OrderItem[] = quote.items.map((qi) => ({
+    variant_id: qi.variant_id,
+    product_id: qi.product_id || null,
+    product_name: qi.product_name,
+    product_slug: qi.product_slug || null,
+    product_image: qi.product_image,
+    color_name: qi.color_name,
+    color_hex: qi.color_hex,
+    size_name: qi.size_name,
+    unit_price: qi.unit_price,
+    quantity: qi.quantity,
+    line_total: qi.line_total,
+  }));
+
+  const shippingCost = quote.shipping_cost ?? calculateShippingCost(quote.subtotal);
+  const orderRecord: OrderConfirmationData = {
+    order_id: orderRef,
+    order_reference: orderRef,
+    customer_name: params.fullName.trim(),
+    customer_email: params.email.trim().toLowerCase(),
+    customer_phone: params.phone.trim(),
     governorate: params.governorate.trim(),
     city: params.city.trim(),
-    address: params.address.trim(),
-    notes: params.notes?.trim() || '',
-    payment_method: 'cod',
+    delivery_address: params.address.trim(),
+    order_notes: params.notes?.trim() || '',
+    payment_method: 'COD',
+    subtotal: quote.subtotal,
+    shipping_cost: shippingCost,
+    email_discount_amount: quote.email_discount_amount,
+    promo_discount_amount: quote.promo_discount_amount,
+    discount_total: quote.discount_total,
+    applied_promo_code: quote.promo_code_applied,
+    total_amount: quote.final_total,
     status: 'pending',
-    subtotal: quote?.subtotal ?? 0,
-    discount_amount: quote?.discount_amount ?? 0,
-    shipping_cost: quote?.shipping_cost ?? 0,
-    total: quote?.total ?? 0,
-    items: params.items,
     created_at: new Date().toISOString(),
+    items: orderItems,
   };
 
   try {
@@ -264,15 +347,18 @@ export async function createCodOrder(params: {
   return { order: orderRecord, error: null };
 }
 
-export async function fetchOrderConfirmation(orderNumber: string, phone: string) {
+export async function fetchOrderConfirmation(
+  orderReference: string,
+  email: string
+): Promise<{ order: OrderConfirmationData | null; error: string | null }> {
   if (isSupabaseConfigured && supabase) {
     try {
       const { data, error } = await supabase.rpc('get_order_confirmation', {
-        p_order_number: orderNumber,
-        p_phone: phone,
+        p_order_reference: orderReference,
+        p_email: email,
       });
       if (!error && data) {
-        return { order: data, error: null };
+        return { order: data as OrderConfirmationData, error: null };
       }
     } catch {
       // fallback below
@@ -280,8 +366,14 @@ export async function fetchOrderConfirmation(orderNumber: string, phone: string)
   }
 
   try {
-    const existing = JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY) || '[]');
-    const found = existing.find((o: { order_number: string }) => o.order_number === orderNumber);
+    const existing = JSON.parse(
+      localStorage.getItem(LOCAL_ORDERS_KEY) || '[]'
+    ) as OrderConfirmationData[];
+    const found = existing.find(
+      (o) =>
+        o.order_reference?.toUpperCase() === orderReference.trim().toUpperCase() &&
+        o.customer_email?.toLowerCase() === email.trim().toLowerCase()
+    );
     if (found) {
       return { order: found, error: null };
     }

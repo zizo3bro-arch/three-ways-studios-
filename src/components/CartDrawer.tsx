@@ -20,11 +20,10 @@ export function CartDrawer() {
   const exploreProducts = () => {
     closeDrawer();
     if (window.location.pathname !== '/') {
-      navigate('/');
-      window.setTimeout(() => requestSectionReveal('products'), 340);
+      navigate('/#products');
       return;
     }
-    window.setTimeout(() => requestSectionReveal('products'), 120);
+    window.setTimeout(() => requestSectionReveal('products'), 80);
   };
 
   return (
@@ -117,7 +116,7 @@ export function CartDrawer() {
                         key={item.variant_id}
                         className="flex gap-4 border-b border-ink/10 pb-4"
                       >
-                        <div className="flex h-24 w-20 shrink-0 items-end justify-center overflow-hidden rounded-2xl border border-ink/10 bg-cream-deep p-1.5">
+                        <div className="flex h-24 w-18 shrink-0 items-end justify-center overflow-hidden p-1">
                           {item.product_image ? (
                             <img
                               src={item.product_image}

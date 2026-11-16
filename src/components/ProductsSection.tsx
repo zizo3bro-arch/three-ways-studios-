@@ -6,12 +6,14 @@ import {
   Facebook,
   Instagram,
   MoveHorizontal,
+  Ruler,
   Twitter,
   Youtube,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { DEMO_PRODUCTS } from '../data/demoProducts';
 import { getDiscountPercent } from '../lib/format';
+import { FindSizeModal } from './FindSizeModal';
 import { ProductDetailsView } from './ProductDetailsView';
 
 const SIZES = ['S', 'M', 'L', 'XL'] as const;
@@ -61,6 +63,7 @@ export function ProductsSection() {
   const [active, setActive] = useState(0);
   const [size, setSize] = useState<Size>('M');
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [findSizeOpen, setFindSizeOpen] = useState(false);
 
   const stageRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -86,9 +89,7 @@ export function ProductsSection() {
   const paintTrack = useCallback((offsetPx: number, index: number, animate: boolean) => {
     const track = trackRef.current;
     if (!track) return;
-    track.style.transition = animate
-      ? `transform 620ms ${SWIPE_EASING}`
-      : 'none';
+    track.style.transition = animate ? `transform 620ms ${SWIPE_EASING}` : 'none';
     track.style.transform = `translate3d(calc(${-(index * SLIDE_SHIFT)}% + ${offsetPx}px), 0px, 0px)`;
   }, []);
 
@@ -122,37 +123,39 @@ export function ProductsSection() {
         stageRef.current?.setPointerCapture?.(event.pointerId);
       }
     } catch {
-      // capture is a nicety, never a requirement
+      // capture is optional
     }
     stageRef.current?.classList.add('is-dragging');
   }, []);
 
-  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag.active || drag.pointerId !== event.pointerId) return;
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current;
+      if (!drag.active || drag.pointerId !== event.pointerId) return;
 
-    const dx = event.clientX - drag.startX;
-    const dy = event.clientY - drag.startY;
+      const dx = event.clientX - drag.startX;
+      const dy = event.clientY - drag.startY;
 
-    if (drag.axis === 'none') {
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
-        drag.axis = 'x';
-      } else if (Math.abs(dy) > 10) {
-        // Vertical intent — hand the gesture back to native scrolling.
-        drag.active = false;
-        stageRef.current?.classList.remove('is-dragging');
-        paintTrack(0, activeRef.current, true);
-        return;
+      if (drag.axis === 'none') {
+        if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+          drag.axis = 'x';
+        } else if (Math.abs(dy) > 10) {
+          drag.active = false;
+          stageRef.current?.classList.remove('is-dragging');
+          paintTrack(0, activeRef.current, true);
+          return;
+        }
       }
-    }
 
-    if (drag.axis !== 'x') return;
+      if (drag.axis !== 'x') return;
 
-    const stageWidth = stageRef.current?.offsetWidth || 320;
-    const clamped = Math.max(-stageWidth, Math.min(stageWidth, dx));
-    drag.dx = clamped;
-    paintTrack(clamped, activeRef.current, false);
-  }, [paintTrack]);
+      const stageWidth = stageRef.current?.offsetWidth || 320;
+      const clamped = Math.max(-stageWidth, Math.min(stageWidth, dx));
+      drag.dx = clamped;
+      paintTrack(clamped, activeRef.current, false);
+    },
+    [paintTrack]
+  );
 
   const resetDrag = useCallback(
     (event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
@@ -172,12 +175,11 @@ export function ProductsSection() {
           stageRef.current.releasePointerCapture(event.pointerId);
         }
       } catch {
-        // pointer already released by the browser
+        // pointer already released
       }
 
       if (drag.axis !== 'x') return;
 
-      // A real drag must never be mistaken for a tap.
       if (travelled > 8) {
         suppressClickRef.current = true;
         window.setTimeout(() => {
@@ -253,7 +255,6 @@ export function ProductsSection() {
       });
       if (!result.ok) return false;
 
-      // Buy now → straight to checkout with the piece in the bag.
       setDetailsOpen(false);
       window.setTimeout(() => navigate('/checkout'), 60);
       return true;
@@ -265,87 +266,67 @@ export function ProductsSection() {
     <section
       id="products"
       aria-label="Products — Drop 01"
-      className="relative px-3 pb-16 pt-10 sm:px-5 sm:pb-20 lg:px-8 lg:pb-24"
+      className="relative px-3 pb-16 pt-6 sm:px-5 sm:pb-20 lg:px-8 lg:pb-24"
     >
-      <div className="relative mx-auto max-w-[1560px] overflow-hidden rounded-[1.75rem] ring-1 ring-black/60 sm:rounded-[2.5rem] lg:h-[80vh] lg:min-h-[660px] lg:max-h-[880px]">
-        {/* Ambient backdrop layers — opacity-only crossfade on the GPU */}
-        <div
-          aria-hidden="true"
-          className={`tws-showcase-navy absolute inset-0 transition-opacity duration-700 ease-out ${active === 0 ? 'opacity-100' : 'opacity-0'}`}
-        />
-        <div
-          aria-hidden="true"
-          className={`tws-showcase-onyx absolute inset-0 transition-opacity duration-700 ease-out ${active === 1 ? 'opacity-100' : 'opacity-0'}`}
-        />
-        {/* Soft central spotlight pools behind the garment */}
-        <div
-          aria-hidden="true"
-          className={`tws-spotlight-navy absolute inset-0 transition-opacity duration-700 ease-out ${active === 0 ? 'opacity-100' : 'opacity-0'}`}
-        />
-        <div
-          aria-hidden="true"
-          className={`tws-spotlight-onyx absolute inset-0 transition-opacity duration-700 ease-out ${active === 1 ? 'opacity-100' : 'opacity-0'}`}
-        />
-        {/* Archival grain, static */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-[0.05] mix-blend-overlay"
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E\")",
-            backgroundSize: '210px 210px',
-          }}
-        />
-
+      {/* Fixed Clean White Showcase (#FFFFFF) — never changes background color between Navy and Black */}
+      <div className="relative mx-auto max-w-[1580px] overflow-hidden rounded-[1.75rem] border border-ink/10 bg-[#FFFFFF] shadow-[0_28px_80px_-28px_rgba(23,21,20,0.18)] sm:rounded-[2.5rem] lg:min-h-[680px]">
         {/* Editorial corner strips (desktop) */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-10 right-10 top-6 z-10 hidden items-center justify-between text-[9px] font-semibold uppercase tracking-[0.32em] text-white/35 lg:flex"
+          className="pointer-events-none absolute left-10 right-10 top-6 z-10 hidden items-center justify-between text-[9px] font-semibold uppercase tracking-[0.32em] text-ink/40 lg:flex"
         >
           <span>Three Ways Studios — 2026 Drop</span>
           <span>Fashion Beyond Limits</span>
           <span>Cairo — Worldwide</span>
         </div>
 
-        <div className="relative z-10 grid grid-cols-1 gap-7 px-6 pb-8 pt-9 sm:px-9 sm:pt-12 lg:grid-cols-12 lg:gap-4 lg:px-12 lg:pb-9 lg:pt-16">
+        <div className="relative z-10 grid grid-cols-1 gap-8 px-6 pb-9 pt-9 sm:px-9 sm:pt-12 lg:grid-cols-12 lg:gap-6 lg:px-12 lg:pb-10 lg:pt-16">
           {/* ——— LEFT · headline, blurb, CTA, socials ——— */}
           <div className="flex flex-col lg:col-span-4">
-            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.32em] text-[#e1606b]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#e1606b]" aria-hidden="true" />
+            <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.32em] text-crimson-bright">
+              <span className="h-1.5 w-1.5 rounded-full bg-crimson-bright" aria-hidden="true" />
               Drop 01 — Piece {active + 1}/02
             </p>
 
-            <h2 className="mt-3 font-display uppercase leading-[0.88] text-cream">
+            <h2 className="mt-3 font-display uppercase leading-[0.88] text-ink">
               <span className="block text-[2.6rem] tracking-[0.01em] sm:text-6xl lg:text-6xl xl:text-[4.4rem]">
                 {meta.headlineTop}
               </span>
               <span
                 className="block text-[2.6rem] tracking-[0.01em] text-transparent sm:text-6xl lg:text-6xl xl:text-[3.75rem]"
-                style={{ WebkitTextStroke: '1.5px rgba(245,242,235,0.92)' }}
+                style={{ WebkitTextStroke: '1.5px #171514' }}
               >
                 {meta.headlineBottom}
               </span>
             </h2>
 
-            <p className="mt-4 max-w-[285px] text-[13px] leading-relaxed text-white/70">
+            <p className="mt-4 max-w-[295px] text-[13px] leading-relaxed text-ink-soft">
               {meta.blurb}
             </p>
 
-            <div className="mt-6">
+            <div className="mt-6 flex flex-wrap items-center gap-2.5">
               <button
                 type="button"
                 onClick={() => setDetailsOpen(true)}
-                className="group inline-flex h-12 items-center gap-3 rounded-full bg-cream pl-6 pr-2 text-[11px] font-bold uppercase tracking-[0.22em] text-ink transition-colors duration-300 hover:bg-white"
+                className="group inline-flex h-12 items-center gap-3 rounded-full bg-ink pl-6 pr-2 text-[11px] font-bold uppercase tracking-[0.2em] text-white transition-colors duration-300 hover:bg-crimson-bright"
               >
                 View details
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-cream transition-transform duration-300 group-hover:translate-x-0.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink transition-transform duration-300 group-hover:translate-x-0.5">
                   <ArrowRight className="h-4 w-4" strokeWidth={2} />
                 </span>
               </button>
-              <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-white/40">
-                Cash on delivery · Egypt-wide
-              </p>
+              <button
+                type="button"
+                onClick={() => setFindSizeOpen(true)}
+                className="inline-flex h-12 items-center gap-2 rounded-full border border-ink/20 bg-white px-4 text-[10px] font-bold uppercase tracking-[0.18em] text-ink transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
+              >
+                <Ruler className="h-3.5 w-3.5" strokeWidth={2} />
+                Find Size
+              </button>
             </div>
+            <p className="mt-3 text-[10px] uppercase tracking-[0.18em] text-ink-faint">
+              Cash on delivery · Egypt-wide
+            </p>
 
             {/* Socials pinned low-left */}
             <div className="mt-7 flex items-center gap-2.5 lg:mt-auto lg:pt-8">
@@ -356,7 +337,7 @@ export function ProductsSection() {
                   target="_blank"
                   rel="noreferrer"
                   aria-label={label}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/65 transition-colors duration-300 hover:border-white/40 hover:text-cream"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-ink/15 text-ink-soft transition-colors duration-300 hover:border-ink hover:bg-ink hover:text-white"
                 >
                   <Icon className="h-4 w-4" strokeWidth={1.6} />
                 </a>
@@ -368,7 +349,7 @@ export function ProductsSection() {
           <div className="relative flex flex-col items-center justify-center lg:col-span-5">
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute right-0 top-0 hidden select-none font-display text-[6.5rem] leading-none text-white/[0.055] lg:block xl:text-[8rem]"
+              className="pointer-events-none absolute right-0 top-0 hidden select-none font-display text-[6.5rem] leading-none text-ink/[0.045] lg:block xl:text-[8rem]"
             >
               0{active + 1}
             </span>
@@ -385,12 +366,12 @@ export function ProductsSection() {
               onPointerCancel={handlePointerCancel}
               onClick={handleStageClick}
               onKeyDown={handleKeyDown}
-              className="tws-swipe-stage relative aspect-[522/1223] h-[44vh] max-h-[400px] cursor-grab touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cream/70 sm:h-[48vh] sm:max-h-[460px] lg:h-[46vh] lg:max-h-[490px] xl:h-[48vh] xl:max-h-[510px]"
+              className="tws-swipe-stage relative aspect-[522/1223] h-[44vh] max-h-[410px] cursor-grab touch-pan-y select-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-crimson-bright sm:h-[48vh] sm:max-h-[465px] lg:h-[48vh] lg:max-h-[495px] xl:h-[50vh] xl:max-h-[515px]"
             >
-              {/* Floor shadow pool — cheap radial, no live blur */}
+              {/* Crisp studio floor shadow on pure white */}
               <div
                 aria-hidden="true"
-                className="tws-floor-shadow pointer-events-none absolute -bottom-4 left-1/2 h-16 w-[86%] -translate-x-1/2 rounded-[100%]"
+                className="tws-white-floor-shadow pointer-events-none absolute -bottom-4 left-1/2 h-14 w-[84%] -translate-x-1/2 rounded-[100%]"
               />
 
               <div ref={trackRef} className="tws-swipe-track h-full">
@@ -409,7 +390,7 @@ export function ProductsSection() {
               </div>
             </div>
 
-            {/* Swipe hint + colour dots */}
+            {/* Swipe hint + colour pills */}
             <div className="mt-3 flex flex-col items-center gap-1.5 sm:mt-4">
               <div className="flex items-center gap-3">
                 {DEMO_PRODUCTS.map((p, i) => (
@@ -421,34 +402,40 @@ export function ProductsSection() {
                     aria-label={`Switch to ${p.name}`}
                     aria-pressed={active === i}
                     className={[
-                      'flex h-8 items-center gap-2 rounded-full border px-3 text-[9px] font-bold uppercase tracking-[0.18em] transition-colors duration-300',
+                      'flex h-8 items-center gap-2 rounded-full border px-3.5 text-[9px] font-bold uppercase tracking-[0.18em] transition-colors duration-200',
                       active === i
-                        ? 'border-cream/70 bg-cream/15 text-cream'
-                        : 'border-white/20 text-white/55 hover:border-white/45 hover:text-cream',
+                        ? 'border-ink bg-ink text-white'
+                        : 'border-ink/20 bg-white text-ink-soft hover:border-ink/55 hover:text-ink',
                     ].join(' ')}
                   >
                     <span
                       aria-hidden="true"
-                      className="h-2.5 w-2.5 rounded-full ring-1 ring-white/40"
-                      style={{ backgroundColor: i === 0 ? '#152c4e' : '#09090b' }}
+                      className="h-2.5 w-2.5 rounded-full ring-1 ring-black/15"
+                      style={{
+                        backgroundColor: i === 0 ? '#1c355e' : '#0b0b0d',
+                        boxShadow: active === i ? '0 0 0 1px rgba(255,255,255,0.55)' : undefined,
+                      }}
                     />
                     {i === 0 ? 'Navy' : 'Black'}
                   </button>
                 ))}
               </div>
-              <p className="flex items-center gap-1.5 text-[8px] font-semibold uppercase tracking-[0.28em] text-white/40 sm:text-[9px]">
+              <p className="flex items-center gap-1.5 text-[8px] font-semibold uppercase tracking-[0.28em] text-ink-faint sm:text-[9px]">
                 <MoveHorizontal className="h-3.5 w-3.5" strokeWidth={1.8} />
                 Swipe to switch colour
               </p>
             </div>
 
-            <div className="mt-3 h-[62px] text-center lg:mt-4">
-              <p key={`script-${product.id}`} className="tws-swap-in font-script text-2xl leading-tight text-cream/95 sm:text-3xl">
+            <div className="mt-3 h-[64px] text-center lg:mt-4">
+              <p
+                key={`script-${product.id}`}
+                className="tws-swap-in font-script text-3xl leading-tight text-ink sm:text-4xl"
+              >
                 {meta.scriptLine}
               </p>
               <p
                 key={`caps-${product.id}`}
-                className="tws-swap-in mt-1.5 text-[9px] font-semibold uppercase tracking-[0.34em] text-white/50 sm:text-[10px]"
+                className="tws-swap-in mt-1 text-[9px] font-semibold uppercase tracking-[0.34em] text-ink-faint sm:text-[10px]"
                 style={{ animationDelay: '70ms' }}
               >
                 {meta.capsLine}
@@ -458,23 +445,27 @@ export function ProductsSection() {
 
           {/* ——— RIGHT · price, next, sizes, switcher thumbnail ——— */}
           <div className="flex flex-wrap items-center justify-between gap-6 sm:gap-8 lg:col-span-3 lg:flex-col lg:flex-nowrap lg:items-end lg:justify-center lg:gap-8">
-            {/* Price + circular next arrow */}
+            {/* Price + circular next/prev arrows */}
             <div className="flex items-center gap-5 sm:gap-7">
               <div key={`price-${product.id}`} className="tws-swap-in text-left lg:text-right">
-                <p className="text-[9px] font-bold uppercase tracking-[0.32em] text-white/40">The Price</p>
-                <p className="mt-1 leading-none text-cream">
-                  <span className="align-top text-[11px] font-semibold tracking-[0.2em] text-white/55">EGP&nbsp;</span>
+                <p className="text-[9px] font-bold uppercase tracking-[0.32em] text-ink-faint">
+                  The Price
+                </p>
+                <p className="mt-1 leading-none text-ink">
+                  <span className="align-top text-[11px] font-semibold tracking-[0.2em] text-ink-soft">
+                    EGP&nbsp;
+                  </span>
                   <span className="font-display text-5xl tracking-[0.01em] xl:text-6xl">
                     {product.price.toLocaleString('en-US')}
                   </span>
                 </p>
-                <p className="mt-2 text-[10px] uppercase tracking-[0.16em] text-white/45">
+                <p className="mt-2 text-[10px] uppercase tracking-[0.16em] text-ink-faint">
                   {discount ? (
                     <>
-                      <span className="mr-2 line-through decoration-white/35">
+                      <span className="mr-2 line-through decoration-ink/35">
                         EGP {product.original_price?.toLocaleString('en-US')}
                       </span>
-                      <span className="text-[#e1606b]">Save {discount}%</span>
+                      <span className="font-bold text-crimson-bright">Save {discount}%</span>
                     </>
                   ) : (
                     'Incl. all duties'
@@ -486,7 +477,7 @@ export function ProductsSection() {
                   type="button"
                   onClick={() => goTo(active - 1)}
                   aria-label={`Previous piece — ${DEMO_PRODUCTS[(active - 1 + COUNT) % COUNT].name}`}
-                  className="group flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-cream transition-colors duration-300 hover:border-cream hover:bg-cream hover:text-ink"
+                  className="group flex h-10 w-10 items-center justify-center rounded-full border border-ink/20 text-ink transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
                 >
                   <ArrowLeft className="h-4 w-4" strokeWidth={1.8} />
                 </button>
@@ -494,7 +485,7 @@ export function ProductsSection() {
                   type="button"
                   onClick={() => goTo(active + 1)}
                   aria-label={`Next piece — ${DEMO_PRODUCTS[(active + 1) % COUNT].name}`}
-                  className="group flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-cream transition-colors duration-300 hover:border-cream hover:bg-cream hover:text-ink"
+                  className="group flex h-10 w-10 items-center justify-center rounded-full border border-ink/20 text-ink transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
                 >
                   <ArrowRight className="h-4 w-4" strokeWidth={1.8} />
                 </button>
@@ -503,10 +494,17 @@ export function ProductsSection() {
 
             {/* Size selector */}
             <div className="text-left lg:text-right">
-              <p id="tws-size-label" className="text-[9px] font-bold uppercase tracking-[0.32em] text-white/40">
+              <p
+                id="tws-size-label"
+                className="text-[9px] font-bold uppercase tracking-[0.32em] text-ink-faint"
+              >
                 Choose your size
               </p>
-              <div role="radiogroup" aria-labelledby="tws-size-label" className="mt-3 flex items-center gap-2">
+              <div
+                role="radiogroup"
+                aria-labelledby="tws-size-label"
+                className="mt-3 flex items-center gap-2"
+              >
                 {SIZES.map((s) => {
                   const selected = s === size;
                   return (
@@ -519,8 +517,8 @@ export function ProductsSection() {
                       className={[
                         'flex h-11 w-11 items-center justify-center rounded-full border text-[11px] font-bold tracking-wide transition-colors duration-200 xl:h-12 xl:w-12',
                         selected
-                          ? 'border-cream bg-cream text-ink'
-                          : 'border-white/20 text-white/80 hover:border-white/45 hover:text-cream',
+                          ? 'border-ink bg-ink text-white'
+                          : 'border-ink/20 bg-white text-ink-soft hover:border-ink/55 hover:text-ink',
                       ].join(' ')}
                     >
                       {s}
@@ -528,7 +526,7 @@ export function ProductsSection() {
                   );
                 })}
               </div>
-              <p className="mt-2.5 text-[9px] uppercase tracking-[0.18em] text-white/35">
+              <p className="mt-2.5 text-[9px] uppercase tracking-[0.18em] text-ink-faint">
                 True to size · Runs long
               </p>
             </div>
@@ -538,9 +536,9 @@ export function ProductsSection() {
               type="button"
               onClick={() => goTo(active + 1)}
               aria-label={`View ${DEMO_PRODUCTS[(active + 1) % COUNT].name}`}
-              className="group ml-auto flex flex-col items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.055] p-3 transition-colors duration-300 hover:border-white/28 hover:bg-white/[0.09] lg:ml-0 lg:mt-auto"
+              className="group ml-auto flex flex-col items-center gap-2 rounded-2xl border border-ink/12 bg-[#faf9f6] p-3 transition-colors duration-300 hover:border-ink/30 hover:bg-[#f3f1ec] lg:ml-0 lg:mt-auto"
             >
-              <span className="text-[8px] font-bold uppercase tracking-[0.3em] text-white/40 transition-colors duration-300 group-hover:text-white/70">
+              <span className="text-[8px] font-bold uppercase tracking-[0.3em] text-ink-faint transition-colors duration-300 group-hover:text-ink">
                 Tap to switch
               </span>
               <span className="flex h-24 w-14 items-end justify-center overflow-hidden sm:h-28 sm:w-16">
@@ -553,9 +551,12 @@ export function ProductsSection() {
                   className="h-full w-auto object-contain object-bottom transition-transform duration-500 group-hover:scale-105"
                 />
               </span>
-              <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-cream/85">
+              <span className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-ink">
                 {DEMO_PRODUCTS[(active + 1) % COUNT].name.replace('The ', '')}
-                <ArrowRight className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-1" strokeWidth={2} />
+                <ArrowRight
+                  className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-1"
+                  strokeWidth={2}
+                />
               </span>
             </button>
           </div>
@@ -570,6 +571,13 @@ export function ProductsSection() {
         onColorChange={goTo}
         onClose={() => setDetailsOpen(false)}
         onBuyNow={handleBuyNow}
+      />
+
+      <FindSizeModal
+        open={findSizeOpen}
+        currentSize={size}
+        onClose={() => setFindSizeOpen(false)}
+        onApply={setSize}
       />
     </section>
   );

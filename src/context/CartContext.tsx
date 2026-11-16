@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { DEMO_PRODUCTS } from '../data/demoProducts';
 import type { CartItem } from '../types/database';
 
 interface CartContextValue {
@@ -21,12 +22,34 @@ const CART_STORAGE_KEY = 'tws_cart_v1';
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
 
+function normalizeStoredItem(item: CartItem): CartItem {
+  for (const product of DEMO_PRODUCTS) {
+    const variant = product.variants?.find(
+      (v) => v.id === item.variant_id || (product.slug === item.product_slug && v.size_name === item.size_name)
+    );
+    if (variant) {
+      return {
+        ...item,
+        product_id: product.id,
+        product_name: product.name,
+        product_slug: product.slug,
+        product_image: product.images?.[0]?.url ?? item.product_image,
+        color_name: variant.color_name,
+        color_hex: variant.color_hex,
+        unit_price: product.price,
+        original_price: product.original_price,
+      };
+    }
+  }
+  return item;
+}
+
 function loadStoredCart(): CartItem[] {
   try {
     const raw = localStorage.getItem(CART_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.map(normalizeStoredItem) : [];
   } catch {
     return [];
   }

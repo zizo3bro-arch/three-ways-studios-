@@ -173,6 +173,12 @@ export function OrderConfirmationPage() {
               <span>-{formatEGP(order.promo_discount_amount)}</span>
             </div>
           )}
+          {order.shipping_cost !== undefined && (
+            <div className="flex justify-between text-[#33302C]">
+              <span>Shipping</span>
+              <span>{order.shipping_cost === 0 ? 'FREE' : formatEGP(order.shipping_cost)}</span>
+            </div>
+          )}
           <div className="flex justify-between border-t border-[#201D1A]/12 pt-3 text-base font-medium text-[#201D1A]">
             <span>Total (COD)</span>
             <span>{formatEGP(order.total_amount)}</span>
