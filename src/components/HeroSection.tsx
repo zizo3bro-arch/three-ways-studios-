@@ -1,96 +1,119 @@
-import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowDown, ArrowRight } from 'lucide-react';
 
 export function HeroSection() {
+  const scrollToProducts = () => {
+    document.getElementById('products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
-    <section className="relative overflow-hidden border-b border-white/10 bg-[#060405]">
-      <div className="relative mx-auto grid min-h-[82vh] max-w-7xl grid-cols-1 items-center gap-8 px-4 py-12 sm:px-6 lg:grid-cols-12 lg:gap-12 lg:px-8 lg:py-16">
-        {/* Left Editorial Content */}
-        <div className="relative z-10 flex flex-col items-start lg:col-span-6">
-          <div className="mb-5 inline-flex items-center gap-2.5 rounded-full border border-[#b30e16]/40 bg-[#b30e16]/10 px-4 py-1.5">
-            <span className="h-2 w-2 rounded-full bg-[#d4121b]" />
-            <span className="text-[11px] font-semibold tracking-[0.26em] text-[#f2eded] uppercase">
-              2026 Underground Campaign
-            </span>
-          </div>
+    <section
+      id="top"
+      aria-label="THREE WAYS STUDIOS — introduction"
+      className="tws-paper relative overflow-hidden"
+    >
+      {/* Static archival grain */}
+      <div aria-hidden="true" className="tws-grain pointer-events-none absolute inset-0" />
 
-          <h1 className="font-display-tall text-5xl leading-[0.95] tracking-wide text-white uppercase sm:text-6xl lg:text-7xl">
-            FASHION
-            <span className="block text-[#d4121b]">BEYOND LIMITS</span>
-          </h1>
-
-          <p className="mt-5 max-w-lg text-sm leading-relaxed text-[#b8adad] sm:text-base">
-            THREE WAYS STUDIOS is an underground luxury streetwear house engineered around
-            architectural wide-flare and super-flare silhouettes. Cut from heavyweight raw denim,
-            technical ripstop, and Italian wool.
+      <div className="relative mx-auto flex min-h-[80vh] max-h-[880px] max-w-[1600px] flex-col px-5 pb-6 pt-20 sm:px-8 sm:pt-24 lg:px-12">
+        {/* ——— Top editorial micro-labels ——— */}
+        <div className="flex items-start justify-between text-[8px] font-bold uppercase leading-relaxed tracking-[0.3em] text-ink-soft sm:text-[9px]">
+          <p>
+            Est. MMXXVI
+            <span className="block text-ink-faint">Cairo — Egypt</span>
           </p>
-
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link
-              to="/collections"
-              className="inline-flex items-center gap-3 rounded-full bg-[#b30e16] px-8 py-4 text-xs font-bold tracking-[0.24em] text-white uppercase shadow-[0_0_30px_rgba(179,14,22,0.4)] transition hover:bg-[#d4121b] active:scale-[0.98]"
-            >
-              SHOP NOW
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-
-            <Link
-              to="/collections?filter=new"
-              className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-7 py-4 text-xs font-semibold tracking-[0.22em] text-[#f2eded] uppercase transition hover:border-white/40 hover:bg-white/10 active:scale-[0.98]"
-            >
-              NEW ARRIVALS
-            </Link>
-          </div>
-
-          <div className="mt-10 grid grid-cols-3 gap-6 border-t border-white/10 pt-6 text-left">
-            <div>
-              <p className="font-display-tall text-2xl tracking-wider text-white">14 OZ</p>
-              <p className="mt-0.5 text-[11px] tracking-[0.16em] text-[#9e9494] uppercase">
-                Raw Selvedge
-              </p>
-            </div>
-            <div>
-              <p className="font-display-tall text-2xl tracking-wider text-white">34 CM</p>
-              <p className="mt-0.5 text-[11px] tracking-[0.16em] text-[#9e9494] uppercase">
-                Super-Flare Hem
-              </p>
-            </div>
-            <div>
-              <p className="font-display-tall text-2xl tracking-wider text-white">COD</p>
-              <p className="mt-0.5 text-[11px] tracking-[0.16em] text-[#9e9494] uppercase">
-                Nationwide Delivery
-              </p>
-            </div>
-          </div>
+          <p className="text-right">
+            Drop 01 / 2026
+            <span className="block text-ink-faint">Wide-Flare Denim</span>
+          </p>
         </div>
 
-        {/* Right Campaign Photography */}
-        <div className="relative lg:col-span-6">
-          <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0d0809] shadow-2xl">
-            <img
-              src="/images/hero-campaign.jpg"
-              alt="THREE WAYS STUDIOS 2026 Underground Streetwear Campaign"
-              fetchPriority="high"
-              decoding="async"
-              className="h-full w-full object-cover object-center"
-            />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#060405] via-transparent to-transparent opacity-70" />
-            <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between">
-              <div>
-                <p className="text-[10px] font-semibold tracking-[0.24em] text-[#d4121b] uppercase">
-                  Editorial Look 01
-                </p>
-                <p className="mt-1 text-sm font-medium text-white">
-                  Obsidian Super-Flare &amp; Nocturne Cargo
-                </p>
-              </div>
-              <Link
-                to="/collections"
-                className="rounded-full border border-white/25 bg-black/60 px-4 py-2 text-[10px] font-semibold tracking-[0.2em] text-white uppercase backdrop-blur-sm transition hover:border-[#d4121b] hover:bg-[#b30e16]"
-              >
-                Explore
-              </Link>
-            </div>
+        {/* ——— Center stack: crimson titan + charcoal script ——— */}
+        <div className="relative flex flex-1 flex-col items-center justify-center py-6">
+          <h1
+            aria-label="THREE WAYS STUDIOS"
+            className="select-none text-center font-display uppercase"
+          >
+            <span
+              aria-hidden="true"
+              className="tws-hero-word block whitespace-nowrap text-[clamp(2.6rem,12vw,11.25rem)]"
+            >
+              THREE WAYS
+            </span>
+          </h1>
+
+          {/* Sweeping charcoal calligraphic flourish across the titan type */}
+          <p
+            aria-hidden="true"
+            className="tws-script-ink pointer-events-none absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-script"
+          >
+            <span className="block rotate-[-4deg] text-[clamp(1.9rem,8.6vw,6.75rem)] leading-none">
+              Three Ways Studios
+              <sup className="ml-1 align-super font-sans text-[0.16em] font-medium tracking-normal">
+                ®
+              </sup>
+            </span>
+          </p>
+
+          {/* Sharp ultra-condensed charcoal center lockup */}
+          <div className="mt-5 flex items-center gap-3 sm:mt-7 sm:gap-5">
+            <span aria-hidden="true" className="h-px w-10 bg-ink/35 sm:w-20" />
+            <p className="font-display text-[10px] uppercase tracking-[0.58em] text-ink sm:text-xs lg:text-sm">
+              Three Ways Studios
+            </p>
+            <span aria-hidden="true" className="h-px w-10 bg-ink/35 sm:w-20" />
+          </div>
+          <p className="mt-2 text-[8px] font-semibold uppercase tracking-[0.42em] text-crimson sm:text-[9px]">
+            Fashion Beyond Limits
+          </p>
+        </div>
+
+        {/* ——— Bottom corner micro-labels ——— */}
+        <div className="flex items-end justify-between gap-4">
+          {/* Bottom-left: tagline + scroll cue */}
+          <div className="flex items-end gap-4 sm:gap-5">
+            <p className="font-display text-[11px] uppercase leading-[1.05] tracking-[0.06em] text-ink sm:text-sm">
+              Fashion
+              <br />
+              Beyond
+              <br />
+              Limits.
+            </p>
+            <span aria-hidden="true" className="h-12 w-px bg-ink/25" />
+            <button
+              type="button"
+              onClick={scrollToProducts}
+              aria-label="Scroll down to the products"
+              className="group flex flex-col items-center gap-2"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-full border border-ink/30 text-ink transition-colors duration-300 group-hover:border-crimson-bright group-hover:bg-crimson-bright group-hover:text-cream">
+                <ArrowDown className="tws-scroll-cue h-4 w-4" strokeWidth={2} />
+              </span>
+              <span className="text-[7px] font-bold uppercase tracking-[0.3em] text-ink-soft sm:text-[8px]">
+                Scroll Down
+              </span>
+            </button>
+          </div>
+
+          {/* Bottom-right: drop label + pill CTA */}
+          <div className="flex flex-col items-end gap-3 text-right">
+            <p className="font-display text-[11px] uppercase leading-[1.05] tracking-[0.06em] text-ink sm:text-sm">
+              New
+              <br />
+              Collection
+              <span className="mt-1 block text-[9px] tracking-[0.28em] text-ink-soft">
+                / 2026
+              </span>
+            </p>
+            <button
+              type="button"
+              onClick={scrollToProducts}
+              className="group inline-flex h-11 items-center gap-2.5 rounded-full bg-ink pl-6 pr-2 text-[10px] font-bold uppercase tracking-[0.24em] text-cream transition-colors duration-300 hover:bg-crimson-bright sm:h-12 sm:pl-7 sm:text-[11px]"
+            >
+              Shop Now
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cream text-ink transition-transform duration-300 group-hover:translate-x-0.5">
+                <ArrowRight className="h-4 w-4" strokeWidth={2} />
+              </span>
+            </button>
           </div>
         </div>
       </div>

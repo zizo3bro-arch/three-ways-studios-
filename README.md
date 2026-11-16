@@ -1,41 +1,29 @@
 # THREE WAYS STUDIOS
 
-A production-ready e-commerce web application for **THREE WAYS STUDIOS** — a luxury editorial streetwear house dedicated exclusively to women's pants.
+A production-ready storefront for **THREE WAYS STUDIOS** — a luxury editorial streetwear house engineered around architectural wide-flare pants. Modern-vintage luxury on a warm off-white (`#F5F2EB`) canvas, built to be short, sleek, and completely lag-free.
 
 ## Key Features
 
-- **Editorial Atmospheric Storefront**
-  - Official **THREE WAYS STUDIOS** logo preserved in header and brand assets (`public/assets/`).
-  - Continuous charcoal-black & crimson visual environment with **code-generated animated red smoke** (CSS keyframes + SVG `feTurbulence` / `feDisplacementMap`), film grain, and fine editorial scratches — zero static smoke images, GIFs, or videos.
-  - Blur-to-focus hero display typography, clip-reveal handwritten script, scroll parallax, mouse-responsive ambient aura, and `prefers-reduced-motion` support.
-- **Women's Pants Catalog & Quick Add**
-  - Live Supabase product catalog with `All`, `New Arrivals`, `Best Sellers`, and `Trending` filters + price/date sorting.
-  - Interactive color swatches, wishlist persistence, and inline **Quick Add** color/size selector directly on product cards.
-  - Clean empty-state storefront when Supabase has no published products yet (no fake inventory).
-- **Product Details & Smart Size Finder**
-  - Multi-image gallery, fabric & material details, fit & cut notes, care instructions, live variant stock availability, and related pants.
-  - **Smart Size Finder**: customer enters only **Weight (kg)** and **Height (cm)**; calculated directly from that specific garment's `size_charts` rows stored in Supabase, alongside an expandable manual size chart.
-- **Persistent Bag & Cash on Delivery (COD) Checkout**
-  - Persistent cart (`localStorage`) with live Supabase stock sync, quantity editing, and in-cart color/size switching.
-  - **Cash on Delivery (COD) ONLY** across Egyptian governorates.
-  - **Backend-Validated 10% Email Discount**: providing a valid email at checkout triggers the PostgreSQL `quote_cod_order` / `create_cod_order` RPC, calculating and applying the discount strictly on the backend (with atomic row-level stock locking `FOR UPDATE` and inventory decrement).
+- **Archival-Paper Hero**
+  - Warm off-white (`#F5F2EB`) canvas with a static, lightweight SVG-grain paper feel.
+  - Giant deep-crimson ultra-condensed "THREE WAYS" titan type, layered with a sweeping charcoal Alex Brush calligraphic flourish and a sharp ultra-condensed charcoal center lockup.
+  - Minimalist editorial corner micro-labels, a `SHOP NOW` pill, and a scroll cue. Hero is capped at ~80vh so the interactive collection is immediately in reach.
+- **Frosted-Glass Pill Navigation**
+  - Centered frosted pill: Products · Information · Checkout, with a charcoal bag button and live item count.
+- **Interactive "Drop 01" Products Showcase (horizontal switcher)**
+  - One rounded full-width container with GPU-accelerated crossfades between two ambient radial backdrops:
+    - **The Midnight Wide-Flare** (navy) — `#0A1628` → `#152C4E` with a soft cool spotlight.
+    - **The Onyx Super-Flare** (black) — `#09090B` → `#18181B` with a silver/charcoal radial spotlight pool keeping the black fabric sharp.
+  - 3-column editorial layout: headline + 3-line blurb + `Get the look` pill CTA + socials · floating transparent garment with drop shadow and crossfade/slide switching · dynamic price, circular next-item arrow, `S / M / L / XL` size selector with active ring, and a tap-to-switch thumbnail of the other piece.
+  - Both garment images are preloaded in `index.html` and mounted once, so switching is instantaneous. Transitions use `transform`/`opacity` only — no real-time `filter: blur()` loops, no scroll listeners, fixed `aspect-ratio` stage (zero layout shift, 60fps).
+- **Focused Bottom — Information + Studio List**
+  - Hairline-divided off-white split section: refined studio `Information` on the left, `Name` + `Email` form with charcoal pill submit on the right (wired to the newsletter backend + `WELCOME10` welcome code).
+- **Cash on Delivery (COD) across Egypt**
+  - Backend-validated pricing, 10% email discount, atomic stock locking and decrement (PostgreSQL `SECURITY DEFINER` RPCs), followed by an order confirmation page.
 - **Private Admin Dashboard (`/admin`)**
-  - Protected by Supabase Auth + `public.admin_users` RLS verification.
-  - **Overview**: Revenue (EGP), order counts, pending/delivered metrics, low-stock alerts, recent activity.
-  - **Products**: Full CRUD, Supabase Storage multi-image upload (`product-images`), variant matrix, and per-product Smart Size Finder chart editor.
-  - **Inventory**: Live variant stock matrix with low-stock / out-of-stock filters.
-  - **Orders**: Searchable order management with status updates (`pending`, `confirmed`, `processing`, `shipped`, `delivered`, `cancelled` with automatic stock restoration).
-  - **Customers**: Customer directory and order history inspection.
-  - **Discounts**: Configure the auto-email discount rule and create/toggle promo codes.
-  - **Website Content**: Edit hero typography, collection labels, navigation, newsletter copy, and footer text stored in `site_settings`.
-
----
-
-## Tech Stack
-
-- **Frontend**: React 19, TypeScript, Vite 6, Tailwind CSS v4, Framer Motion, Lucide Icons, React Router v7
-- **Backend**: Supabase (PostgreSQL, Auth, Storage, Row Level Security, `SECURITY DEFINER` RPCs)
-- **Deployment**: GitHub + Vercel (`vercel.json`)
+  - Products, inventory, orders, customers, discounts and site content — protected by Supabase Auth + `public.admin_users` RLS. Unchanged by the redesign.
+- **Performance-First Delivery**
+  - Code-splitting (admin, checkout, confirmation lazy-loaded), preloaded hero imagery, fixed aspect ratios, `React.memo`-free lightweight tree, and zero layout-shift switching — smooth 60fps scrolling on mobile and desktop.
 
 ---
 
