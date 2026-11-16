@@ -9,16 +9,35 @@ import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SiteSettingsProvider } from './context/SiteSettingsContext';
 import { WishlistProvider } from './context/WishlistContext';
-import { AboutPage } from './pages/AboutPage';
-import { CartPage } from './pages/CartPage';
-import { CheckoutPage } from './pages/CheckoutPage';
-import { CollectionsPage } from './pages/CollectionsPage';
-import { ContactPage } from './pages/ContactPage';
 import { HomePage } from './pages/HomePage';
-import { JournalPage } from './pages/JournalPage';
-import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
-import { ProductDetailPage } from './pages/ProductDetailPage';
 
+const CollectionsPage = lazy(() =>
+  import('./pages/CollectionsPage').then((m) => ({ default: m.CollectionsPage }))
+);
+const ProductDetailPage = lazy(() =>
+  import('./pages/ProductDetailPage').then((m) => ({ default: m.ProductDetailPage }))
+);
+const CartPage = lazy(() =>
+  import('./pages/CartPage').then((m) => ({ default: m.CartPage }))
+);
+const CheckoutPage = lazy(() =>
+  import('./pages/CheckoutPage').then((m) => ({ default: m.CheckoutPage }))
+);
+const OrderConfirmationPage = lazy(() =>
+  import('./pages/OrderConfirmationPage').then((m) => ({ default: m.OrderConfirmationPage }))
+);
+const AccountPage = lazy(() =>
+  import('./pages/AccountPage').then((m) => ({ default: m.AccountPage }))
+);
+const AboutPage = lazy(() =>
+  import('./pages/AboutPage').then((m) => ({ default: m.AboutPage }))
+);
+const JournalPage = lazy(() =>
+  import('./pages/JournalPage').then((m) => ({ default: m.JournalPage }))
+);
+const ContactPage = lazy(() =>
+  import('./pages/ContactPage').then((m) => ({ default: m.ContactPage }))
+);
 const AdminDashboardPage = lazy(() =>
   import('./pages/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage }))
 );
@@ -36,7 +55,7 @@ function AppShell() {
 
       <div className="relative z-10 flex min-h-screen flex-col">
         {!isAdminRoute && <Navbar />}
-        <CartDrawer />
+        {!isAdminRoute && <CartDrawer />}
 
         <div className="flex-1">
           <Suspense
@@ -48,14 +67,16 @@ function AppShell() {
           >
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/products/:slug" element={<ProductDetailPage />} />
+              <Route path="/shop" element={<CollectionsPage />} />
               <Route path="/collections" element={<CollectionsPage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/journal" element={<JournalPage />} />
-              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/products/:slug" element={<ProductDetailPage />} />
               <Route path="/cart" element={<CartPage />} />
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/order-confirmation/:orderRef" element={<OrderConfirmationPage />} />
+              <Route path="/account" element={<AccountPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/journal" element={<JournalPage />} />
+              <Route path="/contact" element={<ContactPage />} />
               <Route path="/admin/login" element={<AdminLoginPage />} />
               <Route path="/admin" element={<AdminDashboardPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
