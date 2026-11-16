@@ -1,377 +1,263 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronDown, Menu, Search, ShoppingBag, User, X } from 'lucide-react';
+import { Menu, Search, ShoppingBag, User, X } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { useSiteSettings } from '../context/SiteSettingsContext';
+import { useAuth } from '../context/AuthContext';
 import { fetchPublishedProducts } from '../lib/api';
-import { formatEGP } from '../lib/format';
+import { formatPrice } from '../lib/format';
 import type { Product } from '../types/database';
 
 export function Navbar() {
   const { itemCount, openDrawer } = useCart();
-  const { settings } = useSiteSettings();
+  const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [scrolled, setScrolled] = useState(false);
-  const [shopMenuOpen, setShopMenuOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchProducts, setSearchProducts] = useState<Product[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 30);
+    const onScroll = () => setScrolled(window.scrollY > 24);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   useEffect(() => {
-    setMobileMenuOpen(false);
-    setShopMenuOpen(false);
+    setMobileOpen(false);
     setSearchOpen(false);
-  }, [location.pathname, location.hash]);
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
-    if (!searchOpen || searchProducts.length > 0) return;
-    setSearchLoading(true);
-    fetchPublishedProducts().then(({ products }) => {
-      setSearchProducts(products);
-      setSearchLoading(false);
-    });
-  }, [searchOpen, searchProducts.length]);
-
-  const handleLinkClick = (path: string) => {
-    setMobileMenuOpen(false);
-    if (path.startsWith('/#')) {
-      const targetId = path.replace('/#', '');
-      if (location.pathname !== '/') {
-        navigate('/');
-        setTimeout(() => {
-          document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth' });
-        }, 160);
-      } else {
-        document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth' });
-      }
-      return;
+    if (searchOpen && allProducts.length === 0) {
+      fetchPublishedProducts().then(({ products }) => setAllProducts(products));
     }
-    navigate(path);
-  };
+  }, [searchOpen, allProducts.length]);
 
-  const filteredSearch = searchQuery.trim()
-    ? searchProducts.filter((p) => {
+  const filteredProducts = searchQuery.trim()
+    ? allProducts.filter((p) => {
         const q = searchQuery.toLowerCase();
         return (
           p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q) ||
           p.collection_name.toLowerCase().includes(q)
         );
       })
-    : searchProducts.slice(0, 4);
+    : allProducts.slice(0, 4);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/collections?q=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchOpen(false);
+    }
+  };
 
   return (
     <>
       <header
-        className={`fixed top-0 right-0 left-0 z-40 transition-all duration-500 ${
+        className={`sticky top-0 z-40 w-full transition-colors duration-300 ${
           scrolled
-            ? 'bg-[#070405]/85 border-b border-white/8 backdrop-blur-md'
-            : 'bg-gradient-to-b from-[#060405]/85 via-[#060405]/40 to-transparent'
+            ? 'border-b border-white/10 bg-[#060405]/95 backdrop-blur-md'
+            : 'border-b border-white/5 bg-[#060405]/80 backdrop-blur-sm'
         }`}
       >
-        <div className="mx-auto flex h-20 max-w-[1380px] items-center justify-between px-4 sm:px-8 lg:px-12">
-          {/* Official Logo + Handwritten Brand Signature */}
-          <Link
-            to="/"
-            className="group flex items-center gap-3 focus:outline-none"
-            aria-label="THREE WAYS STUDIOS Home"
-          >
-            <img
-              src="/assets/three-ways-studios-logo.png"
-              alt="THREE WAYS STUDIOS Official Logo"
-              className="h-12 w-auto object-contain transition-transform duration-300 group-hover:scale-[1.03] sm:h-14"
-            />
-            <span className="font-script hidden text-[26px] leading-none tracking-wide text-[#f2eded] sm:inline-block lg:text-[30px]">
-              {settings.hero_script_text}
-            </span>
-            <span className="ml-2 hidden h-7 w-px bg-white/20 lg:inline-block" />
-          </Link>
-
-          {/* Desktop Navigation */}
-          <nav className="hidden items-center gap-8 md:flex" aria-label="Primary Navigation">
-            <div
-              className="relative"
-              onMouseEnter={() => setShopMenuOpen(true)}
-              onMouseLeave={() => setShopMenuOpen(false)}
-            >
-              <button
-                type="button"
-                onClick={() => handleLinkClick('/#products')}
-                className="flex items-center gap-1.5 py-2 text-[11px] font-medium tracking-[0.2em] text-[#e6dfdf] uppercase transition-colors hover:text-white"
-              >
-                SHOP
-                <ChevronDown
-                  className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                    shopMenuOpen ? 'rotate-180' : ''
-                  }`}
-                />
-              </button>
-
-              <AnimatePresence>
-                {shopMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 6 }}
-                    transition={{ duration: 0.18 }}
-                    className="absolute top-full left-0 w-56 border border-white/12 bg-[#0c0708]/95 p-3 shadow-2xl backdrop-blur-md"
-                  >
-                    <p className="mb-2 border-b border-white/10 pb-2 text-[10px] tracking-[0.22em] text-[#9e9494] uppercase">
-                      Women&apos;s Pants Only
-                    </p>
-                    {[
-                      { label: 'All Pants', filter: 'all' },
-                      { label: 'New Arrivals', filter: 'new' },
-                      { label: 'Best Sellers', filter: 'best' },
-                      { label: 'Trending', filter: 'trending' },
-                    ].map((item) => (
-                      <button
-                        key={item.filter}
-                        type="button"
-                        onClick={() => {
-                          setShopMenuOpen(false);
-                          navigate(`/?filter=${item.filter}#products`);
-                          setTimeout(() => {
-                            document
-                              .getElementById('products')
-                              ?.scrollIntoView({ behavior: 'smooth' });
-                          }, 120);
-                        }}
-                        className="block w-full px-2.5 py-2 text-left text-xs tracking-[0.14em] text-[#d6cece] uppercase transition-colors hover:bg-[#b30e16]/20 hover:text-white"
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {settings.nav_links
-              .filter((l) => l.label.toUpperCase() !== 'SHOP')
-              .map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => handleLinkClick(item.path)}
-                  className="py-2 text-[11px] font-medium tracking-[0.2em] text-[#e6dfdf] uppercase transition-colors hover:text-white"
-                >
-                  {item.label}
-                </button>
-              ))}
-          </nav>
-
-          {/* Right Action Icons */}
-          <div className="flex items-center gap-4 sm:gap-5">
+        <div className="relative mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          {/* LEFT SIDE: HOME + Desktop Navigation */}
+          <div className="flex items-center gap-5 lg:gap-7">
             <button
               type="button"
-              onClick={() => setSearchOpen(true)}
-              aria-label="Search products"
-              className="p-1.5 text-[#e6dfdf] transition-colors hover:text-white"
+              onClick={() => setMobileOpen((prev) => !prev)}
+              aria-label="Toggle navigation menu"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-[#f2eded] transition hover:border-[#b30e16] hover:text-white lg:hidden"
             >
-              <Search className="h-[19px] w-[19px] stroke-[1.5]" />
+              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
 
             <Link
-              to="/admin"
-              aria-label="Admin Dashboard"
-              title="Studio Admin"
-              className="p-1.5 text-[#e6dfdf] transition-colors hover:text-white"
+              to="/"
+              className="text-xs font-semibold tracking-[0.22em] text-[#f2eded] uppercase transition hover:text-[#d4121b]"
             >
-              <User className="h-[19px] w-[19px] stroke-[1.5]" />
+              HOME
+            </Link>
+
+            <nav className="hidden items-center gap-6 lg:flex" aria-label="Primary navigation">
+              <Link
+                to="/collections"
+                className="text-xs font-medium tracking-[0.2em] text-[#b8adad] uppercase transition hover:text-white"
+              >
+                Shop
+              </Link>
+              <Link
+                to="/collections?category=Men"
+                className="text-xs font-medium tracking-[0.2em] text-[#b8adad] uppercase transition hover:text-white"
+              >
+                Men
+              </Link>
+              <Link
+                to="/collections?category=Women"
+                className="text-xs font-medium tracking-[0.2em] text-[#b8adad] uppercase transition hover:text-white"
+              >
+                Women
+              </Link>
+            </nav>
+          </div>
+
+          {/* CENTER: Mathematically Centered Original THREE WAYS STUDIOS Logo */}
+          <Link
+            to="/"
+            aria-label="THREE WAYS STUDIOS Home"
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center transition-transform duration-200 hover:scale-[1.03] active:scale-[0.98]"
+          >
+            <img
+              src="/assets/three-ways-studios-logo.png"
+              alt="THREE WAYS STUDIOS"
+              className="h-14 w-auto object-contain sm:h-16"
+            />
+          </Link>
+
+          {/* RIGHT SIDE: Account, Shopping Bag, Search */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              to="/account"
+              aria-label={user ? 'Customer Account' : 'Sign In / Account'}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-[#f2eded] transition hover:border-[#b30e16] hover:text-white active:scale-95"
+            >
+              <User className="h-[18px] w-[18px]" />
             </Link>
 
             <button
               type="button"
               onClick={openDrawer}
-              aria-label={`Shopping bag with ${itemCount} items`}
-              className="relative p-1.5 text-[#e6dfdf] transition-colors hover:text-white"
+              aria-label="Shopping Bag"
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-[#f2eded] transition hover:border-[#b30e16] hover:text-white active:scale-95"
             >
-              <ShoppingBag className="h-[19px] w-[19px] stroke-[1.5]" />
-              <motion.span
-                key={itemCount}
-                initial={{ scale: 0.7 }}
-                animate={{ scale: 1 }}
-                className="absolute -top-0.5 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#d4121b] px-1 text-[10px] font-semibold text-white"
-              >
-                {itemCount}
-              </motion.span>
+              <ShoppingBag className="h-[18px] w-[18px]" />
+              {itemCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b30e16] px-1 text-[10px] font-bold text-white">
+                  {itemCount}
+                </span>
+              )}
             </button>
 
-            {/* Mobile Hamburger */}
             <button
               type="button"
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="Open navigation menu"
-              className="p-1.5 text-[#e6dfdf] transition-colors hover:text-white md:hidden"
+              onClick={() => setSearchOpen((prev) => !prev)}
+              aria-label="Search Products"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-[#f2eded] transition hover:border-[#b30e16] hover:text-white active:scale-95"
             >
-              <Menu className="h-5 w-5 stroke-[1.6]" />
+              {searchOpen ? <X className="h-[18px] w-[18px]" /> : <Search className="h-[18px] w-[18px]" />}
             </button>
           </div>
         </div>
-      </header>
 
-      {/* Mobile Fullscreen Navigation Drawer */}
-      <AnimatePresence>
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex flex-col bg-[#060405]/98 px-6 py-6 backdrop-blur-lg md:hidden"
-          >
-            <div className="flex items-center justify-between border-b border-white/10 pb-5">
-              <div className="flex items-center gap-3">
-                <img
-                  src="/assets/three-ways-studios-logo.png"
-                  alt="THREE WAYS STUDIOS"
-                  className="h-11 w-auto"
-                />
-                <span className="font-script text-2xl text-white">{settings.hero_script_text}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(false)}
-                aria-label="Close navigation menu"
-                className="rounded-full border border-white/15 p-2 text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="mt-10 flex flex-col gap-5">
-              {settings.nav_links.map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => handleLinkClick(item.path)}
-                  className="border-b border-white/8 pb-4 text-left text-lg font-light tracking-[0.24em] text-[#f2eded] uppercase"
-                >
-                  {item.label}
-                </button>
-              ))}
+        {/* Mobile Navigation Drawer */}
+        {mobileOpen && (
+          <div className="border-t border-white/10 bg-[#090607] px-5 py-6 lg:hidden">
+            <nav className="flex flex-col gap-4" aria-label="Mobile navigation">
               <Link
-                to="/cart"
-                onClick={() => setMobileMenuOpen(false)}
-                className="border-b border-white/8 pb-4 text-left text-lg font-light tracking-[0.24em] text-[#f2eded] uppercase"
+                to="/"
+                className="text-sm font-semibold tracking-[0.22em] text-white uppercase"
               >
-                BAG ({itemCount})
+                Home
               </Link>
               <Link
-                to="/contact"
-                onClick={() => setMobileMenuOpen(false)}
-                className="border-b border-white/8 pb-4 text-left text-lg font-light tracking-[0.24em] text-[#f2eded] uppercase"
+                to="/collections"
+                className="text-sm font-medium tracking-[0.2em] text-[#c7bcbc] uppercase hover:text-white"
               >
-                CONTACT
+                Shop All
               </Link>
               <Link
-                to="/admin"
-                onClick={() => setMobileMenuOpen(false)}
-                className="pt-2 text-left text-xs tracking-[0.22em] text-[#9e9494] uppercase"
+                to="/collections?category=Men"
+                className="text-sm font-medium tracking-[0.2em] text-[#c7bcbc] uppercase hover:text-white"
               >
-                STUDIO ADMIN
+                Men&apos;s Collection
               </Link>
-            </div>
-
-            <div className="mt-auto border-t border-white/10 pt-6">
-              <p className="text-[11px] tracking-[0.22em] text-[#9e9494] uppercase">
-                THREE WAYS STUDIOS — WOMEN&apos;S PANTS ONLY
-              </p>
-            </div>
-          </motion.div>
+              <Link
+                to="/collections?category=Women"
+                className="text-sm font-medium tracking-[0.2em] text-[#c7bcbc] uppercase hover:text-white"
+              >
+                Women&apos;s Collection
+              </Link>
+              <Link
+                to="/collections?filter=new"
+                className="text-sm font-medium tracking-[0.2em] text-[#c7bcbc] uppercase hover:text-white"
+              >
+                New Arrivals
+              </Link>
+              <Link
+                to="/about"
+                className="text-sm font-medium tracking-[0.2em] text-[#c7bcbc] uppercase hover:text-white"
+              >
+                About Studio
+              </Link>
+              <Link
+                to="/account"
+                className="text-sm font-medium tracking-[0.2em] text-[#c7bcbc] uppercase hover:text-white"
+              >
+                Account
+              </Link>
+            </nav>
+          </div>
         )}
-      </AnimatePresence>
 
-      {/* Search Overlay */}
-      <AnimatePresence>
+        {/* Search Overlay */}
         {searchOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 px-4 pt-24 backdrop-blur-md"
-            onClick={() => setSearchOpen(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: -14 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-2xl border border-white/15 bg-[#0c0708] p-6 shadow-2xl"
-            >
-              <div className="flex items-center gap-3 border-b border-white/15 pb-3">
-                <Search className="h-4 w-4 text-[#9e9494]" />
-                <input
-                  type="text"
-                  autoFocus
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search women's pants by name, silhouette, or collection..."
-                  className="w-full bg-transparent text-sm text-white placeholder-[#7d7373] focus:outline-none"
-                />
+          <div className="border-t border-white/10 bg-[#090607]/98 px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-4xl">
+              <form onSubmit={handleSearchSubmit} className="flex items-center gap-3">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9e9494]" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search wide-flare pants, cargo, denim, men, women..."
+                    autoFocus
+                    className="w-full rounded-full border border-white/15 bg-[#120c0d] py-3 pl-11 pr-4 text-sm text-white placeholder-[#7d7272] focus:border-[#b30e16] focus:outline-none"
+                  />
+                </div>
                 <button
-                  type="button"
-                  onClick={() => setSearchOpen(false)}
-                  aria-label="Close search"
-                  className="text-[#9e9494] hover:text-white"
+                  type="submit"
+                  className="rounded-full bg-[#b30e16] px-6 py-3 text-xs font-semibold tracking-[0.2em] text-white uppercase transition hover:bg-[#d4121b]"
                 >
-                  <X className="h-4 w-4" />
+                  Search
                 </button>
-              </div>
+              </form>
 
-              <div className="mt-5">
-                {searchLoading ? (
-                  <p className="py-6 text-center text-xs tracking-[0.2em] text-[#9e9494] uppercase">
-                    Searching archive...
-                  </p>
-                ) : filteredSearch.length === 0 ? (
-                  <p className="py-6 text-center text-xs tracking-[0.16em] text-[#9e9494]">
-                    {searchProducts.length === 0
-                      ? 'No published pants in catalog yet.'
-                      : `No pieces found matching "${searchQuery}".`}
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {filteredSearch.map((product) => (
+              {filteredProducts.length > 0 && (
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {filteredProducts.map((product) => {
+                    const img = product.images?.[0]?.url || '/images/prod-obsidian-flare.jpg';
+                    return (
                       <Link
                         key={product.id}
                         to={`/products/${product.slug}`}
-                        onClick={() => setSearchOpen(false)}
-                        className="flex items-center gap-3 border border-white/10 p-2.5 transition-colors hover:border-[#b30e16]/60 hover:bg-white/[0.03]"
+                        className="group flex flex-col overflow-hidden rounded-lg border border-white/10 bg-[#100a0b] transition hover:border-[#b30e16]/60"
                       >
-                        <div className="tws-card-surface h-16 w-12 shrink-0 overflow-hidden">
-                          {product.images?.[0]?.url && (
-                            <img
-                              src={product.images[0].url}
-                              alt={product.name}
-                              className="h-full w-full object-cover"
-                            />
-                          )}
+                        <div className="aspect-[3/4] overflow-hidden bg-[#150d0f]">
+                          <img
+                            src={img}
+                            alt={product.name}
+                            loading="lazy"
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          />
                         </div>
-                        <div className="min-w-0">
+                        <div className="p-2.5">
                           <p className="truncate text-xs font-medium text-white">{product.name}</p>
-                          <p className="mt-1 text-xs text-[#d4121b]">{formatEGP(product.price)}</p>
+                          <p className="mt-0.5 text-[11px] text-[#d4121b]">{formatPrice(product.price)}</p>
                         </div>
                       </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </header>
     </>
   );
 }

@@ -1,159 +1,98 @@
-import { useEffect, useState } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
-import { ArrowDown, ArrowRight } from 'lucide-react';
-import { useSiteSettings } from '../context/SiteSettingsContext';
+import { Link } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
 
 export function HeroSection() {
-  const { settings } = useSiteSettings();
-  const { scrollY } = useScroll();
-  const [mouseOffset, setMouseOffset] = useState({ x: 0, y: 0 });
-
-  const bgTextY = useTransform(scrollY, [0, 700], [0, 90]);
-  const scriptTextY = useTransform(scrollY, [0, 700], [0, 42]);
-
-  useEffect(() => {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) return;
-
-    const onMove = (e: MouseEvent) => {
-      const nx = (e.clientX / window.innerWidth - 0.5) * 16;
-      const ny = (e.clientY / window.innerHeight - 0.5) * 12;
-      setMouseOffset({ x: nx, y: ny });
-    };
-
-    window.addEventListener('mousemove', onMove, { passive: true });
-    return () => window.removeEventListener('mousemove', onMove);
-  }, []);
-
-  const scrollToProducts = () => {
-    document.getElementById('products')?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   return (
-    <section
-      aria-label="THREE WAYS STUDIOS Hero"
-      className="relative flex min-h-[88vh] flex-col justify-between overflow-hidden px-5 pt-28 pb-12 sm:min-h-[92vh] sm:px-8 lg:px-12"
-    >
-      {/* Center Composition: Massive Blurred Crimson Typography + Handwritten Script */}
-      <div className="relative flex flex-1 flex-col items-center justify-center py-10 sm:py-16">
-        {/* Massive Blurred Background Wordmark: THREE WAYS */}
-        <motion.div
-          style={{
-            y: bgTextY,
-            x: mouseOffset.x * -0.45,
-          }}
-          className="pointer-events-none relative flex w-full items-center justify-center select-none"
-        >
-          <motion.h1
-            initial={{ opacity: 0, filter: 'blur(26px)', scale: 0.96 }}
-            animate={{ opacity: 0.88, filter: 'blur(4.5px)', scale: 1 }}
-            transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
-            className="font-display-tall text-center text-[21vw] leading-[0.82] tracking-[-0.01em] text-[#9b0810] uppercase sm:text-[18.5vw] lg:text-[16vw]"
-            style={{
-              textShadow:
-                '0 0 65px rgba(212, 18, 27, 0.55), 0 0 120px rgba(140, 8, 16, 0.45)',
-              transform: 'scaleY(1.18)',
-            }}
-          >
-            {settings.hero_bg_text}
-          </motion.h1>
-        </motion.div>
+    <section className="relative overflow-hidden border-b border-white/10 bg-[#060405]">
+      <div className="relative mx-auto grid min-h-[82vh] max-w-7xl grid-cols-1 items-center gap-8 px-4 py-12 sm:px-6 lg:grid-cols-12 lg:gap-12 lg:px-8 lg:py-16">
+        {/* Left Editorial Content */}
+        <div className="relative z-10 flex flex-col items-start lg:col-span-6">
+          <div className="mb-5 inline-flex items-center gap-2.5 rounded-full border border-[#b30e16]/40 bg-[#b30e16]/10 px-4 py-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#d4121b]" />
+            <span className="text-[11px] font-semibold tracking-[0.26em] text-[#f2eded] uppercase">
+              2026 Underground Campaign
+            </span>
+          </div>
 
-        {/* Handwritten Script Layered Over Giant Typography with Drawing/Reveal Effect */}
-        <motion.div
-          style={{
-            y: scriptTextY,
-            x: mouseOffset.x * 0.25,
-          }}
-          className="relative z-10 -mt-[12vw] flex flex-col items-center sm:-mt-[10.5vw] lg:-mt-[9.5vw]"
-        >
-          <motion.div
-            initial={{ clipPath: 'inset(0 100% 0 0)', opacity: 0.2 }}
-            animate={{ clipPath: 'inset(0 0% 0 0)', opacity: 1 }}
-            transition={{ duration: 1.55, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="px-4 py-2 text-center"
-          >
-            <span
-              className="font-script inline-block text-[11vw] leading-none text-[#f7f2f2] sm:text-[8.2vw] lg:text-[7vw]"
-              style={{
-                textShadow: '0 4px 28px rgba(0, 0, 0, 0.85)',
-              }}
+          <h1 className="font-display-tall text-5xl leading-[0.95] tracking-wide text-white uppercase sm:text-6xl lg:text-7xl">
+            FASHION
+            <span className="block text-[#d4121b]">BEYOND LIMITS</span>
+          </h1>
+
+          <p className="mt-5 max-w-lg text-sm leading-relaxed text-[#b8adad] sm:text-base">
+            THREE WAYS STUDIOS is an underground luxury streetwear house engineered around
+            architectural wide-flare and super-flare silhouettes. Cut from heavyweight raw denim,
+            technical ripstop, and Italian wool.
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <Link
+              to="/collections"
+              className="inline-flex items-center gap-3 rounded-full bg-[#b30e16] px-8 py-4 text-xs font-bold tracking-[0.24em] text-white uppercase shadow-[0_0_30px_rgba(179,14,22,0.4)] transition hover:bg-[#d4121b] active:scale-[0.98]"
             >
-              {settings.hero_script_text}
-              <sup className="font-sans-ui ml-1 align-super text-[11px] font-light opacity-75 sm:text-sm">
-                ®
-              </sup>
-            </span>
-          </motion.div>
+              SHOP NOW
+              <ArrowRight className="h-4 w-4" />
+            </Link>
 
-          {/* Animated Signature Underline Sweep */}
-          <svg
-            viewBox="0 0 420 26"
-            className="-mt-2 h-5 w-52 overflow-visible sm:w-72 lg:w-88"
-            aria-hidden="true"
-          >
-            <motion.path
-              d="M 8 20 Q 170 4, 412 10"
-              fill="none"
-              stroke="rgba(247, 242, 242, 0.72)"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              initial={{ pathLength: 0, opacity: 0 }}
-              animate={{ pathLength: 1, opacity: 1 }}
-              transition={{ duration: 1.2, delay: 1.1, ease: 'easeOut' }}
+            <Link
+              to="/collections?filter=new"
+              className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-7 py-4 text-xs font-semibold tracking-[0.22em] text-[#f2eded] uppercase transition hover:border-white/40 hover:bg-white/10 active:scale-[0.98]"
+            >
+              NEW ARRIVALS
+            </Link>
+          </div>
+
+          <div className="mt-10 grid grid-cols-3 gap-6 border-t border-white/10 pt-6 text-left">
+            <div>
+              <p className="font-display-tall text-2xl tracking-wider text-white">14 OZ</p>
+              <p className="mt-0.5 text-[11px] tracking-[0.16em] text-[#9e9494] uppercase">
+                Raw Selvedge
+              </p>
+            </div>
+            <div>
+              <p className="font-display-tall text-2xl tracking-wider text-white">34 CM</p>
+              <p className="mt-0.5 text-[11px] tracking-[0.16em] text-[#9e9494] uppercase">
+                Super-Flare Hem
+              </p>
+            </div>
+            <div>
+              <p className="font-display-tall text-2xl tracking-wider text-white">COD</p>
+              <p className="mt-0.5 text-[11px] tracking-[0.16em] text-[#9e9494] uppercase">
+                Nationwide Delivery
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Campaign Photography */}
+        <div className="relative lg:col-span-6">
+          <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0d0809] shadow-2xl">
+            <img
+              src="/images/hero-campaign.jpg"
+              alt="THREE WAYS STUDIOS 2026 Underground Streetwear Campaign"
+              fetchPriority="high"
+              decoding="async"
+              className="h-full w-full object-cover object-center"
             />
-          </svg>
-        </motion.div>
-      </div>
-
-      {/* Bottom Editorial Controls matching Reference Layout */}
-      <div className="mx-auto flex w-full max-w-[1380px] flex-col items-start justify-between gap-8 pt-6 sm:flex-row sm:items-end">
-        {/* Left: FASHION BEYOND LIMITS + Vertical Hairline + SCROLL DOWN */}
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, delay: 0.65 }}
-          className="flex flex-col items-start"
-        >
-          <p className="max-w-[130px] text-[11px] leading-[1.45] font-medium tracking-[0.18em] text-[#e6dfdf] uppercase">
-            {settings.hero_tagline}
-          </p>
-          <div className="my-5 h-10 w-px bg-white/30" />
-          <button
-            type="button"
-            onClick={scrollToProducts}
-            className="group flex items-center gap-3 text-[10px] tracking-[0.22em] text-[#cfc6c6] uppercase transition-colors hover:text-white"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-white/35 transition-all duration-300 group-hover:translate-y-0.5 group-hover:border-white">
-              <ArrowDown className="h-3 w-3" />
-            </span>
-            <span>SCROLL DOWN</span>
-          </button>
-        </motion.div>
-
-        {/* Right: NEW COLLECTION / 2026 + SHOP NOW */}
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, delay: 0.8 }}
-          className="flex flex-col items-start sm:items-end"
-        >
-          <p className="text-[11px] leading-[1.5] font-medium tracking-[0.18em] text-[#e6dfdf] uppercase sm:text-right">
-            {settings.hero_collection_label.split('/').map((part, idx) => (
-              <span key={idx} className="block">
-                {idx === 1 ? `/ ${part.trim()}` : part.trim()}
-              </span>
-            ))}
-          </p>
-          <button
-            type="button"
-            onClick={scrollToProducts}
-            className="group mt-4 inline-flex items-center gap-4 rounded-full border border-white/35 bg-black/25 px-7 py-2.5 text-[11px] font-medium tracking-[0.2em] text-white uppercase transition-all duration-300 hover:border-[#d4121b] hover:bg-[#b30e16]/85"
-          >
-            <span>{settings.hero_cta_label}</span>
-            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-          </button>
-        </motion.div>
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#060405] via-transparent to-transparent opacity-70" />
+            <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between">
+              <div>
+                <p className="text-[10px] font-semibold tracking-[0.24em] text-[#d4121b] uppercase">
+                  Editorial Look 01
+                </p>
+                <p className="mt-1 text-sm font-medium text-white">
+                  Obsidian Super-Flare &amp; Nocturne Cargo
+                </p>
+              </div>
+              <Link
+                to="/collections"
+                className="rounded-full border border-white/25 bg-black/60 px-4 py-2 text-[10px] font-semibold tracking-[0.2em] text-white uppercase backdrop-blur-sm transition hover:border-[#d4121b] hover:bg-[#b30e16]"
+              >
+                Explore
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
