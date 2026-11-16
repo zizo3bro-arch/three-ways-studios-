@@ -2,15 +2,15 @@
 
 @theme {
   /* Modern-vintage luxury palette — Three Ways Studios */
-  --color-cream: #f5f2eb;
-  --color-cream-deep: #edeae1;
-  --color-cream-card: #fbfaf6;
-  --color-ink: #201d1a;
-  --color-ink-deep: #141210;
-  --color-ink-soft: #57514b;
-  --color-ink-faint: #8d867d;
-  --color-crimson: #a91420;
-  --color-crimson-deep: #8e0f18;
+  --color-cream: #e8e5df;
+  --color-cream-deep: #dfdcd5;
+  --color-cream-card: #f7f5f0;
+  --color-ink: #171514;
+  --color-ink-deep: #0f0d0c;
+  --color-ink-soft: #4d4843;
+  --color-ink-faint: #7f7870;
+  --color-crimson: #9b0b12;
+  --color-crimson-deep: #78070d;
   --color-crimson-bright: #b30e16;
   --color-navy-glow: #152c4e;
   --color-navy-deep: #0a1628;
@@ -18,24 +18,24 @@
   --color-onyx-deep: #09090b;
 
   --font-display: "Anton", Impact, sans-serif;
-  --font-script: "Alex Brush", cursive;
+  --font-script: "Hurricane", "Allison", "Alex Brush", cursive;
   --font-sans: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 @layer base {
   html {
     scroll-behavior: smooth;
-    scroll-padding-top: 6.5rem;
+    scroll-padding-top: 5.5rem;
     scrollbar-gutter: stable;
-    background-color: #f5f2eb;
-    color: #201d1a;
+    background-color: #e8e5df;
+    color: #171514;
     font-family: "Plus Jakarta Sans Variable", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 
   body {
-    background-color: #f5f2eb;
-    color: #201d1a;
+    background-color: #e8e5df;
+    color: #171514;
     overflow-x: hidden;
   }
 
@@ -47,88 +47,102 @@
 }
 
 /* =========================================================
-   ARCHIVAL PAPER SURFACE — static SVG grain, zero runtime cost
+   GLOBAL AMBIENT RED SMOKE — fixed behind all page content
+   Pure GPU-accelerated transform + opacity (zero live blur)
    ========================================================= */
-.tws-paper {
-  background-color: #f5f2eb;
+.tws-smoke-plume {
+  position: absolute;
+  inset: -28%;
+  pointer-events: none;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.tws-smoke-plume-1 {
+  background:
+    radial-gradient(46% 36% at 26% 30%, rgba(168, 12, 22, 0.92) 0%, rgba(145, 9, 18, 0.44) 38%, rgba(130, 8, 16, 0.12) 64%, transparent 82%),
+    radial-gradient(38% 30% at 62% 24%, rgba(154, 10, 20, 0.72) 0%, rgba(138, 8, 17, 0.28) 45%, transparent 78%);
+  opacity: 0.085;
+  animation: tws-smoke-drift-1 34s ease-in-out infinite alternate;
+}
+
+.tws-smoke-plume-2 {
+  background:
+    radial-gradient(48% 38% at 74% 68%, rgba(158, 11, 20, 0.88) 0%, rgba(136, 8, 16, 0.4) 40%, rgba(120, 6, 14, 0.1) 66%, transparent 84%),
+    radial-gradient(36% 32% at 22% 76%, rgba(165, 14, 24, 0.68) 0%, rgba(140, 10, 18, 0.24) 48%, transparent 78%);
+  opacity: 0.075;
+  animation: tws-smoke-drift-2 42s ease-in-out infinite alternate;
+}
+
+.tws-smoke-plume-3 {
+  background:
+    radial-gradient(54% 42% at 50% 48%, rgba(175, 14, 24, 0.82) 0%, rgba(148, 10, 19, 0.36) 42%, rgba(124, 7, 15, 0.08) 68%, transparent 86%);
+  opacity: 0.065;
+  animation: tws-smoke-drift-3 28s ease-in-out infinite alternate;
+}
+
+@keyframes tws-smoke-drift-1 {
+  0% {
+    transform: translate3d(-4%, -3%, 0) scale3d(1, 1, 1) rotate(-1.5deg);
+    opacity: 0.065;
+  }
+  50% {
+    transform: translate3d(3%, 2%, 0) scale3d(1.06, 1.03, 1) rotate(1deg);
+    opacity: 0.105;
+  }
+  100% {
+    transform: translate3d(6%, -2%, 0) scale3d(1.03, 1.08, 1) rotate(2deg);
+    opacity: 0.08;
+  }
+}
+
+@keyframes tws-smoke-drift-2 {
+  0% {
+    transform: translate3d(5%, 3%, 0) scale3d(1.04, 1, 1) rotate(1.5deg);
+    opacity: 0.06;
+  }
+  50% {
+    transform: translate3d(-2%, -3%, 0) scale3d(1.08, 1.05, 1) rotate(-1deg);
+    opacity: 0.095;
+  }
+  100% {
+    transform: translate3d(-6%, 2%, 0) scale3d(1, 1.06, 1) rotate(-2deg);
+    opacity: 0.07;
+  }
+}
+
+@keyframes tws-smoke-drift-3 {
+  0% {
+    transform: translate3d(0%, 4%, 0) scale3d(0.97, 1.02, 1);
+    opacity: 0.06;
+  }
+  100% {
+    transform: translate3d(-3%, -4%, 0) scale3d(1.07, 0.98, 1);
+    opacity: 0.11;
+  }
+}
+
+/* =========================================================
+   ARCHIVAL CONCRETE / PAPER TEXTURE — static SVG grain
+   ========================================================= */
+.tws-paper-texture {
+  background-color: #e6e3dc;
   background-image:
-    radial-gradient(1200px 800px at 50% -10%, rgba(169, 20, 32, 0.055), transparent 60%),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
-  background-size: auto, 210px 210px;
+    radial-gradient(120% 90% at 50% 48%, rgba(255, 255, 255, 0.34) 0%, rgba(214, 209, 200, 0.25) 68%, rgba(182, 176, 166, 0.42) 100%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 260 260' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.52'/%3E%3C/svg%3E");
+  background-size: auto, 240px 240px;
 }
 
 .tws-grain {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
-  background-size: 210px 210px;
-  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 220px 220px;
+  opacity: 0.055;
   mix-blend-mode: multiply;
 }
 
 /* =========================================================
-   HERO — layered editorial typography (static paint layers)
+   SCROLLLOCK — used ONLY for modals / drawers (never hero)
    ========================================================= */
-.tws-hero-title {
-  /* Scales with width and viewport height so the locked gate always fits. */
-  font-size: clamp(2.1rem, min(10.5vw, 13vh), 11.25rem);
-}
-
-.tws-hero-script {
-  font-size: clamp(1.6rem, min(7.6vw, 9vh), 6.75rem);
-}
-
-.tws-hero-word {
-  color: #a91420;
-  letter-spacing: -0.015em;
-  line-height: 0.82;
-  text-shadow:
-    0 1px 0 rgba(94, 8, 14, 0.55),
-    0 18px 44px rgba(94, 8, 14, 0.35);
-}
-
-.tws-hero-word-ghost {
-  color: rgba(32, 29, 26, 0.09);
-  letter-spacing: -0.015em;
-  line-height: 0.82;
-}
-
-.tws-script-ink {
-  color: #201d1a;
-  text-shadow: 0 2px 14px rgba(32, 29, 26, 0.22);
-}
-
-/* =========================================================
-   PRODUCTS SHOWCASE — GPU crossfading ambient backdrops
-   ========================================================= */
-.tws-showcase-navy {
-  background:
-    radial-gradient(130% 105% at 50% 38%, #152c4e 0%, #0d1f38 42%, #0a1628 78%, #070f1d 100%);
-}
-
-.tws-showcase-onyx {
-  background:
-    radial-gradient(130% 105% at 50% 38%, #18181b 0%, #101013 46%, #09090b 82%, #050506 100%);
-}
-
-.tws-spotlight-navy {
-  background: radial-gradient(58% 62% at 50% 44%, rgba(176, 210, 255, 0.24) 0%, rgba(140, 180, 230, 0.1) 42%, transparent 74%);
-}
-
-.tws-spotlight-onyx {
-  background: radial-gradient(56% 60% at 50% 44%, rgba(228, 228, 231, 0.34) 0%, rgba(200, 200, 208, 0.14) 40%, rgba(150, 150, 160, 0.05) 62%, transparent 78%);
-}
-
-.tws-floor-shadow {
-  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.28) 45%, transparent 78%);
-}
-
-/* =========================================================
-   HERO GATE — the first screen stays locked until "Shop Now"
-   ========================================================= */
-.tws-hero-locked {
-  height: 100svh;
-  overflow: hidden;
-}
-
 html.tws-scroll-locked {
   overflow: hidden !important;
   overscroll-behavior: none;
@@ -152,7 +166,6 @@ html.tws-scroll-locked body {
 }
 
 .tws-swipe-stage.is-dragging .tws-swipe-slide img {
-  /* Kill hover/scroll jank mid-gesture; nothing but the track moves. */
   pointer-events: none;
 }
 
@@ -175,6 +188,10 @@ html.tws-scroll-locked body {
 .tws-swipe-slide img {
   user-select: none;
   -webkit-user-drag: none;
+}
+
+.tws-white-floor-shadow {
+  background: radial-gradient(50% 50% at 50% 50%, rgba(20, 18, 16, 0.22) 0%, rgba(20, 18, 16, 0.09) 48%, transparent 78%);
 }
 
 /* =========================================================
@@ -234,12 +251,11 @@ html.tws-scroll-locked body {
   grid-template-rows: 1fr;
 }
 
-
 /* Keyed content swap (headline / price / tagline) */
 @keyframes tws-swap-in {
   from {
     opacity: 0;
-    transform: translate3d(0, 16px, 0);
+    transform: translate3d(0, 14px, 0);
   }
   to {
     opacity: 1;
@@ -248,31 +264,32 @@ html.tws-scroll-locked body {
 }
 
 .tws-swap-in {
-  animation: tws-swap-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: tws-swap-in 0.48s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Scroll cue — transform-only bounce */
+/* Scroll cue — subtle vertical nudge */
 @keyframes tws-scroll-cue {
   0%,
   100% {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(0, -1px, 0);
   }
   50% {
-    transform: translate3d(0, 9px, 0);
+    transform: translate3d(0, 2.5px, 0);
   }
 }
 
 .tws-scroll-cue {
-  animation: tws-scroll-cue 2.1s ease-in-out infinite;
+  animation: tws-scroll-cue 2.2s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
   }
-  .tws-scroll-cue {
-    animation: none;
-  }
+  .tws-smoke-plume-1,
+  .tws-smoke-plume-2,
+  .tws-smoke-plume-3,
+  .tws-scroll-cue,
   .tws-swap-in {
     animation: none;
   }

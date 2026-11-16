@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, ArrowUp, Check } from 'lucide-react';
 import { subscribeNewsletter } from '../lib/api';
 
 const FACTS: Array<{ label: string; value: string }> = [
@@ -46,9 +46,8 @@ export function InformationSection() {
     <section
       id="information"
       aria-label="Information — about Three Ways Studios"
-      className="relative border-t border-ink/12 bg-cream text-ink"
+      className="relative border-t border-ink/12 bg-transparent text-ink"
     >
-      <div aria-hidden="true" className="tws-grain pointer-events-none absolute inset-0" />
       <div className="relative mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-14 sm:px-8 sm:py-16 lg:grid-cols-12 lg:gap-10 lg:px-12 xl:gap-16">
         {/* ——— LEFT · brief brand note ——— */}
         <div className="lg:col-span-5">
@@ -84,13 +83,13 @@ export function InformationSection() {
 
         {/* ——— RIGHT · Name & Email — Studio List card ——— */}
         <div className="lg:col-span-6 lg:col-start-7">
-          <div className="max-w-lg rounded-[1.75rem] border-2 border-ink bg-cream-card p-6 shadow-[0_24px_60px_-28px_rgba(20,18,16,0.55)] sm:p-8">
+          <div className="max-w-lg rounded-[1.75rem] border-2 border-ink bg-[#FFFFFF] p-6 shadow-[0_24px_60px_-28px_rgba(20,18,16,0.45)] sm:p-8">
             {done ? (
               <div>
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-cream">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-ink text-white">
                   <Check className="h-5 w-5" strokeWidth={2.6} />
                 </span>
-                <h3 className="mt-5 font-script text-4xl leading-none text-ink">
+                <h3 className="mt-5 font-script text-4xl leading-none text-ink sm:text-5xl">
                   Welcome to the list.
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-ink-soft">
@@ -104,11 +103,11 @@ export function InformationSection() {
                 </p>
                 <a
                   href="#products"
-                  className="mt-6 inline-flex h-12 items-center gap-3 rounded-full bg-ink pl-7 pr-2 text-[10px] font-bold uppercase tracking-[0.24em] text-cream transition-colors duration-300 hover:bg-crimson-bright"
+                  className="mt-6 inline-flex h-12 items-center gap-3 rounded-full bg-ink pl-7 pr-2 text-[10px] font-bold uppercase tracking-[0.24em] text-white transition-colors duration-300 hover:bg-crimson-bright"
                 >
                   Back to the drop
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-cream text-ink">
-                    <ArrowRight className="h-4 w-4 rotate-90" strokeWidth={2} />
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink">
+                    <ArrowUp className="h-4 w-4" strokeWidth={2} />
                   </span>
                 </a>
               </div>
@@ -172,7 +171,7 @@ export function InformationSection() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="group mt-5 inline-flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-crimson-bright px-6 text-[11px] font-bold uppercase tracking-[0.26em] text-cream transition-colors duration-200 hover:bg-crimson-deep disabled:cursor-not-allowed disabled:opacity-60"
+                  className="group mt-5 inline-flex h-14 w-full items-center justify-center gap-3 rounded-xl bg-crimson-bright px-6 text-[11px] font-bold uppercase tracking-[0.26em] text-white transition-colors duration-200 hover:bg-crimson-deep disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? 'Securing your place…' : 'Join the Studio List'}
                   <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" strokeWidth={2.2} />

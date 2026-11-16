@@ -73,17 +73,17 @@ export function ProductDetailsView({
         type="button"
         aria-label="Close product details"
         onClick={onClose}
-        className="tws-fade-in absolute inset-0 cursor-default bg-[#08070a]/78"
+        className="tws-fade-in absolute inset-0 cursor-default bg-[#08070a]/72"
       />
 
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="tws-details-title"
-        className="tws-panel-in relative z-10 flex h-[100svh] w-full max-w-5xl flex-col overflow-hidden border-ink/10 bg-cream text-ink sm:h-auto sm:max-h-[92svh] sm:rounded-[1.75rem] sm:border"
+        className="tws-panel-in relative z-10 flex h-[100svh] w-full max-w-5xl flex-col overflow-hidden border-ink/10 bg-[#FFFFFF] text-ink sm:h-auto sm:max-h-[92svh] sm:rounded-[1.75rem] sm:border"
       >
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 border-b border-ink/12 bg-cream px-5 py-4 sm:px-7">
+        <div className="flex items-center justify-between gap-4 border-b border-ink/10 bg-[#FFFFFF] px-5 py-4 sm:px-7">
           <p className="text-[9px] font-bold uppercase tracking-[0.32em] text-crimson">
             Drop 01 · Product details
           </p>
@@ -92,37 +92,18 @@ export function ProductDetailsView({
             type="button"
             onClick={onClose}
             aria-label="Close product details"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-ink/20 bg-cream-card text-ink transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-cream"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-ink/20 bg-white text-ink transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
           >
             <X className="h-4 w-4" strokeWidth={2} />
           </button>
         </div>
 
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto overscroll-contain md:grid-cols-2">
-          {/* ——— Visual ——— */}
-          <div className="relative flex items-center justify-center overflow-hidden bg-[#0b1220] px-6 py-8 md:min-h-[520px]">
+          {/* ——— Visual (Clean White Studio Backdrop) ——— */}
+          <div className="relative flex items-center justify-center overflow-hidden border-b border-ink/10 bg-[#FFFFFF] px-6 py-8 md:min-h-[520px] md:border-r md:border-b-0">
             <div
               aria-hidden="true"
-              className="absolute inset-0"
-              style={{
-                background:
-                  activeIndex === 0
-                    ? 'radial-gradient(120% 90% at 50% 38%, #152c4e 0%, #0d1f38 46%, #0a1628 80%, #070f1d 100%)'
-                    : 'radial-gradient(120% 90% at 50% 38%, #1a1a1e 0%, #101013 46%, #09090b 82%, #050506 100%)',
-              }}
-            />
-            <div
-              aria-hidden="true"
-              className="absolute inset-0 opacity-[0.05] mix-blend-overlay"
-              style={{
-                backgroundImage:
-                  "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.7'/%3E%3C/svg%3E\")",
-                backgroundSize: '210px 210px',
-              }}
-            />
-            <div
-              aria-hidden="true"
-              className="tws-floor-shadow absolute bottom-8 left-1/2 h-10 w-[62%] -translate-x-1/2 rounded-[100%]"
+              className="tws-white-floor-shadow absolute bottom-7 left-1/2 h-11 w-[62%] -translate-x-1/2 rounded-[100%]"
             />
             <img
               src={product.images?.[0]?.url}
@@ -130,13 +111,13 @@ export function ProductDetailsView({
               draggable={false}
               className="relative h-[36vh] max-h-[420px] w-auto object-contain md:h-[54vh] md:max-h-[460px]"
             />
-            <p className="absolute bottom-4 left-5 text-[8px] font-semibold uppercase tracking-[0.32em] text-white/45">
+            <p className="absolute bottom-4 left-5 text-[8px] font-semibold uppercase tracking-[0.32em] text-ink-faint">
               {product.collection_name}
             </p>
           </div>
 
           {/* ——— Info ——— */}
-          <div className="flex flex-col px-5 py-6 sm:px-7 sm:py-8">
+          <div className="flex flex-col bg-[#fbfaf7] px-5 py-6 sm:px-7 sm:py-8">
             <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-ink-faint">
               {product.category} · {product.is_new_arrival ? 'New arrival' : 'Signature'}
             </p>
@@ -156,7 +137,7 @@ export function ProductDetailsView({
                   <p className="text-sm text-ink-faint line-through">
                     {formatEGP(product.original_price ?? 0)}
                   </p>
-                  <p className="rounded-full bg-crimson-bright px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-cream">
+                  <p className="rounded-full bg-crimson-bright px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-white">
                     Save {discount}%
                   </p>
                 </>
@@ -182,8 +163,8 @@ export function ProductDetailsView({
                       className={[
                         'flex h-10 items-center gap-2 rounded-full border-2 pl-1.5 pr-3.5 text-[10px] font-bold uppercase tracking-[0.16em] transition-colors duration-200',
                         selected
-                          ? 'border-ink bg-ink text-cream'
-                          : 'border-ink/20 bg-cream-card text-ink-soft hover:border-ink/45 hover:text-ink',
+                          ? 'border-ink bg-ink text-white'
+                          : 'border-ink/20 bg-white text-ink-soft hover:border-ink/45 hover:text-ink',
                       ].join(' ')}
                     >
                       <span
@@ -223,10 +204,10 @@ export function ProductDetailsView({
                       className={[
                         'h-11 w-11 rounded-full border-2 text-[11px] font-bold tracking-wide transition-colors duration-200',
                         selected
-                          ? 'border-ink bg-ink text-cream'
+                          ? 'border-ink bg-ink text-white'
                           : soldOut
                             ? 'cursor-not-allowed border-ink/10 text-ink/25'
-                            : 'border-ink/20 bg-cream-card text-ink-soft hover:border-ink/50 hover:text-ink',
+                            : 'border-ink/20 bg-white text-ink-soft hover:border-ink/50 hover:text-ink',
                       ].join(' ')}
                     >
                       {candidate}
@@ -237,18 +218,18 @@ export function ProductDetailsView({
               <button
                 type="button"
                 onClick={() => setFindSizeOpen(true)}
-                className="mt-3 inline-flex h-10 items-center gap-2 rounded-full border border-ink/25 px-4 text-[10px] font-bold uppercase tracking-[0.2em] text-ink transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-cream"
+                className="mt-3 inline-flex h-10 items-center gap-2 rounded-full border border-ink/25 bg-white px-4 text-[10px] font-bold uppercase tracking-[0.2em] text-ink transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-white"
               >
                 <Ruler className="h-3.5 w-3.5" strokeWidth={2} />
                 Find size
               </button>
             </div>
 
-            {/* Buy now — fixed geometry, colour-only hover, zero animation */}
+            {/* Buy now — fixed geometry, crisp white text */}
             <button
               type="button"
               onClick={() => onBuyNow(size)}
-              className="mt-6 flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-crimson-bright text-[11px] font-bold uppercase tracking-[0.26em] text-cream transition-colors duration-200 hover:bg-crimson-deep active:bg-crimson-deep"
+              className="mt-6 flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-crimson-bright text-[11px] font-bold uppercase tracking-[0.26em] text-white transition-colors duration-200 hover:bg-crimson-deep active:bg-crimson-deep"
             >
               <ShoppingBag className="h-4 w-4" strokeWidth={2} />
               Buy now — {size}
@@ -303,6 +284,9 @@ export function ProductDetailsView({
                           {key === 'details' ? (
                             <div className="space-y-3">
                               <p>{product.description}</p>
+                              <p className="text-[11px] uppercase leading-relaxed tracking-[0.14em] text-ink">
+                                {product.fit_info}
+                              </p>
                               <p className="text-[11px] uppercase leading-relaxed tracking-[0.14em] text-ink-faint">
                                 {product.fabric_info}
                               </p>
@@ -312,10 +296,8 @@ export function ProductDetailsView({
                               <p>{product.care_instructions}</p>
                               <p>
                                 Dispatched from our Cairo atelier in 1–2 working days. Cash on
-                                delivery nationwide in 2–5 days; free shipping over EGP 3,500.
-                              </p>
-                              <p className="text-[11px] uppercase leading-relaxed tracking-[0.14em] text-ink-faint">
-                                {product.fit_info}
+                                delivery nationwide in 2–5 days; standard shipping EGP 75 (free over
+                                EGP 3,500).
                               </p>
                             </div>
                           )}

@@ -1,68 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { HeroSection } from '../components/HeroSection';
 import { ProductsSection } from '../components/ProductsSection';
 import { InformationSection } from '../components/InformationSection';
-import {
-  HERO_UNLOCK_EVENT,
-  scrollToSection,
-  type HeroUnlockDetail,
-} from '../lib/heroGate';
-import { useBodyScrollLock } from '../lib/scrollLock';
+import { scrollToSection } from '../lib/heroGate';
 
 export function HomePage() {
-  // The hero holds the first screen until the visitor chooses to shop.
-  const [revealed, setRevealed] = useState(false);
-  const revealedRef = useRef(false);
-
-  const reveal = useCallback((targetId?: string | null) => {
-    const destination = targetId || 'products';
-
-    if (revealedRef.current) {
-      scrollToSection(destination);
-      return;
-    }
-
-    revealedRef.current = true;
-    setRevealed(true);
-    // Wait for the unlock to paint before handing scroll back to the browser.
-    window.setTimeout(() => scrollToSection(destination), 140);
+  const handleShopNow = useCallback(() => {
+    scrollToSection('products');
   }, []);
 
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<HeroUnlockDetail>).detail;
-      reveal(detail?.targetId);
-    };
-    window.addEventListener(HERO_UNLOCK_EVENT, handler);
-    return () => window.removeEventListener(HERO_UNLOCK_EVENT, handler);
-  }, [reveal]);
-
-  useBodyScrollLock(!revealed);
-
-  useEffect(() => {
-    if (!revealed) window.scrollTo(0, 0);
-  }, [revealed]);
-
   return (
-    <main
-      className={[
-        'relative w-full overflow-x-clip',
-        revealed ? '' : 'tws-hero-locked',
-      ].join(' ')}
-    >
-      <HeroSection onShopNow={() => reveal('products')} />
+    <main className="relative w-full overflow-x-clip">
+      <HeroSection onShopNow={handleShopNow} />
 
+      {/* 1-line Editorial Transition Strip directly below the hero */}
       <div
-        inert={!revealed}
-        aria-hidden={!revealed}
-        className={[
-          'transition-opacity duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)]',
-          revealed ? 'opacity-100' : 'pointer-events-none opacity-0',
-        ].join(' ')}
+        id="collection-strip"
+        aria-label="Editorial collection marker"
+        className="relative mx-auto max-w-[1640px] px-5 pt-4 pb-2 sm:px-8 lg:px-12"
       >
-        <ProductsSection />
-        <InformationSection />
+        <div className="flex items-center justify-between gap-4 border-y border-ink/14 py-3.5 text-[9px] font-bold uppercase tracking-[0.34em] text-ink-soft sm:text-[10px]">
+          <span aria-hidden="true" className="hidden h-1.5 w-1.5 rounded-full bg-crimson-bright sm:inline-block" />
+          <p className="mx-auto text-center">
+            COLLECTION 01 — HAND-CUT IN CAIRO
+          </p>
+          <span aria-hidden="true" className="hidden h-1.5 w-1.5 rounded-full bg-crimson-bright sm:inline-block" />
+        </div>
       </div>
+
+      <ProductsSection />
+      <InformationSection />
     </main>
   );
 }

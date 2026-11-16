@@ -205,6 +205,7 @@ export interface QuoteResponse {
     line_total: number;
   }>;
   subtotal: number;
+  shipping_cost?: number;
   email_discount_applied: boolean;
   email_discount_percent: number;
   email_discount_amount: number;
@@ -228,6 +229,7 @@ export interface OrderConfirmationData {
   order_notes: string;
   payment_method: 'COD';
   subtotal: number;
+  shipping_cost?: number;
   email_discount_amount: number;
   promo_discount_amount: number;
   discount_total: number;

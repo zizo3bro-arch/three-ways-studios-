@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
+import { AmbientSmoke } from './components/AmbientSmoke';
 import { CartDrawer } from './components/CartDrawer';
 import { Navbar } from './components/Navbar';
 import { SiteFooter } from './components/SiteFooter';
@@ -23,11 +24,31 @@ const AdminLoginPage = lazy(() =>
   import('./pages/admin/AdminLoginPage').then((m) => ({ default: m.AdminLoginPage }))
 );
 
-function ScrollToTop() {
-  const { pathname } = useLocation();
+function ScrollManager() {
+  const { pathname, hash } = useLocation();
+
   useEffect(() => {
+    if (hash) {
+      const targetId = hash.replace(/^#/, '');
+      let attempts = 0;
+      const tryScroll = () => {
+        const el = document.getElementById(targetId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        attempts += 1;
+        if (attempts < 12) {
+          window.setTimeout(tryScroll, 80);
+        }
+      };
+      window.requestAnimationFrame(tryScroll);
+      return;
+    }
+
     window.scrollTo(0, 0);
-  }, [pathname]);
+  }, [pathname, hash]);
+
   return null;
 }
 
@@ -36,16 +57,19 @@ function AppShell() {
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   return (
-    <div className="relative min-h-screen bg-[#f5f2eb] text-[#201d1a]">
-      <ScrollToTop />
+    <div className="tws-paper-texture relative min-h-screen text-ink">
+      <ScrollManager />
+
+      {/* Global ambient crimson smoke behind all page content */}
+      <AmbientSmoke />
 
       {!isAdminRoute && <Navbar />}
       {!isAdminRoute && <CartDrawer />}
 
-      <div className="relative">
+      <div className="relative z-10">
         <Suspense
           fallback={
-            <div className="flex min-h-[70vh] items-center justify-center text-[10px] font-bold uppercase tracking-[0.3em] text-[#8d867d]">
+            <div className="flex min-h-[70vh] items-center justify-center text-[10px] font-bold uppercase tracking-[0.3em] text-ink-faint">
               THREE WAYS STUDIOS…
             </div>
           }
