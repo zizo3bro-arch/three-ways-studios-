@@ -251,6 +251,7 @@ export async function createCodOrder(params: {
   notes?: string;
   discountCode?: string | null;
   promoCode?: string | null;
+  paymentMethod?: string;
   items: Array<{ variant_id: string; quantity: number; unit_price?: number }>;
 }): Promise<{ order: OrderConfirmationData | null; error: string | null }> {
   const effectiveCode = params.discountCode ?? params.promoCode ?? null;
@@ -263,6 +264,12 @@ export async function createCodOrder(params: {
 
   const hasDemoIds = params.items.some((i) => !/^[0-9a-f-]{36}$/i.test(i.variant_id));
 
+  // Real, persisted order path. When Supabase is configured and the cart
+  // holds genuine database variant ids we MUST use the backend and never
+  // fall back to a locally fabricated record — otherwise a visitor would
+  // see an order confirmation for an order that does not exist in the
+  // database. The local fallback below runs only for the demo (Supabase not
+  // configured) or when the cart contains demo ids.
   if (isSupabaseConfigured && supabase && !hasDemoIds) {
     try {
       const { data, error } = await supabase.rpc('create_cod_order', {
@@ -280,7 +287,13 @@ export async function createCodOrder(params: {
         p_promo_code: effectiveCode?.trim() || null,
       });
 
-      if (!error && data) {
+      if (error) {
+        return {
+          order: null,
+          error: error.message || 'The order could not be placed. Please try again.',
+        };
+      }
+      if (data) {
         const rpcOrder = data as OrderConfirmationData;
         const shippingCost = rpcOrder.shipping_cost ?? calculateShippingCost(rpcOrder.subtotal);
         return {
@@ -292,8 +305,12 @@ export async function createCodOrder(params: {
           error: null,
         };
       }
+      return { order: null, error: 'The order could not be placed. Please try again.' };
     } catch {
-      // Fallback to local order persistence if RPC fails
+      return {
+        order: null,
+        error: 'The order could not be placed. Please try again in a moment.',
+      };
     }
   }
 
@@ -323,7 +340,7 @@ export async function createCodOrder(params: {
     city: params.city.trim(),
     delivery_address: params.address.trim(),
     order_notes: params.notes?.trim() || '',
-    payment_method: 'COD',
+    payment_method: (params.paymentMethod || 'COD') as 'COD',
     subtotal: quote.subtotal,
     shipping_cost: shippingCost,
     email_discount_amount: quote.email_discount_amount,
@@ -408,12 +425,18 @@ export async function subscribeNewsletter(
   }
 
   if (isSupabaseConfigured && supabase) {
-    try {
-      await supabase
-        .from('newsletter_subscribers')
-        .upsert({ email: normalized }, { onConflict: 'email' });
-    } catch {
-      // ignore if table not present
+    const { error } = await supabase
+      .from('newsletter_subscribers')
+      .upsert({ email: normalized }, { onConflict: 'email' });
+    // Surface a real backend failure instead of pretending the signup
+    // succeeded. The storefront shows this error to the visitor.
+    if (error) {
+      return {
+        ok: false,
+        error:
+          error.message ||
+          'The subscription could not be saved. Please try again in a moment.',
+      };
     }
   }
 

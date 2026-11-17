@@ -39,6 +39,7 @@ export function CheckoutPage() {
   const [promoInput, setPromoInput] = useState('');
   const [appliedPromo, setAppliedPromo] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [paymentMethod, setPaymentMethod] = useState('COD');
 
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quoting, setQuoting] = useState(false);
@@ -150,6 +151,7 @@ export function CheckoutPage() {
       city,
       address,
       notes,
+      paymentMethod,
       items: items.map((item) => ({
         variant_id: item.variant_id,
         quantity: item.quantity,
@@ -367,11 +369,35 @@ export function CheckoutPage() {
                 <span className="font-display text-[1.1rem] text-crimson">03</span>
                 <h2 className="tws-eyebrow text-ink">Payment method</h2>
               </div>
-              <p className="mt-2 text-[13.5px] font-semibold text-ink">Cash on delivery only</p>
+              <p className="mt-2 text-[13.5px] font-semibold text-ink">Cash on delivery</p>
               <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-soft">
                 You pay the courier in cash when the parcel arrives — inspect the garment before you
                 pay. No card, wallet or advance transfer is required.
               </p>
+              <div className="mt-3 flex flex-col gap-2" role="radiogroup" aria-label="Payment method">
+                <label
+                  className={`flex cursor-pointer items-center gap-3 rounded-sm border px-3 py-2.5 ${
+                    paymentMethod === 'COD'
+                      ? 'border-crimson bg-[rgba(165,18,27,0.06)]'
+                      : 'border-ink/20 bg-white/60'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="payment-method"
+                    value="COD"
+                    checked={paymentMethod === 'COD'}
+                    onChange={() => setPaymentMethod('COD')}
+                    className="h-4 w-4 accent-crimson"
+                  />
+                  <span className="flex-1">
+                    <span className="block text-[13px] font-semibold text-ink">Cash on delivery</span>
+                    <span className="block text-[11.5px] leading-snug text-ink-soft">
+                      Pay the courier in cash on arrival.
+                    </span>
+                  </span>
+                </label>
+              </div>
             </div>
           </section>
         </div>

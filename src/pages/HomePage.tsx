@@ -15,16 +15,18 @@ import { StudioListSection } from '../components/home/StudioListSection';
    ========================================================= */
 
 export function HomePage() {
-  const scrollToProducts = useCallback(() => {
-    document.getElementById('products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // The hero opens the page; the scroll cue drops the visitor to the next
+  // editorial beat (the house chapter) rather than skipping straight to the rail.
+  const scrollToNext = useCallback(() => {
+    document.getElementById('brand')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   return (
     <>
-      <HeroSection onScrollDown={scrollToProducts} />
-      <PiecesSection />
+      <HeroSection onScrollDown={scrollToNext} />
       <BrandChapter />
       <FeaturedCollection />
+      <PiecesSection />
       <JournalTeaser />
       <StudioListSection />
     </>
