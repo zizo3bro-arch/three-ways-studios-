@@ -2,9 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Scissors, ShieldCheck, Truck } from 'lucide-react';
 import { PageIntro } from '../components/layout/PageIntro';
 import { Reveal } from '../components/ui/Reveal';
-import { SmokeField } from '../components/ui/SmokeField';
 import { EmblemPlate } from '../components/ui/Emblem';
-import { Parallax } from '../components/ui/Parallax';
 
 /* =========================================================
    /about — the house, the cloth, the service promises (the anchors
@@ -81,17 +79,15 @@ export function AboutPage() {
       />
 
       {/* manifesto band with the house plate */}
-      <section className="relative isolate overflow-hidden bg-ivory py-14 sm:py-20">
-        <SmokeField variant="full" opacity="low" />
-        <div className="relative z-10 mx-auto grid w-full max-w-[1660px] gap-9 px-4 sm:px-6 lg:grid-cols-12 lg:gap-10 lg:px-10">
+      <section className="bg-white py-14 sm:py-20">
+        <div className="mx-auto grid w-full max-w-[1320px] gap-9 px-4 sm:px-6 lg:grid-cols-12 lg:gap-10 lg:px-10">
           <div className="lg:col-span-6">
             <Reveal preset="soft">
-              <p className="tws-eyebrow text-crimson-bright">Why one garment</p>
-              <h2 className="mt-4 font-display uppercase leading-[0.9] tracking-[0.002em] text-ink text-[clamp(1.9rem,5vw,3.4rem)]">
-                A house is defined
-                <span className="block">by what it refuses</span>
+              <p className="tws-eyebrow text-crimson">Why one garment</p>
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
+                A house is defined by what it refuses
               </h2>
-              <div className="mt-6 space-y-4 text-[14px] leading-[1.75] text-ink-soft sm:text-[15px]">
+              <div className="mt-5 space-y-4 text-sm leading-relaxed text-ink-soft">
                 <p>
                   We refuse the tight leg, the seasonal print and the filler drop. What is left is a
                   trouser that has to carry the whole idea on its own — so the cloth, the rise and
@@ -108,16 +104,14 @@ export function AboutPage() {
 
           <div className="lg:col-span-5 lg:col-start-8">
             <Reveal preset="soft" delay={0.1}>
-              <Parallax distance={26} polarity={1}>
-                <figure className="overflow-hidden rounded-[1.4rem] border border-ink/12">
-                  <div className="aspect-square w-full">
-                    <EmblemPlate />
-                  </div>
-                  <figcaption className="border-t border-ink/12 bg-paper px-4 py-3 text-[9px] font-bold uppercase tracking-[0.2em] text-ink-faint">
-                    The house plate — three panthers, one crimson cross
-                  </figcaption>
-                </figure>
-              </Parallax>
+              <figure className="overflow-hidden rounded-lg border border-black/10">
+                <div className="aspect-square w-full">
+                  <EmblemPlate />
+                </div>
+                <figcaption className="border-t border-black/10 bg-[#FAFAF8] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-ink-faint">
+                  Three Ways Studios — Cairo
+                </figcaption>
+              </figure>
             </Reveal>
           </div>
         </div>

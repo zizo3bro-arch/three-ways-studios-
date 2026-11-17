@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PageIntro } from '../components/layout/PageIntro';
 import { ProductPlate } from '../components/shop/ProductPlate';
-import { Reveal } from '../components/ui/Reveal';
 import { useCatalog } from '../hooks/useCatalog';
 
 /* =========================================================
@@ -52,35 +51,28 @@ export function ShopPage() {
   return (
     <>
       <PageIntro
-        eyebrow="The shop — Drop 01, 2026"
-        sprayText="SHOP"
-        title={
-          <>
-            All pieces
-            <span className="block">nothing else</span>
-          </>
-        }
+        eyebrow="The Shop — Drop 01, 2026"
+        title="All Pieces"
         description={
           <p>
-            Two silhouettes, cut in Cairo and released in small runs. {products.length} pieces ·{' '}
-            {inStockCount} in stock right now · cash on delivery across Egypt.
+            {products.length} silhouettes · {inStockCount} in stock · cash on delivery across Egypt.
           </p>
         }
         actions={
           <>
-            <Link to="/collections" className="tws-pill tws-pill--outline h-12">
-              The collection
+            <Link to="/collections" className="tws-pill tws-pill--outline h-11">
+              Collections
             </Link>
-            <Link to="/about#fit" className="tws-pill tws-pill--outline h-12">
-              Sizes &amp; fit
+            <Link to="/about#fit" className="tws-pill tws-pill--outline h-11">
+              Size Guide
             </Link>
           </>
         }
       />
 
-      <section className="bg-ivory py-10 sm:py-14" aria-label="Product catalogue">
-        <div className="mx-auto w-full max-w-[1660px] px-4 sm:px-6 lg:px-10">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-ink/12 pb-5">
+      <section className="bg-white py-10 sm:py-14" aria-label="Product catalogue">
+        <div className="mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-10">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black/10 pb-5">
             <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter pieces">
               {FILTERS.map((option) => {
                 const active = option.id === filter;
@@ -91,10 +83,10 @@ export function ShopPage() {
                     aria-pressed={active}
                     onClick={() => setFilter(option.id)}
                     className={[
-                      'h-9 rounded-full border px-3.5 text-[9.5px] font-bold uppercase tracking-[0.18em] transition-all duration-300',
+                      'h-9 rounded-full border px-4 text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-200',
                       active
-                        ? 'border-ink bg-ink text-ivory'
-                        : 'border-ink/18 text-ink-soft hover:border-ink hover:text-ink',
+                        ? 'border-crimson bg-crimson text-white'
+                        : 'border-black/15 text-ink-soft hover:border-crimson hover:text-crimson',
                     ].join(' ')}
                   >
                     {option.label}
@@ -111,7 +103,7 @@ export function ShopPage() {
                 id="shop-sort"
                 value={sort}
                 onChange={(event) => setSort(event.target.value as Sort)}
-                className="h-9 rounded-full border border-ink/18 bg-paper px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-ink outline-none transition-colors focus:border-crimson-bright"
+                className="h-9 rounded-full border border-black/15 bg-white px-3.5 text-[11px] font-semibold text-ink outline-none transition-colors focus:border-crimson"
               >
                 {SORTS.map((option) => (
                   <option key={option.id} value={option.id}>
@@ -123,38 +115,21 @@ export function ShopPage() {
           </div>
 
           {visible.length === 0 ? (
-            <div className="mt-14 rounded-[1.4rem] border border-ink/12 bg-paper px-6 py-14 text-center">
-              <p className="font-display text-2xl uppercase leading-tight text-ink">
-                {loading ? 'Loading the drop…' : 'No pieces in this filter'}
+            <div className="mt-12 rounded-lg border border-black/10 bg-[#FAFAF8] px-6 py-14 text-center">
+              <p className="text-xl font-semibold text-ink">
+                {loading ? 'Loading products...' : 'No pieces in this filter'}
               </p>
-              <p className="mx-auto mt-2.5 max-w-md text-[13px] leading-relaxed text-ink-soft">
-                The house keeps the catalogue deliberately small. Clear the filter to see both
-                silhouettes.
-              </p>
-              <button type="button" onClick={() => setFilter('all')} className="tws-pill mt-6 h-12">
-                Show all pieces
+              <button type="button" onClick={() => setFilter('all')} className="tws-pill mt-6 h-11">
+                Show All Pieces
               </button>
             </div>
           ) : (
-            <div className="mt-8 grid gap-5 sm:mt-10 md:grid-cols-2 md:gap-6 lg:gap-8">
+            <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:gap-12">
               {visible.map((product, index) => (
                 <ProductPlate key={product.id} product={product} index={index} />
               ))}
             </div>
           )}
-
-          <Reveal className="mt-12 grid gap-4 sm:mt-16 md:grid-cols-3" preset="soft">
-            {[
-              ['Delivery', 'Dispatched from the Cairo atelier in 1–2 working days, nationwide in 2–5.'],
-              ['Payment', 'Cash on delivery across Egypt. Free shipping over EGP 3,500.'],
-              ['Returns', '14 days from delivery, unworn with tags. Pickup covered in Greater Cairo.'],
-            ].map(([title, copy]) => (
-              <div key={title} className="rounded-[1.1rem] border border-ink/12 bg-paper px-5 py-5">
-                <p className="tws-eyebrow text-crimson-bright">{title}</p>
-                <p className="mt-2 text-[12.5px] leading-relaxed text-ink-soft">{copy}</p>
-              </div>
-            ))}
-          </Reveal>
         </div>
       </section>
     </>

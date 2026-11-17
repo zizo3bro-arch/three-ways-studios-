@@ -84,7 +84,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
         role="dialog"
         aria-modal="true"
         aria-labelledby="tws-find-size-title"
-        className="tws-sheet-in relative z-10 max-h-[92svh] w-full overflow-y-auto rounded-t-[1.75rem] border border-ink/12 bg-cream p-6 text-ink shadow-[0_-18px_60px_rgba(0,0,0,0.35)] sm:max-w-md sm:rounded-[1.75rem] sm:p-8"
+        className="tws-sheet-in relative z-10 max-h-[92svh] w-full overflow-y-auto rounded-t-2xl border border-black/10 bg-white p-6 text-ink shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-8"
       >
         <div className="flex items-start justify-between gap-4">
           <div>

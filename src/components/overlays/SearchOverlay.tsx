@@ -1,91 +1,36 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowUpRight, Search as SearchIcon, X } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Search as SearchIcon, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useUI } from '../../context/UIContext';
 import { useCatalog } from '../../hooks/useCatalog';
-import { JOURNAL_ENTRIES } from '../../data/journal';
-import { primaryImage } from '../../data/catalog';
+import { colourNameFor, primaryImage } from '../../data/catalog';
 import { formatEGP } from '../../lib/format';
+import { useBodyScrollLock, useEscapeKey } from '../../lib/scrollLock';
 import type { Product } from '../../types/database';
-import { Overlay } from '../ui/Overlay';
 
 /* =========================================================
-   SEARCH — real, local, instant. Indexes the live catalogue
-   (Supabase rows or studio records), the journal and the house
-   pages. Keyboard driven, with a remembered history.
+   SEARCH — clean, top-anchored search dropdown / overlay.
+   Searches actual products by name, collection, fabric and color.
    ========================================================= */
 
-interface Doc {
-  id: string;
-  kind: 'piece' | 'journal' | 'page';
-  title: string;
-  meta: string;
-  to: string;
-  image?: string | null;
-  haystack: string;
-}
+function matchesQuery(product: Product, terms: string[]): boolean {
+  if (terms.length === 0) return true;
+  const colors = (product.variants ?? []).map((v) => v.color_name).join(' ');
+  const haystack = [
+    product.name,
+    product.slug,
+    product.collection_name,
+    product.category,
+    product.fabric_info,
+    product.description,
+    colors,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
 
-const PAGES: Doc[] = [
-  { id: 'p-shop', kind: 'page', title: 'The shop', meta: '/shop', to: '/shop', haystack: 'shop buy pieces pants order all products catalogue' },
-  { id: 'p-collections', kind: 'page', title: 'Collections', meta: '/collections', to: '/collections', haystack: 'collections drop 2026 archive flare series' },
-  { id: 'p-about', kind: 'page', title: 'The house', meta: '/about', to: '/about', haystack: 'about three ways studios cairo atelier house story manifesto' },
-  { id: 'p-journal', kind: 'page', title: 'Journal', meta: '/journal', to: '/journal', haystack: 'journal essays selvedge cut cairo notes writing' },
-  { id: 'p-fit', kind: 'page', title: 'Sizes & fit', meta: '/about#fit', to: '/about#fit', haystack: 'size fit chart s m l xl measurements waist inseam finder' },
-  { id: 'p-checkout', kind: 'page', title: 'Checkout · cash on delivery', meta: '/checkout', to: '/checkout', haystack: 'checkout cod cash on delivery payment order egypt shipping' },
-];
-
-function productDoc(product: Product): Doc {
-  const image = primaryImage(product);
-  return {
-    id: `piece-${product.id}`,
-    kind: 'piece',
-    title: product.name,
-    meta: `${product.collection_name || 'The drop'} · ${formatEGP(product.price)}`,
-    to: `/product/${product.slug}`,
-    image: image?.url ?? null,
-    haystack: [
-      product.name,
-      product.slug,
-      product.description,
-      product.fabric_info,
-      product.fit_info,
-      product.category,
-      product.collection_name,
-      'wide flare super flare denim selvedge pants trousers new arrival best seller',
-      product.is_new_arrival ? 'new arrival' : '',
-      product.is_best_seller ? 'best seller' : '',
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase(),
-  };
-}
-
-function journalDoc(entry: (typeof JOURNAL_ENTRIES)[number]): Doc {
-  return {
-    id: `journal-${entry.slug}`,
-    kind: 'journal',
-    title: entry.title.replace(/\n/g, ' '),
-    meta: entry.kicker,
-    to: `/journal/${entry.slug}`,
-    image: entry.image,
-    haystack: [entry.title, entry.dek, entry.kicker, ...entry.body].join(' ').toLowerCase(),
-  };
-}
-
-const HISTORY_KEY = 'tws_search_history_v1';
-
-function score(doc: Doc, terms: string[]): number {
-  if (terms.length === 0) return 0;
-  let total = 0;
-  for (const term of terms) {
-    const inTitle = doc.title.toLowerCase().includes(term);
-    const inBody = doc.haystack.includes(term);
-    if (!inTitle && !inBody) return -1;
-    total += inTitle ? 4 : 1;
-    if (inBody) total += 1;
-  }
-  return total + (doc.kind === 'piece' ? 0.5 : 0);
+  return terms.every((term) => haystack.includes(term));
 }
 
 export function SearchOverlay() {
@@ -96,238 +41,225 @@ export function SearchOverlay() {
 
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
-  const [history, setHistory] = useState<string[]>([]);
-  const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useBodyScrollLock(open);
+  useEscapeKey(open, closeOverlay);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(HISTORY_KEY);
-      const parsed = raw ? (JSON.parse(raw) as string[]) : [];
-      setHistory(Array.isArray(parsed) ? parsed.slice(0, 5) : []);
-    } catch {
-      setHistory([]);
+    if (!open) {
+      setQuery('');
+      setCursor(0);
+      return;
     }
-  }, []);
-
-  useEffect(() => {
-    if (open) return;
-    setQuery('');
-    setCursor(0);
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 60);
+    return () => window.clearTimeout(timer);
   }, [open]);
 
-  const { results, suggestions } = useMemo(() => {
-    const docs = [...products.map(productDoc), ...JOURNAL_ENTRIES.map(journalDoc), ...PAGES];
-    const terms = query.toLowerCase().split(/\s+/).filter((term) => term.length > 1);
+  const trimmed = query.trim();
+  const results = useMemo(() => {
+    const terms = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return products;
+    return products.filter((product) => matchesQuery(product, terms));
+  }, [products, trimmed]);
 
-    if (terms.length === 0) {
-      return {
-        results: [] as Doc[],
-        suggestions: [docs.find((doc) => doc.kind === 'page')!, docs.find((doc) => doc.kind === 'piece')!].filter(Boolean),
-      };
-    }
+  useEffect(() => {
+    setCursor(0);
+  }, [query]);
 
-    const scored = docs
-      .map((doc) => ({ doc, value: score(doc, terms) }))
-      .filter((entry) => entry.value > 0)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
-
-    return {
-      results: scored.map((entry) => entry.doc),
-      suggestions: docs.filter((doc) => doc.kind === 'page').slice(0, 4),
-    };
-  }, [products, query]);
-
-  useEffect(() => setCursor(0), [query]);
-
-  const go = (doc: Doc | undefined) => {
-    if (!doc) return;
-    const trimmed = query.trim();
-    if (trimmed.length > 1) {
-      setHistory((prev) => {
-        const next = [trimmed, ...prev.filter((entry) => entry !== trimmed)].slice(0, 5);
-        try {
-          localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-        } catch {
-          // storage unavailable — history just won't persist
-        }
-        return next;
-      });
-    }
+  const openProduct = (product: Product | undefined) => {
+    if (!product) return;
     closeOverlay();
-    navigate(doc.to);
+    navigate(`/product/${product.slug}`);
   };
 
-  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (results.length === 0) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setCursor((current) => (current + 1) % results.length);
+      setCursor((c) => (c + 1) % results.length);
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setCursor((current) => (current - 1 + results.length) % results.length);
+      setCursor((c) => (c - 1 + results.length) % results.length);
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      go(results[cursor]);
+      openProduct(results[cursor]);
     }
   };
 
-  const list = results.length > 0 ? results : [];
-
   return (
-    <Overlay open={open} onClose={closeOverlay} label="Search" placement="full" hideClose>
-      <div className="flex h-full flex-col">
-        <div className="flex items-center gap-3 border-b border-ink/12 pb-3.5">
-          <SearchIcon className="h-5 w-5 shrink-0 text-crimson-bright" strokeWidth={1.8} />
-          <label htmlFor="tws-search-input" className="sr-only">
-            Search pieces, journal and pages
-          </label>
-          <input
-            id="tws-search-input"
-            type="search"
-            autoComplete="off"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Search pieces, fabric, journal…"
-            className="w-full bg-transparent font-display text-[clamp(1.35rem,4.4vw,2.1rem)] uppercase leading-none tracking-[0.005em] text-ink outline-none placeholder:text-ink-faint/70 [&::-webkit-search-cancel-button]:hidden"
+    <AnimatePresence>
+      {open ? (
+        <div
+          className="fixed inset-0 z-[75]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Search products"
+        >
+          {/* Backdrop */}
+          <motion.button
+            type="button"
+            aria-label="Close search"
+            onClick={closeOverlay}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 cursor-default bg-black/40 backdrop-blur-[2px]"
           />
-          {query ? (
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              aria-label="Clear search"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink/20 text-ink-soft transition-colors hover:border-ink hover:text-ink"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={closeOverlay}
-              aria-label="Close search"
-              className="flex h-9 items-center gap-1.5 rounded-full border border-ink/20 px-3 text-[9px] font-bold uppercase tracking-[0.2em] text-ink-soft transition-colors hover:border-ink hover:text-ink"
-            >
-              ESC
-            </button>
-          )}
-        </div>
 
-        <p className="tws-eyebrow mt-3 text-ink-faint">
-          {query.trim().length > 1
-            ? `${list.length} ${list.length === 1 ? 'result' : 'results'}`
-            : 'Start with'}
-        </p>
+          {/* Top-anchored Search Bar Panel */}
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="relative z-10 border-b border-black/10 bg-white shadow-xl"
+          >
+            <div className="mx-auto w-full max-w-[1040px] px-4 py-4 sm:px-6 sm:py-5">
+              {/* Search input + clear + close row */}
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 flex-1 items-center gap-3 rounded-lg border border-black/15 bg-[#FAFAF8] px-3.5 transition-colors focus-within:border-crimson focus-within:bg-white">
+                  <SearchIcon className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
+                  <label htmlFor="tws-search-input" className="sr-only">
+                    Search products by name
+                  </label>
+                  <input
+                    ref={inputRef}
+                    id="tws-search-input"
+                    type="text"
+                    autoComplete="off"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Search pants by name..."
+                    className="h-full w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint sm:text-base"
+                  />
+                  {query.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuery('');
+                        inputRef.current?.focus();
+                      }}
+                      className="shrink-0 rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-ink-soft transition-colors hover:text-crimson"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                </div>
 
-        <div ref={listRef} className="mt-2 flex-1 overflow-y-auto pb-2">
-          {list.length > 0 ? (
-            <ul className="divide-y divide-ink/8">
-              {list.map((doc, index) => (
-                <li key={doc.id}>
-                  <button
-                    type="button"
-                    onMouseEnter={() => setCursor(index)}
-                    onClick={() => go(doc)}
-                    className={[
-                      'group flex w-full items-center gap-4 px-1 py-3.5 text-left transition-colors duration-200',
-                      index === cursor ? 'bg-ink/[0.04]' : 'hover:bg-ink/[0.025]',
-                    ].join(' ')}
-                  >
-                    <span className="flex h-16 w-12 shrink-0 items-end justify-center overflow-hidden rounded-[3px] border border-ink/10 bg-paper">
-                      {doc.image ? (
-                        <img
-                          src={doc.image}
-                          alt=""
-                          aria-hidden="true"
-                          loading="lazy"
-                          className="h-full w-full object-cover object-top"
-                        />
-                      ) : (
-                        <span className="pb-1 text-[8px] font-bold uppercase tracking-[0.2em] text-ink-faint">
-                          TWS
-                        </span>
-                      )}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[9px] font-bold uppercase tracking-[0.26em] text-crimson-bright">
-                        {doc.kind === 'piece' ? 'Piece' : doc.kind === 'journal' ? 'Journal' : 'Page'}
-                      </span>
-                      <span className="mt-1 block truncate font-display text-[17px] uppercase leading-tight tracking-[0.01em] text-ink sm:text-[19px]">
-                        {doc.title}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[11px] tracking-wide text-ink-faint">{doc.meta}</span>
-                    </span>
-                    <ArrowUpRight
-                      className={`h-4 w-4 shrink-0 transition-transform duration-300 ${
-                        index === cursor ? 'translate-x-0.5 -translate-y-0.5 text-ink' : 'text-ink-faint'
-                      }`}
-                    />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : query.trim().length > 1 ? (
-            <div className="rounded-2xl border border-ink/12 bg-paper px-5 py-7 text-center">
-              <p className="font-display text-2xl uppercase leading-tight text-ink">Nothing in the archive</p>
-              <p className="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-ink-soft">
-                The house keeps two silhouettes in the shop. Try “flare”, “selvedge”, “size” or a journal title.
-              </p>
-            </div>
-          ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {suggestions.map((doc) => (
-                <li key={doc.id}>
-                  <button
-                    type="button"
-                    onClick={() => go(doc)}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-ink/12 bg-paper px-4 py-3.5 text-left transition-colors duration-300 hover:border-ink/40"
-                  >
-                    <span>
-                      <span className="block text-[9px] font-bold uppercase tracking-[0.26em] text-ink-faint">
-                        {doc.kind}
-                      </span>
-                      <span className="mt-1 block font-display text-[15px] uppercase tracking-[0.01em] text-ink">
-                        {doc.title}
-                      </span>
-                    </span>
-                    <ArrowUpRight className="h-4 w-4 text-ink-faint" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {history.length > 0 ? (
-            <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-ink/10 pt-4">
-              <span className="tws-eyebrow text-ink-faint">Recent</span>
-              {history.map((term) => (
                 <button
-                  key={term}
                   type="button"
-                  onClick={() => setQuery(term)}
-                  className="rounded-full border border-ink/18 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-soft transition-colors hover:border-ink hover:text-ink"
+                  onClick={closeOverlay}
+                  aria-label="Close search"
+                  className="flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-black/15 px-3.5 text-xs font-semibold uppercase tracking-[0.14em] text-ink transition-colors hover:border-crimson hover:bg-crimson hover:text-white sm:px-4"
                 >
-                  {term}
+                  <X className="h-4 w-4" strokeWidth={2} />
+                  <span className="hidden sm:inline">Close</span>
                 </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setHistory([]);
-                  try {
-                    localStorage.removeItem(HISTORY_KEY);
-                  } catch {
-                    // ignore
-                  }
-                }}
-                className="text-[9px] font-bold uppercase tracking-[0.2em] text-ink-faint underline-offset-4 transition-colors hover:text-crimson-bright hover:underline"
-              >
-                Clear
-              </button>
+              </div>
+
+              {/* Results header */}
+              <div className="mt-4 flex items-center justify-between border-b border-black/8 pb-2.5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-faint">
+                  {trimmed.length > 0
+                    ? `${results.length} ${results.length === 1 ? 'Product' : 'Products'} Found`
+                    : 'Featured Pieces'}
+                </p>
+                <Link
+                  to="/shop"
+                  onClick={closeOverlay}
+                  className="text-[11px] font-semibold uppercase tracking-[0.14em] text-crimson hover:underline"
+                >
+                  View All
+                </Link>
+              </div>
+
+              {/* Results list */}
+              <div className="mt-3 max-h-[60vh] overflow-y-auto">
+                {results.length > 0 ? (
+                  <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {results.map((product, index) => {
+                      const img = primaryImage(product);
+                      const inStock = (product.variants ?? []).some((v) => v.stock_quantity > 0);
+                      const isActive = index === cursor;
+                      return (
+                        <li key={product.id}>
+                          <button
+                            type="button"
+                            onMouseEnter={() => setCursor(index)}
+                            onClick={() => openProduct(product)}
+                            className={[
+                              'group flex w-full items-center gap-4 rounded-lg border p-2.5 text-left transition-all',
+                              isActive
+                                ? 'border-crimson/40 bg-[#FDF2F2]/50'
+                                : 'border-black/10 bg-white hover:border-crimson/40 hover:bg-[#FAFAF8]',
+                            ].join(' ')}
+                          >
+                            <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#F7F6F3] p-1.5">
+                              {img?.url ? (
+                                <img
+                                  src={img.url}
+                                  alt={img.alt_text || product.name}
+                                  className="h-full w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+                                />
+                              ) : null}
+                            </div>
+
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-ink transition-colors group-hover:text-crimson">
+                                {product.name}
+                              </p>
+                              <p className="mt-0.5 text-xs text-ink-faint">
+                                {colourNameFor(product)}
+                              </p>
+                              <div className="mt-2 flex items-center gap-3">
+                                <span className="text-sm font-semibold text-ink tabular-nums">
+                                  {formatEGP(product.price)}
+                                </span>
+                                <span
+                                  className={[
+                                    'text-[10px] font-semibold uppercase tracking-wider',
+                                    inStock ? 'text-ink-soft' : 'text-crimson',
+                                  ].join(' ')}
+                                >
+                                  {inStock ? 'In Stock' : 'Sold Out'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <ArrowRight
+                              className="h-4 w-4 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-crimson"
+                              strokeWidth={1.8}
+                            />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="py-10 text-center">
+                    <p className="text-sm font-medium text-ink">
+                      No products matched “{trimmed}”.
+                    </p>
+                    <p className="mt-1 text-xs text-ink-faint">
+                      Try searching for “Midnight”, “Wide-Flare”, or “Onyx”.
+                    </p>
+                    <Link
+                      to="/shop"
+                      onClick={closeOverlay}
+                      className="tws-pill mt-4 h-10 px-5 text-[10px]"
+                    >
+                      Browse All Pieces
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
-          ) : null}
+          </motion.div>
         </div>
-      </div>
-    </Overlay>
+      ) : null}
+    </AnimatePresence>
   );
 }

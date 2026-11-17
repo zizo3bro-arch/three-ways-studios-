@@ -2,12 +2,10 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { PageIntro } from '../components/layout/PageIntro';
-import { Reveal } from '../components/ui/Reveal';
 import { useCatalog } from '../hooks/useCatalog';
 import { imagesOf } from '../data/catalog';
 import { slugify } from '../lib/format';
 import { formatEGP } from '../lib/format';
-import { SmokeField } from '../components/ui/SmokeField';
 
 /* =========================================================
    /collections — the drop structure, read from the real product
@@ -81,66 +79,63 @@ export function CollectionsPage() {
         }
       />
 
-      <section className="relative isolate bg-ivory py-12 sm:py-16">
-        <SmokeField variant="soft" opacity="low" />
-
-        <div className="relative z-10 mx-auto w-full max-w-[1660px] px-4 sm:px-6 lg:px-10">
+      <section className="bg-white py-12 sm:py-16">
+        <div className="mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-10">
           {collections.length === 0 ? (
-            <p className="py-16 text-center text-[12px] font-bold uppercase tracking-[0.28em] text-ink-faint">
+            <p className="py-16 text-center text-xs font-semibold uppercase tracking-[0.22em] text-ink-faint">
               No collections published yet.
             </p>
           ) : (
-            <ul className="space-y-5 sm:space-y-7">
+            <ul className="space-y-6">
               {collections.map((collection, index) => (
-                <Reveal as="li" key={collection.slug} preset="soft" delay={index * 0.08}>
+                <li key={collection.slug}>
                   <Link
                     to={`/collections/${collection.slug}`}
-                    className="group grid gap-5 overflow-hidden rounded-[1.4rem] border border-ink/12 bg-paper p-4 transition-shadow duration-500 hover:shadow-plate sm:p-5 lg:grid-cols-12 lg:items-center lg:gap-8"
+                    className="group grid gap-6 overflow-hidden rounded-lg border border-black/10 bg-[#FAFAF8] p-5 transition-all duration-300 hover:border-crimson/40 hover:bg-white lg:grid-cols-12 lg:items-center lg:gap-8"
                   >
-                    <span className="relative flex aspect-[522/560] items-end justify-center overflow-hidden rounded-[1rem] border border-ink/10 bg-ivory/50 lg:col-span-3 lg:aspect-[522/620]">
+                    <span className="relative flex aspect-[3/4] items-center justify-center overflow-hidden rounded-md border border-black/8 bg-[#F7F6F3] p-4 lg:col-span-3">
                       {collection.image ? (
                         <img
                           src={collection.image}
                           alt={collection.imageAlt}
                           loading={index === 0 ? 'eager' : 'lazy'}
                           decoding="async"
-                          className="h-[92%] w-auto object-contain object-bottom transition-transform duration-[1200ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
+                          className="h-full w-auto object-contain transition-transform duration-500 group-hover:scale-105"
                         />
                       ) : null}
                     </span>
 
                     <span className="lg:col-span-6">
-                      <span className="tws-eyebrow block text-crimson-bright">
+                      <span className="tws-eyebrow block text-crimson">
                         Collection 0{index + 1} · {collection.count} {collection.count === 1 ? 'piece' : 'pieces'}
                       </span>
-                      <span className="mt-3 block font-display uppercase leading-[0.9] tracking-[0.002em] text-ink text-[clamp(1.9rem,5vw,3.4rem)] transition-colors duration-300 group-hover:text-crimson-bright">
+                      <span className="mt-2 block text-2xl font-semibold tracking-tight text-ink transition-colors group-hover:text-crimson sm:text-3xl">
                         {collection.name}
                       </span>
-                      <span className="mt-3 block max-w-xl text-[13px] leading-relaxed text-ink-soft">
-                        Hand-cut in the Cairo atelier from 13–14 oz selvedge. Sizes S — XL, one
-                        run only — the pattern is not repeated once the cloth is finished.
+                      <span className="mt-2.5 block max-w-xl text-sm leading-relaxed text-ink-soft">
+                        Heavyweight selvedge denim in wide-flare and super-flare silhouettes. Sizes S — XL.
                       </span>
                     </span>
 
                     <span className="flex items-center justify-between gap-4 lg:col-span-3 lg:flex-col lg:items-end">
                       <span className="text-right">
                         <span className="tws-eyebrow block text-ink-faint">From</span>
-                        <span className="mt-1 block font-display text-[1.6rem] leading-none tracking-[0.01em] text-ink">
+                        <span className="mt-1 block text-xl font-semibold text-ink tabular-nums">
                           {formatEGP(collection.fromPrice)}
                         </span>
                         {collection.toPrice !== collection.fromPrice ? (
-                          <span className="mt-1 block text-[10px] uppercase tracking-[0.14em] text-ink-faint">
+                          <span className="mt-0.5 block text-xs text-ink-faint tabular-nums">
                             to {formatEGP(collection.toPrice)}
                           </span>
                         ) : null}
                       </span>
-                      <span className="tws-pill h-12 pointer-events-none">
-                        View the drop
-                        <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" strokeWidth={2} />
+                      <span className="tws-pill pointer-events-none h-11">
+                        View Collection
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={2} />
                       </span>
                     </span>
                   </Link>
-                </Reveal>
+                </li>
               ))}
             </ul>
           )}

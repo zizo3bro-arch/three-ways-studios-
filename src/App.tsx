@@ -8,7 +8,6 @@ import { MobileMenu } from './components/layout/MobileMenu';
 import { SearchOverlay } from './components/overlays/SearchOverlay';
 import { AccountPanel } from './components/overlays/AccountPanel';
 import { QuickView } from './components/shop/QuickView';
-import { ScrollProgress } from './components/ui/ScrollProgress';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SiteSettingsProvider } from './context/SiteSettingsContext';
@@ -110,9 +109,8 @@ export function AppShell() {
 
   if (isAdminRoute) {
     return (
-      <div className="tws-paper min-h-screen text-ink">
+      <div className="min-h-screen bg-[#0c0708] text-white">
         <ScrollManager />
-        <ScrollProgress />
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/admin/login" element={<AdminLoginPage />} />
@@ -125,9 +123,8 @@ export function AppShell() {
   }
 
   return (
-    <div className="tws-paper relative min-h-screen text-ink">
+    <div className="relative min-h-screen bg-white text-ink">
       <ScrollManager />
-      <ScrollProgress />
 
       {/* skip link — real anchor to the first content region */}
       <a
