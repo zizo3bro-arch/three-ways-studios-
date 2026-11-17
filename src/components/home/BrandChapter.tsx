@@ -27,7 +27,7 @@ export function BrandChapter() {
       id="brand"
       ref={ref}
       aria-labelledby="brand-statement"
-      className="relative isolate overflow-hidden border-t border-ink/14 py-16 sm:py-24 lg:py-32"
+      className="relative isolate overflow-hidden border-t border-ink/14 py-16 scroll-mt-28 sm:py-24 lg:py-32"
     >
       {/* ghosted name, huge and low-contrast behind the statement */}
       <div

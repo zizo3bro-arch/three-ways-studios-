@@ -34,25 +34,37 @@ export function StudioListSection() {
     }
 
     setSubmitting(true);
-    const result = await subscribeNewsletter(trimmedEmail);
-    setSubmitting(false);
-
-    if (!result.ok) {
-      setError(result.error ?? 'That did not go through — try again in a moment.');
-      return;
-    }
-
     try {
-      const raw = localStorage.getItem('tws_studio_list_v1');
-      const list = raw ? (JSON.parse(raw) as Array<{ name: string; email: string; at: string }>) : [];
-      list.unshift({ name: trimmedName, email: trimmedEmail.toLowerCase(), at: new Date().toISOString() });
-      localStorage.setItem('tws_studio_list_v1', JSON.stringify(list.slice(0, 200)));
-    } catch {
-      // storage unavailable — the subscription is already recorded
-    }
+      const result = await subscribeNewsletter(trimmedEmail);
 
-    setCode(result.discountCode ?? null);
-    setDone(true);
+      if (!result.ok) {
+        setError(result.error ?? 'That did not go through — try again in a moment.');
+        return;
+      }
+
+      try {
+        const raw = localStorage.getItem('tws_studio_list_v1');
+        const list = raw
+          ? (JSON.parse(raw) as Array<{ name: string; email: string; at: string }>)
+          : [];
+        list.unshift({
+          name: trimmedName,
+          email: trimmedEmail.toLowerCase(),
+          at: new Date().toISOString(),
+        });
+        localStorage.setItem('tws_studio_list_v1', JSON.stringify(list.slice(0, 200)));
+      } catch {
+        // storage unavailable — the subscription is already recorded
+      }
+
+      setCode(result.discountCode ?? null);
+      setDone(true);
+    } catch {
+      // network/transport failure — surface it instead of leaving the form stuck
+      setError('The studio list is unavailable right now. Please try again in a moment.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (

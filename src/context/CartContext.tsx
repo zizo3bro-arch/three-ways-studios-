@@ -37,6 +37,20 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 function normalizeStoredItem(item: CartItem): CartItem | null {
   if (!item || typeof item !== 'object' || !item.variant_id) return null;
 
+  const isDatabaseVariantId =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.variant_id);
+
+  // A genuine database variant id must NEVER be rewritten to a demo id. If the
+  // stored line carries a real UUID we keep it exactly as persisted — the
+  // product/variant data on the line was set from the catalogue at add time and
+  // is already correct. Re-resolving against the demo catalogue by
+  // (slug + size) would clobber the real id and break checkout/orders.
+  if (isDatabaseVariantId) {
+    return item;
+  }
+
+  // Demo cart line — resolve against the demo catalogue as before, matching by
+  // exact variant id or by slug + size name.
   for (const product of DEMO_PRODUCTS) {
     const variant = product.variants?.find(
       (candidate) =>
