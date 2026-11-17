@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
 import { CartDrawer } from './components/layout/CartDrawer';
 import { Navbar } from './components/layout/Navbar';
@@ -8,11 +8,11 @@ import { MobileMenu } from './components/layout/MobileMenu';
 import { SearchOverlay } from './components/overlays/SearchOverlay';
 import { AccountPanel } from './components/overlays/AccountPanel';
 import { QuickView } from './components/shop/QuickView';
-import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SiteSettingsProvider } from './context/SiteSettingsContext';
 import { UIProvider } from './context/UIContext';
 import { WishlistProvider } from './context/WishlistContext';
+import { applyMeta } from './lib/seo';
 import { HomePage } from './pages/HomePage';
 
 const ShopPage = lazy(() => import('./pages/ShopPage').then((m) => ({ default: m.ShopPage })));
@@ -33,33 +33,11 @@ const CheckoutPage = lazy(() => import('./pages/CheckoutPage').then((m) => ({ de
 const OrderConfirmationPage = lazy(() =>
   import('./pages/OrderConfirmationPage').then((m) => ({ default: m.OrderConfirmationPage }))
 );
-const AdminDashboardPage = lazy(() =>
-  import('./pages/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage }))
-);
-const AdminLoginPage = lazy(() =>
-  import('./pages/admin/AdminLoginPage').then((m) => ({ default: m.AdminLoginPage }))
-);
 
-/* ——— titles, so a refresh on any page keeps the house voice ——— */
-const TITLES: Array<[RegExp, string]> = [
-  [/^\/$/, 'THREE WAYS STUDIOS — Fashion Beyond Limits'],
-  [/^\/shop/, 'The Shop — THREE WAYS STUDIOS'],
-  [/^\/collections\/[^/]+/, 'Collection — THREE WAYS STUDIOS'],
-  [/^\/collections/, 'Collections — THREE WAYS STUDIOS'],
-  [/^\/about/, 'The House — THREE WAYS STUDIOS'],
-  [/^\/journal\/[^/]+/, 'Journal — THREE WAYS STUDIOS'],
-  [/^\/journal/, 'The Journal — THREE WAYS STUDIOS'],
-  [/^\/checkout/, 'Checkout (Cash on Delivery) — THREE WAYS STUDIOS'],
-  [/^\/order-confirmation/, 'Order confirmed — THREE WAYS STUDIOS'],
-  [/^\/admin/, 'Studio Dashboard — THREE WAYS STUDIOS'],
-];
-
-function titleForPath(pathname: string): string | null {
-  for (const [pattern, title] of TITLES) {
-    if (pattern.test(pathname)) return title;
-  }
-  return null;
-}
+/* the entire admin console is a separate lazy chunk: a storefront
+   visitor never downloads admin code, and an admin never downloads
+   the storefront shell. */
+const AdminApp = lazy(() => import('./pages/admin/AdminApp').then((m) => ({ default: m.AdminApp })));
 
 /* ——— scroll behaviour: top on route change, element on #hash ——— */
 function ScrollManager() {
@@ -100,36 +78,62 @@ function RouteFallback() {
 
 export function AppShell() {
   const location = useLocation();
-  const isAdminRoute = location.pathname.startsWith('/admin');
 
+  // ProductPage writes its own head once the product resolves, so the router
+  // stays out of the way there rather than flashing a generic title.
   useEffect(() => {
-    const title = titleForPath(location.pathname);
-    if (title && !location.pathname.startsWith('/product/')) document.title = title;
+    if (location.pathname.startsWith('/product/')) return;
+    applyMeta(location.pathname);
   }, [location.pathname]);
 
-  if (isAdminRoute) {
-    return (
-      <div className="min-h-screen bg-[#0c0708] text-white">
-        <ScrollManager />
-        <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route path="/admin/login" element={<AdminLoginPage />} />
-            <Route path="/admin" element={<AdminDashboardPage />} />
-            <Route path="*" element={<Navigate to="/admin" replace />} />
-          </Routes>
-        </Suspense>
-      </div>
-    );
-  }
-
   return (
-    <div className="relative min-h-screen bg-white text-ink">
+    <>
       <ScrollManager />
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          {/* ——— the storefront ——— */}
+          <Route
+            path="*"
+            element={
+              <StorefrontChrome>
+                <StorefrontRoutes />
+              </StorefrontChrome>
+            }
+          />
 
+          {/* ——— the studio console, mounted separately ——— */}
+          <Route path="/admin/*" element={<AdminApp />} />
+        </Routes>
+      </Suspense>
+    </>
+  );
+}
+
+function StorefrontRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/shop" element={<ShopPage />} />
+      <Route path="/collections" element={<CollectionsPage />} />
+      <Route path="/collections/:slug" element={<CollectionPage />} />
+      <Route path="/product/:slug" element={<ProductPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/journal" element={<JournalPage />} />
+      <Route path="/journal/:slug" element={<JournalEntryPage />} />
+      <Route path="/checkout" element={<CheckoutPage />} />
+      <Route path="/order-confirmation/:orderRef" element={<OrderConfirmationPage />} />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
+}
+
+function StorefrontChrome({ children }: { children: React.ReactNode }) {
+  return (
+    <>
       {/* skip link — real anchor to the first content region */}
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[95] focus:rounded-full focus:bg-ink focus:px-5 focus:py-3 focus:text-[10px] focus:font-bold focus:uppercase focus:tracking-[0.2em] focus:text-ivory"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[95] focus:bg-ink focus:px-5 focus:py-3 focus:text-[10px] focus:font-bold focus:uppercase focus:tracking-[0.2em] focus:text-[#f7f4ed]"
       >
         Skip to content
       </a>
@@ -137,21 +141,7 @@ export function AppShell() {
       <Navbar />
 
       <main className="relative z-10" id="main" tabIndex={-1}>
-        <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/shop" element={<ShopPage />} />
-            <Route path="/collections" element={<CollectionsPage />} />
-            <Route path="/collections/:slug" element={<CollectionPage />} />
-            <Route path="/product/:slug" element={<ProductPage />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/journal" element={<JournalPage />} />
-            <Route path="/journal/:slug" element={<JournalEntryPage />} />
-            <Route path="/checkout" element={<CheckoutPage />} />
-            <Route path="/order-confirmation/:orderRef" element={<OrderConfirmationPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Suspense>
+        <Suspense fallback={<RouteFallback />}>{children}</Suspense>
       </main>
 
       <SiteFooter />
@@ -162,26 +152,28 @@ export function AppShell() {
       <AccountPanel />
       <MobileMenu />
       <QuickView />
-    </div>
+    </>
   );
 }
 
+/* The auth provider lives in the admin tree, not here: the storefront
+   never mounts a session, never refreshes a token and never asks
+   Supabase who is signed in. A shopper's browser does not carry an
+   administrative session at all. */
 export default function App() {
   return (
     <MotionConfig reducedMotion="user">
-      <AuthProvider>
-        <SiteSettingsProvider>
-          <WishlistProvider>
-            <CartProvider>
-              <BrowserRouter>
-                <UIProvider>
-                  <AppShell />
-                </UIProvider>
-              </BrowserRouter>
-            </CartProvider>
-          </WishlistProvider>
-        </SiteSettingsProvider>
-      </AuthProvider>
+      <SiteSettingsProvider>
+        <WishlistProvider>
+          <CartProvider>
+            <BrowserRouter>
+              <UIProvider>
+                <AppShell />
+              </UIProvider>
+            </BrowserRouter>
+          </CartProvider>
+        </WishlistProvider>
+      </SiteSettingsProvider>
     </MotionConfig>
   );
 }

@@ -87,7 +87,7 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
       {/* Create New Promo Code */}
       <form
         onSubmit={handleCreatePromo}
-        className="border border-white/12 bg-black/45 p-5 space-y-4"
+        className="border border-white/12 bg-white/[0.025] p-5 space-y-4"
       >
         <h3 className="text-xs font-medium tracking-[0.18em] text-white uppercase">
           Create Promo Code
@@ -151,7 +151,7 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
         {discounts.map((rule) => (
           <div
             key={rule.id}
-            className="flex flex-wrap items-center justify-between gap-4 border border-white/12 bg-black/45 p-4 text-xs"
+            className="flex flex-wrap items-center justify-between gap-4 border border-white/12 bg-white/[0.025] p-4 text-xs"
           >
             <div>
               <div className="flex items-center gap-2.5">

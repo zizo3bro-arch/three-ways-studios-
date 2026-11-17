@@ -34,17 +34,17 @@ export function SizeGuideModal({
         type="button"
         aria-label="Close size guide"
         onClick={onClose}
-        className="tws-fade-in absolute inset-0 cursor-default bg-black/55 backdrop-blur-[2px]"
+        className="tws-fade-in absolute inset-0 cursor-default bg-[#120e0b]/50 backdrop-blur-[3px]"
       />
 
-      <div className="tws-sheet-in relative z-10 max-h-[90svh] w-full overflow-y-auto rounded-t-2xl border border-black/10 bg-white p-6 text-ink shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:p-8">
-        <div className="flex items-start justify-between gap-4 border-b border-black/10 pb-4">
+      <div className="tws-sheet-in relative z-10 max-h-[90svh] w-full overflow-y-auto border border-ink/18 bg-[#f3efe7] p-6 text-ink shadow-[0_30px_90px_rgba(12,10,8,0.34)] sm:max-w-2xl sm:p-8">
+        <div className="flex items-start justify-between gap-4 border-b border-ink/16 pb-4">
           <div>
             <p className="tws-eyebrow flex items-center gap-2 text-crimson">
               <Ruler className="h-3.5 w-3.5" strokeWidth={2} />
               Size Guide
             </p>
-            <h3 id="tws-size-guide-title" className="mt-1.5 text-xl font-semibold text-ink">
+            <h3 id="tws-size-guide-title" className="mt-1.5 font-display text-2xl uppercase leading-none text-ink">
               {product.name} — Measurements
             </h3>
           </div>
@@ -52,7 +52,7 @@ export function SizeGuideModal({
             type="button"
             onClick={onClose}
             aria-label="Close size guide"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/15 text-ink transition-colors hover:border-crimson hover:bg-crimson hover:text-white"
+            className="flex h-9 w-9 shrink-0 items-center justify-center border border-ink/25 text-ink transition-colors hover:border-crimson hover:text-crimson"
           >
             <X className="h-4 w-4" strokeWidth={2} />
           </button>
@@ -62,10 +62,10 @@ export function SizeGuideModal({
           {product.fit_info || 'High-rise fitted hip with an architectural wide-flare leg. True to size, cut long in the leg.'}
         </p>
 
-        <div className="mt-5 overflow-x-auto rounded-lg border border-black/10">
+        <div className="mt-5 overflow-x-auto border border-ink/18">
           <table className="w-full min-w-[480px] border-collapse text-left text-xs">
             <thead>
-              <tr className="border-b border-black/10 bg-[#FAFAF8] text-[10px] font-bold uppercase tracking-[0.16em] text-ink-faint">
+              <tr className="border-b border-ink/18 text-[10px] font-bold uppercase tracking-[0.16em] text-ink-faint">
                 <th scope="col" className="px-4 py-3">Size</th>
                 <th scope="col" className="px-4 py-3">Waist</th>
                 <th scope="col" className="px-4 py-3">Hip</th>
@@ -77,7 +77,7 @@ export function SizeGuideModal({
             <tbody className="divide-y divide-black/8">
               {dbCharts.length > 0
                 ? dbCharts.map((row) => (
-                    <tr key={row.id} className="hover:bg-[#FAFAF8]">
+                    <tr key={row.id} className="transition-colors hover:bg-[rgba(23,19,15,0.04)]">
                       <th scope="row" className="px-4 py-3 font-bold text-ink">{row.size_name}</th>
                       <td className="px-4 py-3 tabular-nums text-ink-soft">{row.waist_cm} cm</td>
                       <td className="px-4 py-3 tabular-nums text-ink-soft">{row.hip_cm} cm</td>
@@ -87,7 +87,7 @@ export function SizeGuideModal({
                     </tr>
                   ))
                 : HOUSE_SIZE_GUIDE.map((row) => (
-                    <tr key={row.size} className="hover:bg-[#FAFAF8]">
+                    <tr key={row.size} className="transition-colors hover:bg-[rgba(23,19,15,0.04)]">
                       <th scope="row" className="px-4 py-3 font-bold text-ink">{row.size}</th>
                       <td className="px-4 py-3 tabular-nums text-ink-soft">{row.waist}</td>
                       <td className="px-4 py-3 tabular-nums text-ink-soft">{row.hip}</td>
@@ -100,7 +100,7 @@ export function SizeGuideModal({
           </table>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink/16 pt-4">
           <p className="text-xs text-ink-faint">
             Not sure which size to pick? Calculate from your weight and height.
           </p>

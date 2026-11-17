@@ -29,7 +29,7 @@ export function AdminOverviewTab({ orders, products, onNavigateTab }: AdminOverv
     <div className="space-y-8">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="border border-white/12 bg-black/45 p-5">
+        <div className="border border-white/12 bg-white/[0.025] p-5">
           <div className="flex items-center justify-between text-[#9e9494]">
             <span className="text-[10px] tracking-[0.2em] uppercase">Total Revenue</span>
             <TrendingUp className="h-4 w-4 text-[#d4121b]" />
@@ -40,7 +40,7 @@ export function AdminOverviewTab({ orders, products, onNavigateTab }: AdminOverv
           </p>
         </div>
 
-        <div className="border border-white/12 bg-black/45 p-5">
+        <div className="border border-white/12 bg-white/[0.025] p-5">
           <div className="flex items-center justify-between text-[#9e9494]">
             <span className="text-[10px] tracking-[0.2em] uppercase">Total Orders</span>
             <ShoppingBag className="h-4 w-4 text-[#d4121b]" />
@@ -49,7 +49,7 @@ export function AdminOverviewTab({ orders, products, onNavigateTab }: AdminOverv
           <p className="mt-1 text-[11px] text-[#847878]">All statuses combined</p>
         </div>
 
-        <div className="border border-white/12 bg-black/45 p-5">
+        <div className="border border-white/12 bg-white/[0.025] p-5">
           <div className="flex items-center justify-between text-[#9e9494]">
             <span className="text-[10px] tracking-[0.2em] uppercase">Pending Orders</span>
             <Clock className="h-4 w-4 text-[#e89d6b]" />
@@ -58,7 +58,7 @@ export function AdminOverviewTab({ orders, products, onNavigateTab }: AdminOverv
           <p className="mt-1 text-[11px] text-[#847878]">Awaiting confirmation</p>
         </div>
 
-        <div className="border border-white/12 bg-black/45 p-5">
+        <div className="border border-white/12 bg-white/[0.025] p-5">
           <div className="flex items-center justify-between text-[#9e9494]">
             <span className="text-[10px] tracking-[0.2em] uppercase">Delivered Orders</span>
             <CheckCircle2 className="h-4 w-4 text-[#7bd389]" />
@@ -70,7 +70,7 @@ export function AdminOverviewTab({ orders, products, onNavigateTab }: AdminOverv
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Recent Orders Activity */}
-        <div className="border border-white/12 bg-black/45 p-5 lg:col-span-7">
+        <div className="border border-white/12 bg-white/[0.025] p-5 lg:col-span-7">
           <div className="flex items-center justify-between border-b border-white/10 pb-3">
             <h2 className="text-xs font-medium tracking-[0.2em] text-white uppercase">
               Recent Activity
@@ -111,7 +111,7 @@ export function AdminOverviewTab({ orders, products, onNavigateTab }: AdminOverv
         </div>
 
         {/* Low-Stock Alerts */}
-        <div className="border border-white/12 bg-black/45 p-5 lg:col-span-5">
+        <div className="border border-white/12 bg-white/[0.025] p-5 lg:col-span-5">
           <div className="flex items-center justify-between border-b border-white/10 pb-3">
             <h2 className="flex items-center gap-2 text-xs font-medium tracking-[0.2em] text-white uppercase">
               <AlertTriangle className="h-3.5 w-3.5 text-[#e89d6b]" />
@@ -136,7 +136,7 @@ export function AdminOverviewTab({ orders, products, onNavigateTab }: AdminOverv
               {lowStockVariants.map(({ productName, variant }) => (
                 <div
                   key={variant.id}
-                  className="flex items-center justify-between border border-white/10 bg-black/30 px-3 py-2 text-xs"
+                  className="flex items-center justify-between border border-white/10 bg-white/[0.02] px-3 py-2 text-xs"
                 >
                   <div className="min-w-0">
                     <p className="truncate font-medium text-white">{productName}</p>

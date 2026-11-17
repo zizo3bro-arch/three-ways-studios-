@@ -72,11 +72,11 @@ export function AdminInventoryTab({ products, onRefresh }: AdminInventoryTabProp
       </div>
 
       {rows.length === 0 ? (
-        <div className="border border-white/12 bg-black/40 p-10 text-center text-xs text-[#9e9494]">
+        <div className="border border-white/12 bg-white/[0.015] p-10 text-center text-xs text-[#9e9494]">
           No variants match this filter.
         </div>
       ) : (
-        <div className="overflow-x-auto border border-white/12 bg-black/45">
+        <div className="overflow-x-auto border border-white/12 bg-white/[0.025]">
           <table className="w-full min-w-[680px] text-left text-xs">
             <thead>
               <tr className="border-b border-white/12 text-[10px] tracking-[0.18em] text-[#9e9494] uppercase">

@@ -53,7 +53,7 @@ export function QuickView() {
     <Overlay open={open} onClose={closeQuickView} label={`${product.name} — quick view`} placement="full" panelClassName="max-w-[1080px]">
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-0 overflow-y-auto md:grid-cols-[minmax(0,0.92fr)_minmax(0,1fr)] md:gap-6 md:overflow-hidden">
         {/* photography */}
-        <div className="relative flex items-end justify-center overflow-hidden rounded-[1rem] border border-ink/10 bg-paper px-5 py-6 md:min-h-[460px] md:border-b-0 md:border-r">
+        <div className="relative flex items-end justify-center overflow-hidden bg-[rgba(23,19,15,0.045)] px-5 py-6 md:min-h-[460px]">
           <span
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-[18%] bottom-6 h-9 rounded-[100%] bg-[radial-gradient(50%_50%_at_50%_50%,rgba(22,19,15,0.16)_0%,rgba(22,19,15,0.05)_52%,transparent_78%)]"
@@ -78,7 +78,7 @@ export function QuickView() {
               <p className="tws-eyebrow text-crimson-bright">
                 {editorial.chapter} · {product.is_new_arrival ? 'New arrival' : 'Signature'}
               </p>
-              <h2 className="mt-2 font-display text-[clamp(1.9rem,4.4vw,2.7rem)] uppercase leading-[0.92] tracking-[0.004em] text-ink">
+              <h2 className="mt-2 font-display text-[clamp(1.9rem,4.4vw,2.8rem)] uppercase leading-[0.88] tracking-[0.004em] text-ink">
                 {product.name}
               </h2>
             </div>
@@ -88,9 +88,9 @@ export function QuickView() {
               aria-label={saved ? 'Remove from saved pieces' : 'Save this piece'}
               aria-pressed={saved}
               className={[
-                'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors duration-300',
+                'flex h-9 w-9 shrink-0 items-center justify-center border transition-colors duration-300',
                 saved
-                  ? 'border-crimson-bright bg-crimson-bright text-ivory'
+                  ? 'border-crimson bg-crimson text-[#f7f4ed]'
                   : 'border-ink/18 text-ink-soft hover:border-crimson-bright hover:text-crimson-bright',
               ].join(' ')}
             >
@@ -110,12 +110,12 @@ export function QuickView() {
             ) : null}
           </div>
 
-          <ColourChip label={colourNameFor(product)} size="lg" className="mt-4 rounded-xl border border-ink/10 bg-ivory/60 px-3 py-2" />
+          <ColourChip label={colourNameFor(product)} size="lg" className="mt-4" />
 
           <p className="mt-4 text-[13.5px] leading-relaxed text-ink-soft">{editorial.blurb}</p>
 
           <div className="mt-5">
-            <SizeRow product={product} value={size} onChange={setSize} idPrefix="quick" />
+            <SizeRow product={product} value={size} onChange={(next) => setSize(next as Size)} idPrefix="quick" />
           </div>
 
           <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
@@ -130,7 +130,7 @@ export function QuickView() {
                 closeQuickView();
                 navigate('/checkout');
               }}
-              className="tws-pill tws-pill--crimson h-13 flex-1 justify-center"
+              className="tws-pill tws-pill--outline h-13 flex-1 justify-center"
             >
               Buy now
               <ArrowRight className="h-4 w-4" strokeWidth={2} />

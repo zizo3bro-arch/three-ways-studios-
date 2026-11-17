@@ -16,15 +16,26 @@
     />
     <meta property="og:image" content="/assets/three-ways-studios-logo-full.jpeg" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="theme-color" content="#FFFFFF" />
+    <meta name="theme-color" content="#f2eee6" />
     <meta name="color-scheme" content="light" />
     <link rel="icon" type="image/png" href="/assets/three-ways-studios-logo.png" />
     <link rel="apple-touch-icon" href="/assets/three-ways-studios-logo-full.jpeg" />
+    <link rel="preload" as="image" href="/media/paper-tile.webp" />
+    <!-- first paint matches the paper exactly, so there is no white flash -->
+    <style>
+      html,
+      body {
+        background-color: #f2eee6;
+        margin: 0;
+      }
+      body {
+        background-image: url("/media/paper-tile.webp");
+        background-repeat: repeat;
+        background-size: 384px 384px;
+      }
+    </style>
   </head>
-  <body
-    class="bg-white text-[#141414] antialiased selection:bg-[#9E0B14] selection:text-[#FFFFFF]"
-    style="background-color: #ffffff"
-  >
+  <body class="text-[#17130f] antialiased selection:bg-[#a5121b] selection:text-[#f7f4ed]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -105,10 +105,10 @@ export function Overlay({
             exit="hidden"
             onKeyDown={trapFocus}
             className={[
-              'relative z-10 flex max-h-full flex-col overflow-hidden border-ink/10 bg-ivory text-ink outline-none shadow-[0_30px_90px_rgba(12,10,8,0.42)]',
-              placement === 'right' ? 'h-full w-full max-w-[440px] border-l px-5 py-4 sm:px-7 sm:py-6' : '',
-              placement === 'sheet' ? 'w-full max-w-3xl rounded-t-[1.75rem] border-x border-t px-5 pb-6 pt-4 sm:px-8 sm:pb-9 sm:pt-5' : '',
-              placement === 'full' ? 'h-[100svh] w-full max-w-[1180px] px-5 py-4 sm:h-auto sm:max-h-[88svh] sm:rounded-[1.75rem] sm:border sm:px-7 sm:py-6' : '',
+              'relative z-10 flex max-h-full flex-col overflow-hidden border-ink/16 bg-[#f3efe7] text-ink outline-none shadow-[0_30px_90px_rgba(12,10,8,0.38)]',
+              placement === 'right' ? 'h-full w-full max-w-[452px] border-l px-5 py-4 sm:px-7 sm:py-6' : '',
+              placement === 'sheet' ? 'w-full max-w-3xl border-x border-t px-5 pb-6 pt-4 sm:px-8 sm:pb-9 sm:pt-5' : '',
+              placement === 'full' ? 'h-[100svh] w-full max-w-[1180px] px-5 py-4 sm:h-auto sm:max-h-[88svh] sm:border sm:border-ink/18 sm:px-7 sm:py-6' : '',
               panelClassName,
             ].join(' ')}
           >
@@ -119,7 +119,7 @@ export function Overlay({
                   type="button"
                   onClick={onClose}
                   aria-label={`Close ${label.toLowerCase()}`}
-                  className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-ink/20 text-ink transition-colors duration-300 hover:border-ink hover:bg-ink hover:text-ivory"
+                  className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center border border-ink/28 text-ink transition-colors duration-300 hover:border-crimson hover:text-crimson"
                 >
                   <X className="h-4 w-4" strokeWidth={2} />
                 </button>

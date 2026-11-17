@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowRight } from 'lucide-react';
 import { PageIntro } from '../components/layout/PageIntro';
 import { ProductPlate } from '../components/shop/ProductPlate';
 import { useCatalog } from '../hooks/useCatalog';
@@ -7,6 +8,7 @@ import { useCatalog } from '../hooks/useCatalog';
 /* =========================================================
    /shop — the whole catalogue, honestly. Filter chips read from the
    real product flags (new arrival, in stock) and sort is local state.
+   Set on the paper: rules instead of cards, no white panels.
    ========================================================= */
 
 type Filter = 'all' | 'new' | 'in-stock';
@@ -34,7 +36,9 @@ export function ShopPage() {
 
     if (filter === 'new') rows = rows.filter((product) => product.is_new_arrival);
     if (filter === 'in-stock') {
-      rows = rows.filter((product) => (product.variants ?? []).some((variant) => variant.stock_quantity > 0));
+      rows = rows.filter((product) =>
+        (product.variants ?? []).some((variant) => variant.stock_quantity > 0)
+      );
     }
 
     if (sort === 'price-asc') rows.sort((a, b) => a.price - b.price);
@@ -51,11 +55,14 @@ export function ShopPage() {
   return (
     <>
       <PageIntro
-        eyebrow="The Shop — Drop 01, 2026"
-        title="All Pieces"
+        eyebrow="The shop — Drop 01, 2026"
+        sprayText="SHOP"
+        title="All pieces"
+        meta={`${products.length} pieces · ${inStockCount} in stock`}
         description={
           <p>
-            {products.length} silhouettes · {inStockCount} in stock · cash on delivery across Egypt.
+            Two silhouettes, cut once. Cash on delivery across Egypt, dispatched from the Cairo
+            atelier in 1–2 working days.
           </p>
         }
         actions={
@@ -64,16 +71,16 @@ export function ShopPage() {
               Collections
             </Link>
             <Link to="/about#fit" className="tws-pill tws-pill--outline h-11">
-              Size Guide
+              Size guide
             </Link>
           </>
         }
       />
 
-      <section className="bg-white py-10 sm:py-14" aria-label="Product catalogue">
-        <div className="mx-auto w-full max-w-[1320px] px-4 sm:px-6 lg:px-10">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black/10 pb-5">
-            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter pieces">
+      <section aria-label="Product catalogue" className="pb-16 sm:pb-20">
+        <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-y border-ink/16 py-4">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2" role="group" aria-label="Filter pieces">
               {FILTERS.map((option) => {
                 const active = option.id === filter;
                 return (
@@ -83,10 +90,10 @@ export function ShopPage() {
                     aria-pressed={active}
                     onClick={() => setFilter(option.id)}
                     className={[
-                      'h-9 rounded-full border px-4 text-[10px] font-bold uppercase tracking-[0.16em] transition-all duration-200',
+                      'text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200',
                       active
-                        ? 'border-crimson bg-crimson text-white'
-                        : 'border-black/15 text-ink-soft hover:border-crimson hover:text-crimson',
+                        ? 'text-crimson underline decoration-crimson decoration-1 underline-offset-[6px]'
+                        : 'text-ink-faint hover:text-ink',
                     ].join(' ')}
                   >
                     {option.label}
@@ -103,7 +110,7 @@ export function ShopPage() {
                 id="shop-sort"
                 value={sort}
                 onChange={(event) => setSort(event.target.value as Sort)}
-                className="h-9 rounded-full border border-black/15 bg-white px-3.5 text-[11px] font-semibold text-ink outline-none transition-colors focus:border-crimson"
+                className="h-9 border-b border-ink/30 bg-transparent pr-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink outline-none transition-colors focus:border-crimson"
               >
                 {SORTS.map((option) => (
                   <option key={option.id} value={option.id}>
@@ -115,16 +122,17 @@ export function ShopPage() {
           </div>
 
           {visible.length === 0 ? (
-            <div className="mt-12 rounded-lg border border-black/10 bg-[#FAFAF8] px-6 py-14 text-center">
-              <p className="text-xl font-semibold text-ink">
-                {loading ? 'Loading products...' : 'No pieces in this filter'}
+            <div className="mt-14 text-center">
+              <p className="font-display text-[1.6rem] uppercase text-ink">
+                {loading ? 'Opening the rail…' : 'Nothing in this filter'}
               </p>
               <button type="button" onClick={() => setFilter('all')} className="tws-pill mt-6 h-11">
-                Show All Pieces
+                Show all pieces
+                <ArrowRight className="h-4 w-4" strokeWidth={2} />
               </button>
             </div>
           ) : (
-            <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:gap-12">
+            <div className="mt-9 grid grid-cols-2 gap-x-4 gap-y-9 sm:gap-x-6 lg:grid-cols-4 lg:gap-x-6">
               {visible.map((product, index) => (
                 <ProductPlate key={product.id} product={product} index={index} />
               ))}

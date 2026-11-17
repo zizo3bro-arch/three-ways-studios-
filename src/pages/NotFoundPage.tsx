@@ -1,24 +1,39 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import { SprayType } from '../components/ui/SprayType';
 
 export function NotFoundPage() {
   return (
-    <section className="flex min-h-[75svh] flex-col items-center justify-center bg-white px-4 py-24 text-center">
-      <p className="tws-eyebrow text-crimson">404</p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-        Page not found
-      </h1>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-soft">
-        The page you are looking for does not exist or has been moved.
-      </p>
-      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-        <Link to="/shop" className="tws-pill">
-          Go to Shop
-          <ArrowRight className="h-4 w-4" strokeWidth={2} />
-        </Link>
-        <Link to="/" className="tws-pill tws-pill--outline">
-          Back Home
-        </Link>
+    <section className="relative isolate flex min-h-[80svh] flex-col items-center justify-center overflow-hidden px-4 py-28 text-center">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 opacity-[0.09]"
+      >
+        <SprayType text="LOST" fontSize="clamp(5rem, 26vw, 22rem)" />
+      </div>
+
+      <div className="relative z-10">
+        <p className="tws-eyebrow text-crimson">404 — off the rail</p>
+        <h1
+          className="mt-4 font-display uppercase leading-[0.86] tracking-[0.004em] text-ink"
+          style={{ fontSize: 'clamp(2.4rem, 7.5vw, 5rem)' }}
+        >
+          This page isn’t
+          <span className="block text-crimson">in the drop</span>
+        </h1>
+        <p className="mx-auto mt-4 max-w-md font-serif text-[15px] italic leading-relaxed text-ink-soft">
+          The link you followed doesn’t resolve to a page at the house. The two silhouettes are
+          still where you left them.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5">
+          <Link to="/shop" className="tws-pill h-12">
+            Go to the shop
+            <ArrowRight className="h-4 w-4" strokeWidth={2} />
+          </Link>
+          <Link to="/" className="tws-pill tws-pill--outline h-12">
+            Back home
+          </Link>
+        </div>
       </div>
     </section>
   );

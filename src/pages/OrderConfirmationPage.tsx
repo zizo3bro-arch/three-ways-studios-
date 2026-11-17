@@ -50,8 +50,8 @@ export function OrderConfirmationPage() {
 
   if (!order) {
     return (
-      <section className="relative flex min-h-[82svh] items-center justify-center bg-white px-4 py-24">
-        <div className="tws-plate-card relative z-10 w-full max-w-md p-6 sm:p-8">
+      <section className="relative flex min-h-[82svh] items-center justify-center px-4 py-24">
+        <div className="relative z-10 w-full max-w-md border-t border-ink/25 pt-6">
           <p className="tws-eyebrow text-crimson-bright">Order verification</p>
           <h1 className="mt-3 font-display text-[1.9rem] uppercase leading-[0.95] text-ink">
             Order {orderRef}
@@ -98,9 +98,9 @@ export function OrderConfirmationPage() {
 
   return (
     <div className="mx-auto w-full max-w-[940px] px-4 pb-20 pt-[104px] sm:px-6 sm:pt-[136px]">
-      <div className="tws-plate-card overflow-hidden">
+      <div className="border-t border-ink/25">
         {/* the stamp */}
-        <div className="relative border-b border-ink/12 bg-[#FAFAF8] px-5 py-8 sm:px-9 sm:py-10">
+        <div className="relative border-b border-ink/16 px-0 py-8 sm:py-9">
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
             <div>
               <p className="tws-eyebrow flex items-center gap-2 text-crimson-bright">
@@ -136,8 +136,8 @@ export function OrderConfirmationPage() {
         </div>
 
         {/* COD box */}
-        <div className="mx-5 mt-6 flex items-start gap-4 rounded-[1.1rem] border border-crimson-bright/25 bg-crimson-mist px-4 py-4 sm:mx-9">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-crimson-bright text-ivory">
+        <div className="mt-6 flex items-start gap-4 border-l-2 border-crimson bg-[rgba(165,18,27,0.06)] px-4 py-4">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-crimson text-[#f7f4ed]">
             <Banknote className="h-4 w-4" strokeWidth={1.9} />
           </span>
           <p className="text-[12.5px] leading-relaxed text-crimson-deep">
@@ -167,7 +167,7 @@ export function OrderConfirmationPage() {
             {order.order_notes ? (
               <p className="mt-2 text-[12px] italic leading-relaxed text-ink-faint">Note: {order.order_notes}</p>
             ) : null}
-            <p className="mt-3 inline-flex rounded-full border border-ink/15 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-ink-soft">
+            <p className="mt-3 inline-flex border border-ink/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-ink-soft">
               Status · {order.status}
             </p>
           </div>
@@ -179,7 +179,7 @@ export function OrderConfirmationPage() {
           <ul className="mt-3.5 space-y-3.5">
             {order.items.map((item, index) => (
               <li key={`${item.variant_id ?? 'line'}-${index}`} className="flex items-center gap-4">
-                <span className="flex h-[74px] w-12 shrink-0 items-end justify-center overflow-hidden rounded-[3px] border border-ink/10 bg-paper">
+                <span className="flex h-[74px] w-12 shrink-0 items-end justify-center overflow-hidden bg-[rgba(23,19,15,0.05)]">
                   {item.product_image ? (
                     <img src={item.product_image} alt={item.product_name} loading="lazy" className="h-full w-auto object-contain object-bottom" />
                   ) : null}
@@ -199,7 +199,7 @@ export function OrderConfirmationPage() {
         </div>
 
         {/* totals */}
-        <div className="border-t border-ink/12 bg-ivory/70 px-5 py-6 sm:px-9">
+        <div className="border-t border-ink/16 px-0 py-6">
           <dl className="ml-auto max-w-sm space-y-2 text-[12.5px]">
             <div className="flex items-baseline justify-between">
               <dt className="text-ink-soft">Subtotal</dt>

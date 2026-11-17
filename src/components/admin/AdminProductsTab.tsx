@@ -470,14 +470,14 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
 
       {/* Product List */}
       {products.length === 0 ? (
-        <div className="border border-white/12 bg-black/40 p-12 text-center">
+        <div className="border border-white/12 bg-white/[0.015] p-12 text-center">
           <p className="text-sm text-white">No products in database yet.</p>
           <p className="mt-2 text-xs text-[#9e9494]">
             Click &ldquo;Add Women&apos;s Pants&rdquo; above to create your first garment.
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto border border-white/12 bg-black/45">
+        <div className="overflow-x-auto border border-white/12 bg-white/[0.025]">
           <table className="w-full min-w-[760px] text-left text-xs">
             <thead>
               <tr className="border-b border-white/12 text-[10px] tracking-[0.18em] text-[#9e9494] uppercase">
@@ -811,7 +811,7 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
                 {images.length > 0 && (
                   <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {images.map((img, idx) => (
-                      <div key={idx} className="border border-white/15 bg-black/40 p-2">
+                      <div key={idx} className="border border-white/15 bg-white/[0.015] p-2">
                         <div className="aspect-[3/4] overflow-hidden bg-black">
                           <img src={img.url} alt="" className="h-full w-full object-cover" />
                         </div>
@@ -891,7 +891,7 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
                   {variants.map((v, idx) => (
                     <div
                       key={idx}
-                      className="grid grid-cols-2 items-center gap-2 border border-white/10 bg-black/30 p-2.5 sm:grid-cols-7"
+                      className="grid grid-cols-2 items-center gap-2 border border-white/10 bg-white/[0.02] p-2.5 sm:grid-cols-7"
                     >
                       <input
                         type="text"

@@ -97,7 +97,7 @@ export function CheckoutPage() {
   if (items.length === 0) {
     return (
       <section className="mx-auto flex min-h-[80svh] w-full max-w-xl flex-col items-center justify-center px-4 py-24 text-center">
-        <p className="tws-eyebrow text-crimson-bright">Checkout</p>
+        <p className="tws-eyebrow text-crimson">Checkout</p>
         <h1 className="mt-4 font-display text-[clamp(2rem,6vw,3rem)] uppercase leading-[0.92] text-ink">
           Your bag is empty
         </h1>
@@ -175,10 +175,10 @@ export function CheckoutPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1320px] px-4 pb-20 pt-[104px] sm:px-6 sm:pt-[136px] lg:px-10">
+    <div className="mx-auto w-full max-w-[1800px] px-4 pb-20 pt-[104px] sm:px-6 sm:pt-[124px] lg:px-10">
       {/* header */}
-      <header className="border-b border-ink/12 pb-6">
-        <p className="tws-eyebrow flex items-center gap-3 text-crimson-bright">
+      <header className="border-b border-ink/16 pb-6">
+        <p className="tws-eyebrow flex items-center gap-3 text-crimson">
           <Lock className="h-3.5 w-3.5" strokeWidth={2} />
           Secure checkout — cash on delivery
         </p>
@@ -197,9 +197,9 @@ export function CheckoutPage() {
       <form onSubmit={handlePlaceOrder} className="mt-8 grid gap-8 lg:grid-cols-12 lg:gap-10">
         {/* ——— left: contact + delivery ——— */}
         <div className="space-y-5 lg:col-span-7">
-          <section className="tws-plate-card p-5 sm:p-7">
+          <section className="border-t border-ink/25 pt-6">
             <div className="flex items-baseline gap-3">
-              <span className="font-display text-[1.1rem] text-crimson-bright">01</span>
+              <span className="font-display text-[1.1rem] text-crimson">01</span>
               <h2 className="tws-eyebrow text-ink">Contact</h2>
             </div>
 
@@ -220,9 +220,9 @@ export function CheckoutPage() {
                   aria-invalid={fieldErrors.email ? 'true' : 'false'}
                 />
                 {fieldErrors.email ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson-bright">{fieldErrors.email}</p>
+                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.email}</p>
                 ) : quote?.email_discount_applied ? (
-                  <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-crimson-bright">
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-crimson">
                     <CheckCircle2 className="h-3.5 w-3.5" />
                     Verified — {quote.email_discount_percent}% email privilege (−{formatEGP(quote.email_discount_amount)})
                   </p>
@@ -249,7 +249,7 @@ export function CheckoutPage() {
                   aria-invalid={fieldErrors.fullName ? 'true' : 'false'}
                 />
                 {fieldErrors.fullName ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson-bright">{fieldErrors.fullName}</p>
+                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.fullName}</p>
                 ) : null}
               </div>
 
@@ -270,15 +270,15 @@ export function CheckoutPage() {
                   aria-invalid={fieldErrors.phone ? 'true' : 'false'}
                 />
                 {fieldErrors.phone ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson-bright">{fieldErrors.phone}</p>
+                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.phone}</p>
                 ) : null}
               </div>
             </div>
           </section>
 
-          <section className="tws-plate-card p-5 sm:p-7">
+          <section className="border-t border-ink/25 pt-6">
             <div className="flex items-baseline gap-3">
-              <span className="font-display text-[1.1rem] text-crimson-bright">02</span>
+              <span className="font-display text-[1.1rem] text-crimson">02</span>
               <h2 className="tws-eyebrow text-ink">Delivery address</h2>
             </div>
 
@@ -318,7 +318,7 @@ export function CheckoutPage() {
                   aria-invalid={fieldErrors.city ? 'true' : 'false'}
                 />
                 {fieldErrors.city ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson-bright">{fieldErrors.city}</p>
+                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.city}</p>
                 ) : null}
               </div>
 
@@ -338,7 +338,7 @@ export function CheckoutPage() {
                   aria-invalid={fieldErrors.address ? 'true' : 'false'}
                 />
                 {fieldErrors.address ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson-bright">{fieldErrors.address}</p>
+                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.address}</p>
                 ) : null}
               </div>
 
@@ -358,13 +358,13 @@ export function CheckoutPage() {
             </div>
           </section>
 
-          <section className="tws-plate-card flex items-start gap-4 border-crimson-bright/30 p-5 sm:p-7">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-crimson-bright text-ivory">
+          <section className="flex items-start gap-4 border-l-2 border-crimson bg-[rgba(165,18,27,0.06)] px-4 py-4">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-crimson text-[#f7f4ed]">
               <Banknote className="h-4 w-4" strokeWidth={1.9} />
             </span>
             <div>
               <div className="flex items-baseline gap-3">
-                <span className="font-display text-[1.1rem] text-crimson-bright">03</span>
+                <span className="font-display text-[1.1rem] text-crimson">03</span>
                 <h2 className="tws-eyebrow text-ink">Payment method</h2>
               </div>
               <p className="mt-2 text-[13.5px] font-semibold text-ink">Cash on delivery only</p>
@@ -378,7 +378,7 @@ export function CheckoutPage() {
 
         {/* ——— right: summary ——— */}
         <aside className="lg:col-span-5">
-          <div className="tws-plate-card p-5 sm:p-6 lg:sticky lg:top-[116px]">
+          <div className="pt-6 lg:sticky lg:top-[116px] lg:border-t lg:border-ink/25">
             <h2 className="tws-eyebrow border-b border-ink/12 pb-3 text-ink">
               Your bag · {totalItems} {totalItems === 1 ? 'piece' : 'pieces'}
             </h2>
@@ -388,7 +388,7 @@ export function CheckoutPage() {
                 <li key={item.variant_id} className="flex gap-3.5 border-b border-ink/8 pb-3.5 last:border-b-0">
                   <Link
                     to={`/product/${item.product_slug}`}
-                    className="flex h-[92px] w-[62px] shrink-0 items-end justify-center overflow-hidden rounded-[3px] border border-ink/10 bg-paper"
+                    className="flex h-[92px] w-[62px] shrink-0 items-end justify-center overflow-hidden bg-[rgba(23,19,15,0.05)]"
                   >
                     {item.product_image ? (
                       <img src={item.product_image} alt={item.product_name} loading="lazy" className="h-full w-auto object-contain object-bottom" />
@@ -428,16 +428,16 @@ export function CheckoutPage() {
                 <button
                   type="button"
                   onClick={() => setAppliedPromo(promoInput.trim().toUpperCase())}
-                  className="h-11 shrink-0 rounded-[0.85rem] border border-ink/20 px-4 text-[10px] font-bold uppercase tracking-[0.16em] text-ink transition-colors duration-300 hover:border-ink hover:bg-ink hover:text-ivory"
+                  className="h-11 shrink-0 border border-ink/24 px-4 text-[10px] font-bold uppercase tracking-[0.16em] text-ink transition-colors duration-300 hover:border-crimson hover:text-crimson"
                 >
                   Apply
                 </button>
               </div>
               {quote?.promo_error ? (
-                <p className="mt-1.5 text-[11px] font-semibold text-crimson-bright">{quote.promo_error}</p>
+                <p className="mt-1.5 text-[11px] font-semibold text-crimson">{quote.promo_error}</p>
               ) : null}
               {quote?.promo_code_applied ? (
-                <p className="mt-1.5 text-[11px] font-semibold text-crimson-bright">
+                <p className="mt-1.5 text-[11px] font-semibold text-crimson">
                   Code {quote.promo_code_applied} applied (−{quote.promo_discount_percent}%).
                 </p>
               ) : null}
@@ -450,13 +450,13 @@ export function CheckoutPage() {
                 <dd className="font-semibold text-ink">{formatEGP(effectiveSubtotal)}</dd>
               </div>
               {quote?.email_discount_applied ? (
-                <div className="flex items-baseline justify-between text-crimson-bright">
+                <div className="flex items-baseline justify-between text-crimson">
                   <dt>Email privilege ({quote.email_discount_percent}%)</dt>
                   <dd>−{formatEGP(quote.email_discount_amount)}</dd>
                 </div>
               ) : null}
               {quote && quote.promo_discount_amount > 0 ? (
-                <div className="flex items-baseline justify-between text-crimson-bright">
+                <div className="flex items-baseline justify-between text-crimson">
                   <dt>Promo {quote.promo_code_applied}</dt>
                   <dd>−{formatEGP(quote.promo_discount_amount)}</dd>
                 </div>
@@ -488,7 +488,7 @@ export function CheckoutPage() {
             ) : null}
 
             {stockIssues.length > 0 ? (
-              <div className="mt-4 rounded-xl border border-crimson-bright/25 bg-crimson-mist p-3.5">
+              <div className="mt-4 border-l-2 border-crimson bg-[rgba(165,18,27,0.06)] px-3.5 py-3">
                 {stockIssues.map((message) => (
                   <p key={message} className="flex items-start gap-2 text-[11.5px] leading-relaxed text-crimson-deep">
                     <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -499,7 +499,7 @@ export function CheckoutPage() {
             ) : null}
 
             {submitError ? (
-              <p role="alert" className="mt-4 rounded-xl border border-crimson-bright/25 bg-crimson-mist p-3.5 text-[11.5px] leading-relaxed text-crimson-deep">
+              <p role="alert" className="mt-4 border-l-2 border-crimson bg-[rgba(165,18,27,0.06)] px-3.5 py-3 text-[11.5px] leading-relaxed text-crimson-deep">
                 {submitError}
               </p>
             ) : null}
@@ -515,7 +515,7 @@ export function CheckoutPage() {
 
             <Link
               to="/shop"
-              className="mt-3 flex items-center justify-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] text-ink-faint transition-colors hover:text-crimson-bright"
+              className="mt-3 flex items-center justify-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] text-ink-faint transition-colors hover:text-crimson"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               Keep shopping
