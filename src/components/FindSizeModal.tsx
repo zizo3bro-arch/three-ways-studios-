@@ -77,14 +77,14 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
         type="button"
         aria-label="Close find my size"
         onClick={onClose}
-        className="tws-fade-in absolute inset-0 cursor-default bg-[#0c0a0b]/72"
+        className="tws-fade-in absolute inset-0 cursor-default bg-[#120e0b]/55 backdrop-blur-[3px]"
       />
 
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="tws-find-size-title"
-        className="tws-sheet-in relative z-10 max-h-[92svh] w-full overflow-y-auto rounded-t-2xl border border-black/10 bg-white p-6 text-ink shadow-2xl sm:max-w-md sm:rounded-2xl sm:p-8"
+        className="tws-sheet-in relative z-10 max-h-[92svh] w-full overflow-y-auto border border-ink/18 bg-[#f3efe7] p-6 text-ink shadow-[0_30px_90px_rgba(12,10,8,0.34)] sm:max-w-md sm:p-8"
       >
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -100,7 +100,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink/20 bg-cream-card text-ink transition-colors duration-200 hover:border-ink hover:bg-ink hover:text-cream"
+            className="flex h-9 w-9 shrink-0 items-center justify-center border border-ink/25 text-ink transition-colors duration-200 hover:border-crimson hover:text-crimson"
           >
             <X className="h-4 w-4" strokeWidth={2} />
           </button>
@@ -108,7 +108,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
 
         {result ? (
           <div className="mt-6">
-            <div className="rounded-2xl border-2 border-ink bg-ink px-6 py-7 text-center text-cream">
+            <div className="border border-ink bg-ink px-6 py-7 text-center text-[#f7f4ed]">
               <p className="text-[9px] font-bold uppercase tracking-[0.32em] text-cream/60">
                 Your recommended size
               </p>
@@ -129,7 +129,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
               <button
                 type="button"
                 onClick={applySize}
-                className="inline-flex h-14 min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-crimson-bright px-6 text-[11px] font-bold uppercase tracking-[0.24em] text-cream transition-colors duration-200 hover:bg-crimson-deep"
+                className="inline-flex h-14 min-h-12 w-full items-center justify-center gap-2.5 bg-ink px-6 text-[11px] font-bold uppercase tracking-[0.24em] text-[#f7f4ed] transition-colors duration-200 hover:bg-crimson"
               >
                 <Check className="h-4 w-4" strokeWidth={2.6} />
                 Select size {result.size}
@@ -137,7 +137,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
               <button
                 type="button"
                 onClick={() => setResult(null)}
-                className="inline-flex h-12 w-full items-center justify-center rounded-full border-2 border-ink/25 px-6 text-[10px] font-bold uppercase tracking-[0.24em] text-ink transition-colors duration-200 hover:border-ink"
+                className="inline-flex h-12 w-full items-center justify-center border border-ink/30 px-6 text-[10px] font-bold uppercase tracking-[0.24em] text-ink transition-colors duration-200 hover:border-crimson hover:text-crimson"
               >
                 Recalculate
               </button>
@@ -169,7 +169,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
                   placeholder="72"
-                  className="h-14 w-full rounded-xl border-2 border-ink/35 bg-white px-4 text-base font-semibold text-ink outline-none transition-colors duration-150 placeholder:font-normal placeholder:text-ink-faint focus:border-crimson-bright"
+                  className="h-14 w-full border-b border-ink/40 bg-transparent px-0 text-base font-semibold text-ink outline-none transition-colors duration-150 placeholder:font-normal placeholder:text-ink-faint focus:border-crimson"
                 />
               </div>
               <div>
@@ -189,7 +189,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
                   value={height}
                   onChange={(e) => setHeight(e.target.value)}
                   placeholder="178"
-                  className="h-14 w-full rounded-xl border-2 border-ink/35 bg-white px-4 text-base font-semibold text-ink outline-none transition-colors duration-150 placeholder:font-normal placeholder:text-ink-faint focus:border-crimson-bright"
+                  className="h-14 w-full border-b border-ink/40 bg-transparent px-0 text-base font-semibold text-ink outline-none transition-colors duration-150 placeholder:font-normal placeholder:text-ink-faint focus:border-crimson"
                 />
               </div>
             </div>
@@ -202,7 +202,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
 
             <button
               type="submit"
-              className="mt-5 inline-flex h-14 min-h-12 w-full items-center justify-center gap-2.5 rounded-full bg-ink px-6 text-[11px] font-bold uppercase tracking-[0.24em] text-cream transition-colors duration-200 hover:bg-crimson-bright"
+              className="mt-5 inline-flex h-14 min-h-12 w-full items-center justify-center gap-2.5 bg-ink px-6 text-[11px] font-bold uppercase tracking-[0.24em] text-[#f7f4ed] transition-colors duration-200 hover:bg-crimson"
             >
               Calculate my size
               <ArrowRight className="h-4 w-4" strokeWidth={2.2} />

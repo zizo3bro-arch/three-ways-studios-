@@ -37,7 +37,7 @@ export function CartDrawer() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10 }}
               transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
-              className="pointer-events-auto flex max-w-sm items-center gap-3 rounded-full border border-ink/14 bg-paper/95 py-2.5 pl-3 pr-4 shadow-plate backdrop-blur-md"
+              className="pointer-events-auto flex max-w-sm items-center gap-3 border border-ink/18 bg-[rgba(244,240,232,0.96)] py-2.5 pl-3 pr-4 backdrop-blur-md"
             >
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-crimson-bright text-ivory">
                 <Check className="h-3.5 w-3.5" strokeWidth={2.6} />
@@ -50,7 +50,7 @@ export function CartDrawer() {
 
       <Overlay open={isDrawerOpen} onClose={closeDrawer} label="Shopping bag" placement="right">
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
-          <div className="border-b border-ink/12 pb-3">
+          <div className="border-b border-ink/16 pb-3">
             <p className="tws-eyebrow text-crimson-bright">Drop 01 — 2026</p>
             <div className="mt-1.5 flex items-end justify-between gap-3">
               <h2 className="font-display text-[1.9rem] uppercase leading-none tracking-[0.005em] text-ink">
@@ -64,7 +64,7 @@ export function CartDrawer() {
 
           {items.length === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-full border border-ink/15 text-ink-faint">
+              <span className="flex h-14 w-14 items-center justify-center rounded-full border border-ink/20 text-ink-faint">
                 <ShoppingBag className="h-6 w-6" strokeWidth={1.3} />
               </span>
               <p className="mt-5 font-display text-xl uppercase leading-tight text-ink">Nothing in the bag</p>
@@ -100,7 +100,7 @@ export function CartDrawer() {
                     <Link
                       to={`/product/${item.product_slug}`}
                       onClick={closeDrawer}
-                      className="flex h-[124px] w-[74px] shrink-0 items-end justify-center overflow-hidden rounded-[3px] border border-ink/10 bg-paper transition-opacity hover:opacity-90"
+                      className="flex h-[124px] w-[74px] shrink-0 items-end justify-center overflow-hidden bg-[rgba(23,19,15,0.05)] transition-opacity hover:opacity-90"
                     >
                       {item.product_image ? (
                         <img
@@ -138,12 +138,12 @@ export function CartDrawer() {
                       </div>
 
                       <div className="mt-3 flex items-center justify-between gap-3">
-                        <div className="inline-flex items-center rounded-full border border-ink/16 bg-paper">
+                        <div className="inline-flex items-center border border-ink/20">
                           <button
                             type="button"
                             onClick={() => updateQuantity(item.variant_id, item.quantity - 1)}
                             aria-label={`Decrease quantity of ${item.product_name}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-l-full text-ink-soft transition-colors hover:bg-ink hover:text-ivory"
+                            className="flex h-8 w-8 items-center justify-center text-ink-soft transition-colors hover:text-crimson"
                           >
                             <Minus className="h-3 w-3" strokeWidth={2.2} />
                           </button>
@@ -153,7 +153,7 @@ export function CartDrawer() {
                             onClick={() => updateQuantity(item.variant_id, item.quantity + 1)}
                             disabled={item.quantity >= item.max_stock}
                             aria-label={`Increase quantity of ${item.product_name}`}
-                            className="flex h-8 w-8 items-center justify-center rounded-r-full text-ink-soft transition-colors hover:bg-ink hover:text-ivory disabled:cursor-not-allowed disabled:opacity-30"
+                            className="flex h-8 w-8 items-center justify-center text-ink-soft transition-colors hover:text-crimson disabled:cursor-not-allowed disabled:opacity-30"
                           >
                             <Plus className="h-3 w-3" strokeWidth={2.2} />
                           </button>

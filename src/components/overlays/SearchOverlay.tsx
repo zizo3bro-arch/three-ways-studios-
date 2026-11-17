@@ -105,7 +105,7 @@ export function SearchOverlay() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="absolute inset-0 cursor-default bg-black/40 backdrop-blur-[2px]"
+            className="absolute inset-0 cursor-default bg-[#120e0b]/45 backdrop-blur-[3px]"
           />
 
           {/* Top-anchored Search Bar Panel */}
@@ -114,12 +114,12 @@ export function SearchOverlay() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10 border-b border-black/10 bg-white shadow-xl"
+            className="relative z-10 border-b border-ink/20 bg-[#f3efe7]"
           >
             <div className="mx-auto w-full max-w-[1040px] px-4 py-4 sm:px-6 sm:py-5">
               {/* Search input + clear + close row */}
               <div className="flex items-center gap-3">
-                <div className="flex h-12 flex-1 items-center gap-3 rounded-lg border border-black/15 bg-[#FAFAF8] px-3.5 transition-colors focus-within:border-crimson focus-within:bg-white">
+                <div className="flex h-14 flex-1 items-center gap-3 border-b border-ink/30 px-0 transition-colors focus-within:border-crimson">
                   <SearchIcon className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
                   <label htmlFor="tws-search-input" className="sr-only">
                     Search products by name
@@ -132,8 +132,8 @@ export function SearchOverlay() {
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Search pants by name..."
-                    className="h-full w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint sm:text-base"
+                    placeholder="Search the house…"
+                    className="h-full w-full min-w-0 bg-transparent font-display text-lg uppercase tracking-[0.02em] text-ink outline-none placeholder:font-sans placeholder:text-[13px] placeholder:uppercase placeholder:tracking-[0.16em] placeholder:text-ink-faint sm:text-2xl"
                   />
                   {query.length > 0 ? (
                     <button
@@ -153,7 +153,7 @@ export function SearchOverlay() {
                   type="button"
                   onClick={closeOverlay}
                   aria-label="Close search"
-                  className="flex h-12 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-black/15 px-3.5 text-xs font-semibold uppercase tracking-[0.14em] text-ink transition-colors hover:border-crimson hover:bg-crimson hover:text-white sm:px-4"
+                  className="flex h-10 shrink-0 items-center justify-center gap-1.5 border border-ink/24 px-3.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ink transition-colors hover:border-crimson hover:text-crimson sm:px-4"
                 >
                   <X className="h-4 w-4" strokeWidth={2} />
                   <span className="hidden sm:inline">Close</span>
@@ -161,8 +161,8 @@ export function SearchOverlay() {
               </div>
 
               {/* Results header */}
-              <div className="mt-4 flex items-center justify-between border-b border-black/8 pb-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-faint">
+              <div className="mt-5 flex items-center justify-between border-b border-ink/16 pb-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-faint">
                   {trimmed.length > 0
                     ? `${results.length} ${results.length === 1 ? 'Product' : 'Products'} Found`
                     : 'Featured Pieces'}
@@ -170,7 +170,7 @@ export function SearchOverlay() {
                 <Link
                   to="/shop"
                   onClick={closeOverlay}
-                  className="text-[11px] font-semibold uppercase tracking-[0.14em] text-crimson hover:underline"
+                  className="text-[10px] font-bold uppercase tracking-[0.2em] text-crimson underline-offset-4 hover:underline"
                 >
                   View All
                 </Link>
@@ -191,13 +191,13 @@ export function SearchOverlay() {
                             onMouseEnter={() => setCursor(index)}
                             onClick={() => openProduct(product)}
                             className={[
-                              'group flex w-full items-center gap-4 rounded-lg border p-2.5 text-left transition-all',
+                              'group flex w-full items-center gap-4 border-b border-ink/12 py-3 text-left transition-colors',
                               isActive
-                                ? 'border-crimson/40 bg-[#FDF2F2]/50'
-                                : 'border-black/10 bg-white hover:border-crimson/40 hover:bg-[#FAFAF8]',
+                                ? 'border-crimson/60'
+                                : 'border-ink/12 hover:border-ink/35',
                             ].join(' ')}
                           >
-                            <div className="flex h-20 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-[#F7F6F3] p-1.5">
+                            <div className="flex h-20 w-16 shrink-0 items-end justify-center overflow-hidden bg-[rgba(23,19,15,0.05)] p-1.5">
                               {img?.url ? (
                                 <img
                                   src={img.url}
@@ -208,14 +208,14 @@ export function SearchOverlay() {
                             </div>
 
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-semibold text-ink transition-colors group-hover:text-crimson">
+                              <p className="truncate font-display text-[15px] uppercase leading-tight tracking-[0.01em] text-ink transition-colors group-hover:text-crimson">
                                 {product.name}
                               </p>
-                              <p className="mt-0.5 text-xs text-ink-faint">
+                              <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-ink-faint">
                                 {colourNameFor(product)}
                               </p>
-                              <div className="mt-2 flex items-center gap-3">
-                                <span className="text-sm font-semibold text-ink tabular-nums">
+                              <div className="mt-1.5 flex items-center gap-3">
+                                <span className="text-[12px] font-semibold tabular-nums text-ink">
                                   {formatEGP(product.price)}
                                 </span>
                                 <span
@@ -239,11 +239,11 @@ export function SearchOverlay() {
                     })}
                   </ul>
                 ) : (
-                  <div className="py-10 text-center">
-                    <p className="text-sm font-medium text-ink">
+                  <div className="py-12 text-center">
+                    <p className="font-display text-lg uppercase text-ink">
                       No products matched “{trimmed}”.
                     </p>
-                    <p className="mt-1 text-xs text-ink-faint">
+                    <p className="mt-1.5 text-[12px] text-ink-faint">
                       Try searching for “Midnight”, “Wide-Flare”, or “Onyx”.
                     </p>
                     <Link

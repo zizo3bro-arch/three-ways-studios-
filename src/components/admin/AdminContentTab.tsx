@@ -54,7 +54,7 @@ export function AdminContentTab() {
   };
 
   return (
-    <form onSubmit={handleSave} className="space-y-6 border border-white/12 bg-black/45 p-6">
+    <form onSubmit={handleSave} className="space-y-6 border border-white/12 p-6">
       <div>
         <h2 className="text-sm font-medium tracking-[0.2em] text-white uppercase">
           Website Content &amp; Editorial Copy

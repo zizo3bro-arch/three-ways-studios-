@@ -26,11 +26,11 @@ export function AdminCustomersTab({ customers, orders }: AdminCustomersTabProps)
       </div>
 
       {customers.length === 0 ? (
-        <div className="border border-white/12 bg-black/40 p-10 text-center text-xs text-[#9e9494]">
+        <div className="border border-white/12 bg-white/[0.015] p-10 text-center text-xs text-[#9e9494]">
           No customers recorded yet.
         </div>
       ) : (
-        <div className="overflow-x-auto border border-white/12 bg-black/45">
+        <div className="overflow-x-auto border border-white/12 bg-white/[0.025]">
           <table className="w-full min-w-[740px] text-left text-xs">
             <thead>
               <tr className="border-b border-white/12 text-[10px] tracking-[0.18em] text-[#9e9494] uppercase">
@@ -109,7 +109,7 @@ export function AdminCustomersTab({ customers, orders }: AdminCustomersTabProps)
               {ordersByCustomer(selectedCustomer.id).map((o) => (
                 <div
                   key={o.id}
-                  className="flex items-center justify-between border border-white/10 bg-black/35 p-3 text-xs"
+                  className="flex items-center justify-between border border-white/10 bg-white/[0.02] p-3 text-xs"
                 >
                   <div>
                     <p className="font-mono font-medium text-white">{o.order_reference}</p>

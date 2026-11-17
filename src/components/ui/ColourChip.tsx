@@ -12,9 +12,20 @@ interface ColourChipProps {
   label?: string;
   size?: 'sm' | 'lg';
   className?: string;
+  /**
+   * Describe the plate itself for screen readers. Default off: most call
+   * sites already name the colour in adjacent text, so announcing it again
+   * would be noise — and the plate is decorative, not informative.
+   */
+  describe?: boolean;
 }
 
-export function ColourChip({ label, size = 'sm', className = '' }: ColourChipProps) {
+export function ColourChip({
+  label,
+  size = 'sm',
+  className = '',
+  describe = false,
+}: ColourChipProps) {
   const chip = size === 'lg' ? 'tws-swatch tws-swatch--lg' : 'tws-swatch';
 
   return (
@@ -30,9 +41,9 @@ export function ColourChip({ label, size = 'sm', className = '' }: ColourChipPro
         >
           {label}
         </span>
-      ) : (
-        <span className="sr-only">Colour shown as a fixed white plate</span>
-      )}
+      ) : describe ? (
+        <span className="sr-only">Colour plate</span>
+      ) : null}
     </span>
   );
 }

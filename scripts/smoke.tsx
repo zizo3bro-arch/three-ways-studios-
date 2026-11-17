@@ -6,6 +6,9 @@ import { WishlistProvider } from '../src/context/WishlistContext';
 import { CartProvider } from '../src/context/CartContext';
 import { UIProvider } from '../src/context/UIContext';
 import { AppShell } from '../src/App';
+import { Navbar } from '../src/components/layout/Navbar';
+import { SiteFooter } from '../src/components/layout/SiteFooter';
+import { AccountPanel } from '../src/components/overlays/AccountPanel';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
@@ -55,22 +58,28 @@ if (typeof g.window === 'undefined') {
   g.matchMedia = (windowStub as { matchMedia: () => unknown }).matchMedia;
 }
 
+/* The router pass only proves what is eagerly mounted: the shell
+   (nav + footer + overlays) and the homepage. Lazy pages are asserted
+   in the deep pass below, where each module is imported directly. */
 const routes: Array<[string, RegExp | null, string]> = [
   ['/', /tws-spray/, 'hero paint'],
-  ['/', /FASHION/, 'hero tagline'],
-  ['/shop', /All pieces/i, 'shop heading'],
-  ['/collections', /Collection/i, 'collections list'],
-  ['/collections/drop-01-2026', /Drop 01/, 'collection detail'],
-  ['/product/the-midnight-wide-flare', /Midnight Wide-Flare/, 'pdp title'],
-  ['/product/the-onyx-super-flare', /Onyx Super-Flare/, 'pdp title 2'],
-  ['/about', /fashion beyond limits/i, 'about manifesto'],
-  ['/journal', /atelier/i, 'journal index'],
-  ['/journal/against-the-skinny', /AGAINST THE SKINNY/, 'journal entry'],
-  ['/checkout', /Cash on delivery only/, 'checkout'],
-  ['/order-confirmation/TWS-123456', /Order verification|verification/i, 'confirmation'],
-  ['/nope-404', /404/, 'not found'],
-  ['/?piece=the-onyx-super-flare', /quick view|Add to bag/i, 'quick view'],
+  ['/', /Scroll down/i, 'hero scroll cue'],
+  ['/', /The two silhouettes/i, 'home pieces'],
+  ['/', /Notes from the atelier/i, 'home journal'],
+  ['/', /One letter/i, 'home studio list'],
 ];
+
+/* Every public page must also carry the shell: navigation, the bag,
+   the search trigger and the footer. */
+const shellMarkers: Array<[RegExp, string]> = [
+  [/Primary navigation/, 'nav'],
+  [/Your bag|Shopping bag/i, 'bag'],
+  [/Search pieces/, 'search'],
+  [/Footer navigation|aria-label="Shop"/, 'footer'],
+];
+
+/* The public storefront must never emit an administrative path. */
+const adminLeak = /\/admin|Dashboard sign in|Studio Access|admin_users/i;
 
 let failures = 0;
 
@@ -99,10 +108,17 @@ for (const [route, pattern, label] of routes) {
         )
       )
     );
-    if (route === '/' && !globalThis.__dumped) { globalThis.__dumped = true; fs.writeFileSync('/tmp/home.html', html); }
+    if (route === '/' && !globalThis.__dumped) { globalThis.__dumped = true; fs.writeFileSync('/tmp/home.html', html); fs.writeFileSync('/tmp/home.css.txt', 'x'); }
     const missing = pattern && !pattern.test(html) ? ` ⚠ missing ${label}` : '';
-    if (missing) failures += 1;
-    console.log(`✓ ${route.padEnd(38)} ${String(html.length).padStart(7)} chars${missing}`);
+    const shellGaps = shellMarkers.filter(([marker]) => !marker.test(html)).map(([, name]) => name);
+    const leak = html.match(adminLeak);
+    if (missing || shellGaps.length > 0 || leak) failures += 1;
+    console.log(
+      `✓ ${route.padEnd(14)} ${String(html.length).padStart(7)} chars` +
+        (missing ? ` ${missing}` : '') +
+        (shellGaps.length ? ` ⚠ shell missing: ${shellGaps.join(', ')}` : '') +
+        (leak ? ` ⚠ ADMIN LEAK: ${leak[0]}` : '')
+    );
   } catch (error) {
     failures += 1;
     console.log(`✗ ${route}\n   ${(error as Error).message}`);
@@ -137,12 +153,12 @@ seededStore.set(
 
 const pages = await Promise.all([
   import('../src/pages/ShopPage').then((m) => ['shop', m.ShopPage, /All pieces/i]),
-  import('../src/pages/CollectionsPage').then((m) => ['collections', m.CollectionsPage, /Collection 01/i]),
+  import('../src/pages/CollectionsPage').then((m) => ['collections', m.CollectionsPage, /Release 01/i]),
   import('../src/pages/CollectionPage').then((m) => ['collection', m.CollectionPage, /pieces/i]),
-  import('../src/pages/ProductPage').then((m) => ['pdp', m.ProductPage, /Add size/i]),
-  import('../src/pages/AboutPage').then((m) => ['about', m.AboutPage, /Sizes &amp; fit/i]),
+  import('../src/pages/ProductPage').then((m) => ['pdp', m.ProductPage, /Fabric &amp; fit|Fabric & fit/i]),
+  import('../src/pages/AboutPage').then((m) => ['about', m.AboutPage, /True to size/i]),
   import('../src/pages/JournalPage').then((m) => ['journal', m.JournalPage, /Lead entry/i]),
-  import('../src/pages/JournalEntryPage').then((m) => ['entry', m.JournalEntryPage, /Read the entry|Next in the journal/i]),
+  import('../src/pages/JournalEntryPage').then((m) => ['entry', m.JournalEntryPage, /Next in the journal/i]),
   import('../src/pages/CheckoutPage').then((m) => ['checkout', m.CheckoutPage, /Place cash-on-delivery order/i]),
   import('../src/pages/OrderConfirmationPage').then((m) => ['confirmation', m.OrderConfirmationPage, /Order TWS-123456/i]),
   import('../src/pages/NotFoundPage').then((m) => ['404', m.NotFoundPage, /404/]),
@@ -196,6 +212,81 @@ for (const [name, Page, pattern] of pages as Array<[string, () => JSX.Element, R
   } catch (error) {
     failures += 1;
     console.log(`✗ ${name}\n   ${(error as Error).message}`);
+  }
+}
+
+/* ---- separation pass: no administrative path may appear in any
+   public page's markup, in a link or in a string ---- */
+const publicPages = await Promise.all([
+  import('../src/pages/ShopPage').then((m) => ['/shop', m.ShopPage]),
+  import('../src/pages/CollectionsPage').then((m) => ['/collections', m.CollectionsPage]),
+  import('../src/pages/AboutPage').then((m) => ['/about', m.AboutPage]),
+  import('../src/pages/JournalPage').then((m) => ['/journal', m.JournalPage]),
+  import('../src/pages/NotFoundPage').then((m) => ['/404', m.NotFoundPage]),
+]);
+
+for (const [route, Page] of publicPages as Array<[string, () => JSX.Element]>) {
+  const html = renderToStaticMarkup(
+    h(
+      MotionConfig,
+      { reducedMotion: 'user' } as Record<string, unknown>,
+      h(
+        SiteSettingsProvider,
+        null,
+        h(
+          WishlistProvider,
+          null,
+          h(
+            CartProvider,
+            null,
+            h(
+              MemoryRouter,
+              { initialEntries: [route] },
+              h(UIProvider, null, h(Navbar, null), h(Page, null), h(SiteFooter, null), h(AccountPanel, null))
+            )
+          )
+        )
+      )
+    )
+  );
+  const pageLeak = html.match(adminLeak);
+  if (pageLeak) {
+    failures += 1;
+    console.log(`✗ ${route} leaks an administrative reference: ${pageLeak[0]}`);
+  } else {
+    console.log(`✓ ${route.padEnd(14)} no admin path in public markup`);
+  }
+}
+
+/* ---- admin surface: it must render its own tree, never the storefront ---- */
+{
+  const { AdminApp } = await import('../src/pages/admin/AdminApp');
+  const html = renderToStaticMarkup(
+    h(
+      MotionConfig,
+      { reducedMotion: 'user' } as Record<string, unknown>,
+      h(
+        SiteSettingsProvider,
+        null,
+        h(
+          WishlistProvider,
+          null,
+          h(
+            CartProvider,
+            null,
+            h(MemoryRouter, { initialEntries: ['/admin'] }, h(UIProvider, null, h(AdminApp, null)))
+          )
+        )
+      )
+    )
+  );
+  const hasStorefrontChrome = /Primary navigation|Footer navigation/.test(html);
+  const showsGate = /Studio console|Backend not connected|Verifying studio credentials/i.test(html);
+  if (hasStorefrontChrome || !showsGate) {
+    failures += 1;
+    console.log(`✗ /admin  storefrontChrome=${hasStorefrontChrome} gate=${showsGate}`);
+  } else {
+    console.log(`✓ ${'/admin'.padEnd(14)} ${String(html.length).padStart(7)} chars — own tree, no storefront chrome`);
   }
 }
 

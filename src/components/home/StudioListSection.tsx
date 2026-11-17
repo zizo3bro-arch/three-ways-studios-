@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { subscribeNewsletter } from '../../lib/api';
 import { useSiteSettings } from '../../context/SiteSettingsContext';
 import { Reveal } from '../ui/Reveal';
-import { SmokeField } from '../ui/SmokeField';
 
 /* =========================================================
    THE STUDIO LIST — one letter per drop. Wired to the real
    newsletter endpoint (Supabase when configured, local store in
    demo mode) and issues the WELCOME10 code at checkout.
+   Set on the paper with a single hairline, no card.
    ========================================================= */
 
 export function StudioListSection() {
@@ -59,57 +59,57 @@ export function StudioListSection() {
     <section
       id="studio-list"
       aria-labelledby="studio-list-title"
-      className="relative isolate overflow-hidden border-t border-ink/12 bg-ivory py-20 sm:py-24"
+      className="relative border-t border-ink/14 py-16 sm:py-20 lg:py-24"
     >
-      <SmokeField variant="soft" opacity="low" />
-
-      <div className="relative z-10 mx-auto grid w-full max-w-[1660px] gap-10 px-4 sm:px-6 lg:grid-cols-12 lg:gap-8 lg:px-10">
-        <Reveal className="lg:col-span-6" preset="soft">
-          <p className="tws-eyebrow text-crimson-bright">The Studio List</p>
+      <div className="mx-auto grid w-full max-w-[1800px] gap-10 px-4 sm:px-6 lg:grid-cols-12 lg:gap-12 lg:px-10">
+        <Reveal className="lg:col-span-7" preset="soft">
+          <p className="tws-index">05 / The studio list</p>
           <h2
             id="studio-list-title"
-            className="mt-4 font-display uppercase leading-[0.9] tracking-[0.002em] text-ink text-[clamp(2.1rem,5.8vw,4.2rem)]"
+            className="mt-3 font-display uppercase leading-[0.85] tracking-[0.004em] text-ink"
+            style={{ fontSize: 'clamp(2.1rem, 6.4vw, 5rem)' }}
           >
             One letter
-            <span className="block">per drop. nothing else.</span>
+            <span className="block text-crimson">per drop.</span>
           </h2>
           <p className="mt-5 max-w-lg font-serif text-[15px] italic leading-relaxed text-ink-soft sm:text-[16.5px]">
             {settings.newsletter_text ||
               'Early access to the cut, the fitting notes, and 10% off your first pair.'}
           </p>
+          <p className="mt-6 max-w-md text-[10px] font-semibold uppercase leading-[2] tracking-[0.2em] text-ink-faint">
+            No spam · one letter per drop · unsubscribe in one click
+          </p>
         </Reveal>
 
-        <div className="lg:col-span-5 lg:col-start-8">
+        <div className="lg:col-span-5">
           <Reveal preset="soft" delay={0.1}>
-            <div className="rounded-[1.4rem] border border-ink/14 bg-paper p-5 shadow-plate sm:p-7">
+            <div className="border-t border-ink/25 pt-6">
               {done ? (
                 <div>
-                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-crimson-bright text-ivory">
-                    <Check className="h-5 w-5" strokeWidth={2.4} />
-                  </span>
-                  <h3 className="mt-4 tws-signature tws-signature--ink text-[2.4rem] leading-[0.9]">
-                    Welcome to the list.
+                  <p className="tws-eyebrow text-crimson">You are on the list</p>
+                  <h3 className="mt-3 tws-signature text-ink text-[2.6rem] leading-[0.9]">
+                    Welcome in.
                   </h3>
-                  <p className="mt-3 text-[13.5px] leading-relaxed text-ink-soft">
+                  <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
                     {name.trim().split(' ')[0] || 'friend'}, your place in the next fitting round is
                     held.
                     {code ? (
                       <>
                         {' '}
-                        Use <span className="font-bold tracking-[0.14em] text-crimson">{code}</span> at
-                        checkout for 10% off your first pair.
+                        Use <span className="font-bold tracking-[0.14em] text-crimson">{code}</span>{' '}
+                        at checkout for 10% off your first pair.
                       </>
                     ) : null}
                   </p>
-                  <Link to="/shop" className="tws-pill mt-5 h-12 w-full justify-center">
+                  <Link to="/shop" className="tws-pill mt-6 h-[52px] w-full justify-center">
                     Go to the shop
                     <ArrowRight className="h-4 w-4" strokeWidth={2} />
                   </Link>
                 </div>
               ) : (
-                <form onSubmit={handleSubmit} className="space-y-3.5">
+                <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label htmlFor="studio-name" className="mb-1.5 block tws-eyebrow text-ink-soft">
+                    <label htmlFor="studio-name" className="mb-1 block tws-eyebrow text-ink-soft">
                       Your name
                     </label>
                     <input
@@ -120,11 +120,11 @@ export function StudioListSection() {
                       value={name}
                       onChange={(event) => setName(event.target.value)}
                       placeholder="e.g. Omar Hassan"
-                      className="h-13 w-full rounded-xl border border-ink/18 bg-ivory/60 px-4 text-[15px] text-ink outline-none transition-colors duration-200 placeholder:text-ink-faint/80 focus:border-crimson-bright focus:bg-paper"
+                      className="tws-field text-[15px]"
                     />
                   </div>
                   <div>
-                    <label htmlFor="studio-email" className="mb-1.5 block tws-eyebrow text-ink-soft">
+                    <label htmlFor="studio-email" className="mb-1 block tws-eyebrow text-ink-soft">
                       Your email
                     </label>
                     <input
@@ -135,23 +135,24 @@ export function StudioListSection() {
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                       placeholder="you@example.com"
-                      className="h-13 w-full rounded-xl border border-ink/18 bg-ivory/60 px-4 text-[15px] text-ink outline-none transition-colors duration-200 placeholder:text-ink-faint/80 focus:border-crimson-bright focus:bg-paper"
+                      className="tws-field text-[15px]"
                     />
                   </div>
 
                   {error ? (
-                    <p role="alert" className="text-[12px] font-semibold leading-snug text-crimson-bright">
+                    <p role="alert" className="text-[12px] font-semibold leading-snug text-crimson">
                       {error}
                     </p>
                   ) : null}
 
-                  <button type="submit" disabled={submitting} className="tws-pill h-13 w-full justify-center disabled:opacity-60">
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="tws-pill h-[52px] w-full justify-center disabled:opacity-60"
+                  >
                     {submitting ? 'Sending…' : 'Join the studio list'}
                     <ArrowRight className="h-4 w-4" strokeWidth={2} />
                   </button>
-                  <p className="text-center text-[9px] font-semibold uppercase tracking-[0.18em] text-ink-faint">
-                    No spam · Unsubscribe in one click
-                  </p>
                 </form>
               )}
             </div>

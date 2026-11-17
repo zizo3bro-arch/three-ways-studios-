@@ -32,3 +32,7 @@ yarn-error.log*
 
 # local render smoke output
 .smoke/
+
+# local verification artefacts
+.verify/
+.tmpmeasure/
