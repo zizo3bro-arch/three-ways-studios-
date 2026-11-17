@@ -1,30 +1,21 @@
 import { useCallback } from 'react';
 import { HeroSection } from '../components/home/HeroSection';
-import { BrandChapter } from '../components/home/BrandChapter';
-import { FeaturedCollection } from '../components/home/FeaturedCollection';
 import { PiecesSection } from '../components/home/PiecesSection';
-import { JournalTeaser } from '../components/home/JournalTeaser';
-import { StudioListSection } from '../components/home/StudioListSection';
 
 /* =========================================================
-   HOME — a sequence, not a template:
-   campaign frame → cinematic brand chapter (red smoke) → the
-   collection → the pieces → the journal → the list.
+   HOME — short, clean, focused:
+   Header (AppShell) -> Exact Reference Hero -> Two Pants Products -> Minimal Footer (AppShell).
    ========================================================= */
 
 export function HomePage() {
-  const scrollToBrand = useCallback(() => {
-    document.getElementById('brand')?.scrollIntoView({ block: 'start' });
+  const scrollToProducts = useCallback(() => {
+    document.getElementById('products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
   return (
-    <div className="relative w-full overflow-x-clip">
-      <HeroSection onScrollDown={scrollToBrand} />
-      <BrandChapter />
-      <FeaturedCollection />
+    <div className="w-full bg-white">
+      <HeroSection onScrollDown={scrollToProducts} />
       <PiecesSection />
-      <JournalTeaser />
-      <StudioListSection />
     </div>
   );
 }

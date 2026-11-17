@@ -1,65 +1,64 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
 import { useCatalog } from '../../hooks/useCatalog';
-import { useSiteSettings } from '../../context/SiteSettingsContext';
-import { ProductPlate } from '../shop/ProductPlate';
-import { Reveal } from '../ui/Reveal';
+import { primaryImage } from '../../data/catalog';
+import { formatEGP } from '../../lib/format';
 
 /* =========================================================
-   CHAPTER 03 — THE PIECES
-   Real studio photography, real prices, real stock. The shop grid
-   arrives only after the two editorial chapters, exactly as the
-   campaign sequence demands.
+   PRODUCTS — immediately after the hero, two-column desktop /
+   responsive mobile grid showing only large studio images,
+   product name, and price with subtle hover effects.
    ========================================================= */
 
 export function PiecesSection() {
   const { products, loading } = useCatalog();
-  const { settings } = useSiteSettings();
-  const heading = (settings.products_heading || 'Two patterns').split(' ').slice(0, 2).join(' ');
-  const headingTail = (settings.products_heading || 'Two patterns').split(' ').slice(2).join(' ');
-  const subheading = settings.products_subheading || 'one obsession';
   const pieces = products.slice(0, 2);
 
   return (
     <section
-      id="pieces"
-      aria-labelledby="pieces-title"
-      className="relative bg-ivory py-20 sm:py-24 lg:py-28"
+      id="products"
+      aria-label="Products"
+      className="bg-white py-10 sm:py-14 lg:py-16"
     >
-      <div className="mx-auto w-full max-w-[1660px] px-4 sm:px-6 lg:px-10">
-        <div className="flex flex-col gap-6 border-b border-ink/12 pb-7 sm:flex-row sm:items-end sm:justify-between">
-          <Reveal preset="soft">
-            <p className="tws-eyebrow text-crimson-bright">Chapter 03 — The Pieces</p>
-            <h2
-              id="pieces-title"
-              className="mt-4 font-display uppercase leading-[0.88] tracking-[0.002em] text-ink text-[clamp(2.35rem,7.4vw,5.6rem)]"
-            >
-              {heading}
-              {headingTail ? <span className="block">{headingTail}</span> : null}
-              <span className="block">{subheading}</span>
-            </h2>
-          </Reveal>
-
-          <Reveal preset="soft" delay={0.12} className="flex shrink-0 flex-col items-start gap-4 sm:items-end">
-            <p className="max-w-xs text-[13px] leading-relaxed text-ink-soft sm:text-right">
-              Sizes S — XL, cut long in the leg. Every piece is held until you choose a size.
-            </p>
-            <Link to="/shop" className="tws-pill tws-pill--outline h-12">
-              All pieces
-              <ArrowRight className="h-4 w-4" strokeWidth={2} />
-            </Link>
-          </Reveal>
-        </div>
-
+      <div className="mx-auto w-full max-w-[1280px] px-4 sm:px-6 lg:px-10">
         {pieces.length === 0 ? (
-          <p className="mt-16 text-center text-[12px] font-bold uppercase tracking-[0.28em] text-ink-faint">
-            {loading ? 'Loading the drop…' : 'The shop is between drops.'}
+          <p className="py-16 text-center text-xs font-semibold uppercase tracking-[0.22em] text-ink-faint">
+            {loading ? 'Loading products...' : 'No products available.'}
           </p>
         ) : (
-          <div className="mt-9 grid gap-5 sm:mt-12 md:grid-cols-2 md:gap-6 lg:gap-8">
-            {pieces.map((product, index) => (
-              <ProductPlate key={product.id} product={product} index={index} />
-            ))}
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:gap-12">
+            {pieces.map((product, index) => {
+              const image = primaryImage(product);
+              return (
+                <Link
+                  key={product.id}
+                  to={`/product/${product.slug}`}
+                  className="group block focus-visible:outline-crimson"
+                >
+                  <div className="flex aspect-[3/4] w-full items-center justify-center overflow-hidden rounded-lg border border-black/8 bg-[#F7F6F3] p-6 transition-colors duration-300 group-hover:border-crimson/40 sm:p-10">
+                    {image?.url ? (
+                      <img
+                        src={image.url}
+                        alt={image.alt_text || product.name}
+                        width={522}
+                        height={1223}
+                        loading={index === 0 ? 'eager' : 'lazy'}
+                        decoding="async"
+                        className="h-full w-auto object-contain transition-transform duration-500 ease-out group-hover:scale-[1.035]"
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 flex items-baseline justify-between gap-4 px-0.5">
+                    <h2 className="text-sm font-semibold tracking-tight text-ink transition-colors duration-200 group-hover:text-crimson sm:text-base">
+                      {product.name}
+                    </h2>
+                    <p className="shrink-0 text-sm font-semibold text-ink tabular-nums sm:text-base">
+                      {formatEGP(product.price)}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>

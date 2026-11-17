@@ -17,14 +17,12 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   nav_links: [
     { label: 'SHOP', path: '/shop' },
     { label: 'COLLECTIONS', path: '/collections' },
-    { label: 'ABOUT', path: '/about' },
-    { label: 'JOURNAL', path: '/journal' },
   ],
   footer_links: [
-    { label: 'All pieces', path: '/shop' },
+    { label: 'Shop', path: '/shop' },
     { label: 'Collections', path: '/collections' },
-    { label: 'The house', path: '/about' },
-    { label: 'Journal', path: '/journal' },
+    { label: 'Size Guide', path: '/about#fit' },
+    { label: 'Shipping & Returns', path: '/about#service' },
   ],
   social_links: {
     instagram: 'https://www.instagram.com/threewaysstudios',

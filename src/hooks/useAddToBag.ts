@@ -1,15 +1,16 @@
 import { useCallback } from 'react';
 import { useCart } from '../context/CartContext';
-import { primaryImage } from '../data/catalog';
+import { primaryImage, resolveVariant } from '../data/catalog';
 import type { Product } from '../types/database';
 
 /* =========================================================
-   ADD TO BAG — the single path from a product + size to a bag line.
-   Resolves the real variant row (price, stock, sku, colour name) so
-   quantity limits and checkout quotes always match the catalogue.
+   ADD TO BAG — the single path from a product + size (+ optional
+   color) to a bag line. Resolves the real variant row so quantity
+   limits and checkout quotes always match the catalogue.
    ========================================================= */
 
 interface AddOptions {
+  colorName?: string;
   quantity?: number;
   openDrawer?: boolean;
 }
@@ -18,12 +19,15 @@ export function useAddToBag() {
   const { addItem, openDrawer } = useCart();
 
   return useCallback(
-    (product: Product, size: string, { quantity = 1, openDrawer: open = false }: AddOptions = {}) => {
-      const variants = product.variants ?? [];
-      const variant = variants.find((candidate) => candidate.size_name === size) ?? variants[0];
+    (
+      product: Product,
+      size: string,
+      { colorName, quantity = 1, openDrawer: open = false }: AddOptions = {}
+    ) => {
+      const variant = resolveVariant(product, size, colorName);
 
       if (!variant) {
-        return { ok: false, message: `${product.name} is between drops — nothing to add yet.` };
+        return { ok: false, message: `${product.name} is currently unavailable.` };
       }
       if (variant.stock_quantity <= 0) {
         return { ok: false, message: `Size ${variant.size_name} is sold out.` };

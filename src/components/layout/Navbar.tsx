@@ -4,39 +4,26 @@ import { ChevronDown, Menu, Search, ShoppingBag, User } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useUI } from '../../context/UIContext';
 import { useSiteSettings } from '../../context/SiteSettingsContext';
+import { useCatalog } from '../../hooks/useCatalog';
 import { buildNavLinks } from '../../data/navigation';
+import { formatEGP } from '../../lib/format';
 import { Emblem } from '../ui/Emblem';
 
 /* =========================================================
-   NAVBAR — SHOP · COLLECTIONS · ABOUT · JOURNAL with a live SHOP
-   menu, plus search / account / bag. Every control opens something
-   real; nothing here is decorative.
+   NAVBAR — Simple, crisp white & deep-red navigation bar:
+   Three Ways Studios logo · Shop · Collections · Search · Account · Bag.
    ========================================================= */
 
-interface NavbarProps {
-  transparentOnTop?: boolean;
-}
-
-export function Navbar({ transparentOnTop = true }: NavbarProps) {
+export function Navbar() {
   const { itemCount, openDrawer } = useCart();
   const { overlay, toggleOverlay, closeOverlay } = useUI();
   const { settings } = useSiteSettings();
+  const { products } = useCatalog();
   const location = useLocation();
-  const [scrolled, setScrolled] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const shopRef = useRef<HTMLLIElement>(null);
 
   const links = buildNavLinks(settings.nav_links);
-
-  useEffect(() => {
-    const onScroll = () => {
-      const next = window.scrollY > 28;
-      setScrolled((prev) => (prev === next ? prev : next));
-    };
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   useEffect(() => {
     setShopOpen(false);
@@ -53,110 +40,85 @@ export function Navbar({ transparentOnTop = true }: NavbarProps) {
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [shopOpen]);
 
-  const solid = !transparentOnTop || scrolled;
-
   return (
-    <header
-      className={[
-        'fixed inset-x-0 top-0 z-[60] transition-[background-color,box-shadow,backdrop-filter] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]',
-        solid
-          ? 'border-b border-ink/12 bg-ivory/88 shadow-[0_10px_30px_-26px_rgba(22,19,15,0.5)] backdrop-blur-lg'
-          : 'border-b border-transparent bg-transparent',
-      ].join(' ')}
-    >
+    <header className="fixed inset-x-0 top-0 z-[60] border-b border-black/10 bg-white/95 backdrop-blur-md">
       <nav
         aria-label="Primary navigation"
-        className="mx-auto flex h-[68px] w-full max-w-[1660px] items-center justify-between gap-4 px-4 sm:h-[92px] sm:px-6 lg:px-10"
+        className="mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between gap-4 px-4 sm:h-[72px] sm:px-6 lg:px-10"
       >
-        {/* left — the house plate + handwritten lockup */}
+        {/* Left — Three Ways Studios logo */}
         <Emblem size="sm" className="shrink-0" />
 
-        {/* centre — editorial navigation */}
-        <ul className="hidden items-center gap-6 md:flex lg:gap-9" onMouseLeave={() => setShopOpen(false)}>
-          {links.map((link, index) =>
-            index === 0 ? (
-              <li key={link.to} ref={shopRef} className="relative" onMouseEnter={() => setShopOpen(true)}>
-                <button
-                  type="button"
-                  aria-expanded={shopOpen}
-                  aria-haspopup="true"
-                  onClick={() => setShopOpen((open) => !open)}
-                  className="tws-navlink"
-                  data-active={location.pathname === link.to ? 'true' : undefined}
-                >
-                  <span>{link.label}</span>
-                  <ChevronDown
-                    className={`h-3 w-3 transition-transform duration-300 ${shopOpen ? 'rotate-180' : ''}`}
-                    strokeWidth={2.2}
-                  />
-                </button>
+        {/* Center — Shop & Collections */}
+        <ul
+          className="hidden items-center gap-8 md:flex"
+          onMouseLeave={() => setShopOpen(false)}
+        >
+          {links.map((link) =>
+            link.to === '/shop' ? (
+              <li
+                key={link.to}
+                ref={shopRef}
+                className="relative"
+                onMouseEnter={() => setShopOpen(true)}
+              >
+                <div className="flex items-center gap-1">
+                  <NavLink
+                    to="/shop"
+                    className="tws-navlink"
+                    data-active={location.pathname === '/shop' ? 'true' : undefined}
+                  >
+                    {link.label}
+                  </NavLink>
+                  <button
+                    type="button"
+                    aria-label="Toggle shop menu"
+                    aria-expanded={shopOpen}
+                    onClick={() => setShopOpen((open) => !open)}
+                    className="p-0.5 text-ink transition-colors hover:text-crimson"
+                  >
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition-transform duration-200 ${shopOpen ? 'rotate-180 text-crimson' : ''}`}
+                      strokeWidth={2}
+                    />
+                  </button>
+                </div>
 
+                {/* Clean Shop Dropdown */}
                 <div
                   className={[
-                    'absolute left-1/2 top-[calc(100%+18px)] w-[320px] -translate-x-1/2 origin-top rounded-2xl border border-ink/12 bg-paper p-4 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+                    'absolute left-1/2 top-[calc(100%+18px)] w-[300px] -translate-x-1/2 origin-top rounded-lg border border-black/10 bg-white p-3 shadow-xl transition-all duration-200',
                     shopOpen
                       ? 'pointer-events-auto translate-y-0 opacity-100'
-                      : 'pointer-events-none -translate-y-1.5 opacity-0',
+                      : 'pointer-events-none -translate-y-1 opacity-0',
                   ].join(' ')}
                 >
-                  <p className="tws-eyebrow text-ink-faint">The drop</p>
-                  <ul className="mt-3 space-y-1">
+                  <ul className="space-y-1">
                     <li>
                       <Link
                         to="/shop"
                         onClick={() => setShopOpen(false)}
-                        className="flex items-baseline justify-between gap-4 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-ivory"
+                        className="flex items-center justify-between rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-ink transition-colors hover:bg-crimson-mist hover:text-crimson"
                       >
-                        <span className="font-display text-[15px] uppercase tracking-[0.02em] text-ink">
-                          All pieces
-                        </span>
-                        <span className="tws-eyebrow text-ink-faint">02</span>
+                        <span>All Pieces</span>
+                        <span className="text-[11px] font-normal text-ink-faint">{products.length}</span>
                       </Link>
                     </li>
-                    <li>
-                      <Link
-                        to="/collections"
-                        onClick={() => setShopOpen(false)}
-                        className="flex items-baseline justify-between gap-4 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-ivory"
-                      >
-                        <span className="font-display text-[15px] uppercase tracking-[0.02em] text-ink">
-                          Collections
-                        </span>
-                        <span className="tws-eyebrow text-ink-faint">01</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        to="/product/the-midnight-wide-flare"
-                        onClick={() => setShopOpen(false)}
-                        className="flex items-baseline justify-between gap-4 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-ivory"
-                      >
-                        <span className="font-display text-[15px] uppercase tracking-[0.02em] text-ink">
-                          The midnight wide-flare
-                        </span>
-                        <span className="tws-eyebrow text-crimson-bright">14 oz</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        to="/product/the-onyx-super-flare"
-                        onClick={() => setShopOpen(false)}
-                        className="flex items-baseline justify-between gap-4 rounded-xl px-3 py-2.5 transition-colors duration-200 hover:bg-ivory"
-                      >
-                        <span className="font-display text-[15px] uppercase tracking-[0.02em] text-ink">
-                          The onyx super-flare
-                        </span>
-                        <span className="tws-eyebrow text-crimson-bright">13 oz</span>
-                      </Link>
-                    </li>
+                    {products.slice(0, 4).map((product) => (
+                      <li key={product.id}>
+                        <Link
+                          to={`/product/${product.slug}`}
+                          onClick={() => setShopOpen(false)}
+                          className="flex items-center justify-between gap-3 rounded-md px-3 py-2 text-xs font-medium text-ink transition-colors hover:bg-crimson-mist hover:text-crimson"
+                        >
+                          <span className="truncate">{product.name}</span>
+                          <span className="shrink-0 text-[11px] text-ink-faint tabular-nums">
+                            {formatEGP(product.price)}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
                   </ul>
-                  <Link
-                    to="/shop"
-                    onClick={() => setShopOpen(false)}
-                    className="mt-3 flex h-11 w-full items-center justify-center rounded-full bg-ink text-[10px] font-bold uppercase tracking-[0.2em] text-ivory transition-colors duration-300 hover:bg-crimson-bright"
-                  >
-                    Go to the shop
-                  </Link>
                 </div>
               </li>
             ) : (
@@ -173,36 +135,43 @@ export function Navbar({ transparentOnTop = true }: NavbarProps) {
           )}
         </ul>
 
-        {/* right — search · account · bag */}
-        <div className="flex items-center gap-2.5 sm:gap-4">
+        {/* Right — Search · Account · Shopping Bag */}
+        <div className="flex items-center gap-1 sm:gap-2">
           <button
             type="button"
             onClick={() => toggleOverlay('search')}
-            aria-label="Search the house"
+            aria-label="Search products"
             aria-pressed={overlay === 'search'}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-ink transition-colors duration-300 hover:bg-ink/6 hover:text-crimson-bright"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-ink transition-colors hover:bg-crimson-mist hover:text-crimson"
           >
-            <Search className="h-[18px] w-[18px]" strokeWidth={1.7} />
+            <Search className="h-[18px] w-[18px]" strokeWidth={1.8} />
           </button>
 
           <button
             type="button"
             onClick={() => toggleOverlay('account')}
-            aria-label="Account and saved pieces"
+            aria-label="Account and saved items"
             aria-pressed={overlay === 'account'}
-            className="hidden h-10 w-10 items-center justify-center rounded-full text-ink transition-colors duration-300 hover:bg-ink/6 hover:text-crimson-bright sm:flex"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-ink transition-colors hover:bg-crimson-mist hover:text-crimson"
           >
-            <User className="h-[18px] w-[18px]" strokeWidth={1.7} />
+            <User className="h-[18px] w-[18px]" strokeWidth={1.8} />
           </button>
 
           <button
             type="button"
             onClick={openDrawer}
-            aria-label={`Shopping bag, ${itemCount} ${itemCount === 1 ? 'piece' : 'pieces'}`}
-            className="group flex h-10 items-center gap-1.5 rounded-full px-2 text-ink transition-colors duration-300 hover:text-crimson-bright"
+            aria-label={`Shopping bag, ${itemCount} ${itemCount === 1 ? 'item' : 'items'}`}
+            className="flex h-10 items-center gap-1.5 rounded-full px-2.5 text-ink transition-colors hover:bg-crimson-mist hover:text-crimson"
           >
-            <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.7} />
-            <span className="min-w-4 text-[11px] font-bold tabular-nums tracking-tight">{itemCount}</span>
+            <ShoppingBag className="h-[18px] w-[18px]" strokeWidth={1.8} />
+            <span
+              className={[
+                'flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums',
+                itemCount > 0 ? 'bg-crimson text-white' : 'text-ink',
+              ].join(' ')}
+            >
+              {itemCount}
+            </span>
           </button>
 
           <button
@@ -210,7 +179,7 @@ export function Navbar({ transparentOnTop = true }: NavbarProps) {
             onClick={() => toggleOverlay('menu')}
             aria-label="Open menu"
             aria-expanded={overlay === 'menu'}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-ink/18 text-ink transition-colors duration-300 hover:border-ink hover:bg-ink hover:text-ivory md:hidden"
+            className="ml-1 flex h-10 w-10 items-center justify-center rounded-full border border-black/15 text-ink transition-colors hover:border-crimson hover:text-crimson md:hidden"
           >
             <Menu className="h-[18px] w-[18px]" strokeWidth={1.8} />
           </button>

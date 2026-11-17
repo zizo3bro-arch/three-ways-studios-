@@ -4,7 +4,6 @@ import { ArrowRight, Banknote, CheckCircle2, Printer } from 'lucide-react';
 import { fetchOrderConfirmation } from '../lib/api';
 import { formatEGP } from '../lib/format';
 import { ColourChip } from '../components/ui/ColourChip';
-import { SprayType } from '../components/ui/SprayType';
 import type { OrderConfirmationData } from '../types/database';
 
 /* =========================================================
@@ -51,10 +50,7 @@ export function OrderConfirmationPage() {
 
   if (!order) {
     return (
-      <section className="relative flex min-h-[86svh] items-center justify-center overflow-hidden px-4 py-24">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2 opacity-[0.4]">
-          <SprayType text="VERIFY" />
-        </div>
+      <section className="relative flex min-h-[82svh] items-center justify-center bg-white px-4 py-24">
         <div className="tws-plate-card relative z-10 w-full max-w-md p-6 sm:p-8">
           <p className="tws-eyebrow text-crimson-bright">Order verification</p>
           <h1 className="mt-3 font-display text-[1.9rem] uppercase leading-[0.95] text-ink">
@@ -104,10 +100,7 @@ export function OrderConfirmationPage() {
     <div className="mx-auto w-full max-w-[940px] px-4 pb-20 pt-[104px] sm:px-6 sm:pt-[136px]">
       <div className="tws-plate-card overflow-hidden">
         {/* the stamp */}
-        <div className="relative border-b border-ink/12 px-5 py-8 sm:px-9 sm:py-10">
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-1 opacity-[0.32]">
-            <SprayType text="CONFIRMED" />
-          </div>
+        <div className="relative border-b border-ink/12 bg-[#FAFAF8] px-5 py-8 sm:px-9 sm:py-10">
           <div className="relative z-10 flex flex-wrap items-start justify-between gap-5">
             <div>
               <p className="tws-eyebrow flex items-center gap-2 text-crimson-bright">
