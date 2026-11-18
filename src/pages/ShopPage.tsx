@@ -77,15 +77,15 @@ export function ShopPage() {
         }
       />
 
-      <section aria-label="Product catalogue" className="pb-16 sm:pb-20">
-        <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
+      <section aria-label="Product catalogue" className="pb-14 sm:pb-18">
+        <div className="page-width">
           {showCampaignPreview ? (
             <CampaignPreview />
           ) : (
             <>
               <div className="flex flex-wrap items-center justify-between gap-4 border-y border-ink/16 py-4">
                 <div
-                  className="flex flex-wrap items-center gap-x-5 gap-y-2"
+                  className="flex flex-wrap items-center gap-x-6 gap-y-2.5"
                   role="group"
                   aria-label="Filter pieces"
                 >
@@ -98,7 +98,7 @@ export function ShopPage() {
                         aria-pressed={active}
                         onClick={() => setFilter(option.id)}
                         className={[
-                          'text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200',
+                          'py-1 text-xs font-bold uppercase tracking-[0.17em] transition-colors duration-200',
                           active
                             ? 'text-crimson underline decoration-crimson decoration-1 underline-offset-[6px]'
                             : 'text-ink-faint hover:text-ink',
@@ -110,7 +110,7 @@ export function ShopPage() {
                   })}
                 </div>
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-3">
                   <label htmlFor="shop-sort" className="tws-eyebrow text-ink-faint">
                     Sort
                   </label>
@@ -118,7 +118,7 @@ export function ShopPage() {
                     id="shop-sort"
                     value={sort}
                     onChange={(event) => setSort(event.target.value as Sort)}
-                    className="h-9 border-b border-ink/30 bg-transparent pr-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink outline-none transition-colors focus:border-crimson"
+                    className="h-10 border-b border-ink/30 bg-transparent pr-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-ink outline-none transition-colors focus:border-crimson"
                   >
                     {SORTS.map((option) => (
                       <option key={option.id} value={option.id}>
@@ -138,7 +138,7 @@ export function ShopPage() {
                 </p>
               ) : visible.length === 0 ? (
                 <div className="mt-14 text-center">
-                  <p className="font-display text-[1.6rem] uppercase text-ink">
+                  <p className="font-display text-[1.75rem] uppercase text-ink">
                     {loading
                       ? 'Opening the collection…'
                       : !products.length
@@ -149,7 +149,7 @@ export function ShopPage() {
                     <button
                       type="button"
                       onClick={() => setFilter('all')}
-                      className="tws-pill mt-6 h-11"
+                      className="tws-pill mt-6"
                     >
                       Show all pieces
                       <ArrowRight className="h-4 w-4" strokeWidth={2} />
@@ -157,7 +157,7 @@ export function ShopPage() {
                   )}
                 </div>
               ) : (
-                <div className="mt-9 grid grid-cols-2 gap-x-4 gap-y-9 sm:gap-x-6 lg:grid-cols-4 lg:gap-x-6">
+                <div className="product-grid">
                   {visible.map((product, index) => (
                     <ProductPlate key={product.id} product={product} index={index} />
                   ))}

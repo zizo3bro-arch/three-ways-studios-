@@ -104,8 +104,8 @@ export function CollectionPage() {
         }
       />
 
-      <section className="pb-16 sm:pb-20" aria-label={`${collection.name} pieces`}>
-        <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
+      <section className="pb-14 sm:pb-18" aria-label={`${collection.name} pieces`}>
+        <div className="page-width">
           <div className="product-grid">
             {pieces.map((product, index) => (
               <ProductPlate key={product.id} product={product} index={index} />

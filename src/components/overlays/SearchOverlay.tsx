@@ -39,7 +39,7 @@ export function SearchOverlay() {
   }, [products, query]);
   return (
     <Overlay open={open} onClose={closeOverlay} label="Search products" placement="top">
-      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-col pb-3">
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-col pb-3">
         <div className="flex items-center gap-3">
           <Search size={18} className="text-crimson" />
           <label htmlFor="studio-search" className="sr-only">

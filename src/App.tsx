@@ -8,6 +8,7 @@ import { MobileMenu } from './components/layout/MobileMenu';
 import { SearchOverlay } from './components/overlays/SearchOverlay';
 import { AccountPanel } from './components/overlays/AccountPanel';
 import { CartProvider } from './context/CartContext';
+import { CustomerAuthProvider } from './context/CustomerAuthContext';
 import { SiteSettingsProvider } from './context/SiteSettingsContext';
 import { UIProvider, useUI } from './context/UIContext';
 import { WishlistProvider } from './context/WishlistContext';
@@ -148,11 +149,11 @@ function StorefrontRoutes() {
 function StorefrontChrome({ children }: { children: React.ReactNode }) {
   const { quickViewSlug } = useUI();
   return (
-    <>
+    <CustomerAuthProvider>
       {/* skip link — real anchor to the first content region */}
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[95] focus:bg-ink focus:px-5 focus:py-3 focus:text-[10px] focus:font-bold focus:uppercase focus:tracking-[0.2em] focus:text-[#f7f4ed]"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[95] focus:bg-ink focus:px-5 focus:py-3 focus:text-xs focus:font-bold focus:uppercase focus:tracking-[0.2em] focus:text-[#f7f4ed]"
       >
         Skip to content
       </a>
@@ -175,7 +176,7 @@ function StorefrontChrome({ children }: { children: React.ReactNode }) {
           <QuickView />
         </Suspense>
       )}
-    </>
+    </CustomerAuthProvider>
   );
 }
 

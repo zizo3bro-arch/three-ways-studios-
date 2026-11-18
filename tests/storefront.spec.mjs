@@ -52,7 +52,7 @@ async function transport(page) {
 const routePiece = '/product/tws-signature-tee';
 const shot = (page, name) => page.screenshot({ path: `.verify/${name}.png`, fullPage: true });
 
-// Synthesize actual Chromium touch input, not a JavaScript scrollLeft change.
+// Synthesize actual Chromium single-finger and two-finger touch gestures.
 async function drag(page, x, y, dx, dy) {
   const cdp = await page.context().newCDPSession(page);
   const send = (type, x, y) =>
@@ -65,7 +65,38 @@ async function drag(page, x, y, dx, dy) {
   await send('touchEnd');
   await cdp.detach();
 }
-test('touch gallery: both directions, vertical scroll, tap, all real frames', async ({
+
+async function pinch(page, cx, cy, startHalfSpread, endHalfSpread) {
+  const cdp = await page.context().newCDPSession(page);
+  const pts = (half) => [
+    { x: Math.round(cx - half), y: Math.round(cy - half * 0.35), id: 1 },
+    { x: Math.round(cx + half), y: Math.round(cy + half * 0.35), id: 2 },
+  ];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pts(startHalfSpread) });
+  for (let i = 1; i <= 10; i++) {
+    const half = startHalfSpread + ((endHalfSpread - startHalfSpread) * i) / 10;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pts(half) });
+    await new Promise((r) => setTimeout(r, 18));
+  }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+async function doubleTap(page, x, y) {
+  const cdp = await page.context().newCDPSession(page);
+  for (let tap = 0; tap < 2; tap++) {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: Math.round(x), y: Math.round(y), id: 1 }],
+    });
+    await new Promise((r) => setTimeout(r, 25));
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    if (tap === 0) await new Promise((r) => setTimeout(r, 90));
+  }
+  await cdp.detach();
+}
+
+test('touch gallery: swipe, vertical scroll, tap full-screen lightbox, double-tap, pinch, drag, nav & close', async ({
   browser,
   baseURL,
 }) => {
@@ -73,7 +104,7 @@ test('touch gallery: both directions, vertical scroll, tap, all real frames', as
     baseURL,
     hasTouch: true,
     isMobile: true,
-    viewport: { width: 390, height: 660 },
+    viewport: { width: 390, height: 844 },
     reducedMotion: 'reduce',
   });
   const page = await ctx.newPage();
@@ -85,17 +116,178 @@ test('touch gallery: both directions, vertical scroll, tap, all real frames', as
   await expect(thumb.nth(0)).toHaveAttribute('aria-pressed', 'true');
   const box = await rail.boundingBox();
   const y = box.y + box.height * 0.55;
-  await page.touchscreen.tap(190, y);
-  await expect(thumb.nth(0)).toHaveAttribute('aria-pressed', 'true');
-  await drag(page, 300, y, -232, 4);
+
+  // 1. Swipe right-to-left and left-to-right through actual product frames without opening lightbox
+  await drag(page, 310, y, -240, 4);
   await expect(thumb.nth(1)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('dialog', { name: /image viewer/i })).toHaveCount(0);
   expect(await page.evaluate(() => scrollY)).toBeLessThan(5);
-  await drag(page, 70, y, 235, -3);
+  await drag(page, 70, y, 240, -3);
   await expect(thumb.nth(0)).toHaveAttribute('aria-pressed', 'true');
-  await drag(page, 180, y, 4, -137);
+
+  // 2. Vertical scroll on gallery works normally
+  await drag(page, 180, y, 4, -145);
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(35);
   await expect(thumb.nth(0)).toHaveAttribute('aria-pressed', 'true');
+
+  // 3. Tap image opens full-screen lightbox displaying actual image large & proportional
+  const updatedBox = await rail.boundingBox();
+  await page.touchscreen.tap(195, updatedBox.y + updatedBox.height * 0.5);
+  const viewer = page.getByRole('dialog', { name: 'TWS Signature Tee image viewer' });
+  await expect(viewer).toBeVisible();
+  const lockedOffset = await page.evaluate(() => Math.abs(parseFloat(document.body.style.top || '0')));
+  expect(lockedOffset).toBeGreaterThan(35);
+  await expect(viewer.locator('.lightbox-counter')).toHaveText('1 / 4');
+  const viewerImg = viewer.locator('.lightbox-image');
+  await expect(viewerImg).toHaveAttribute('src', '/media/campaign/signature-tee.webp');
+
+  const fitMetrics = await viewerImg.evaluate((img) => {
+    const r = img.getBoundingClientRect();
+    return {
+      w: r.width,
+      h: r.height,
+      x: r.x,
+      y: r.y,
+      renderedRatio: r.width / r.height,
+      naturalRatio: img.naturalWidth / img.naturalHeight,
+    };
+  });
+  expect(fitMetrics.w).toBeGreaterThan(340); // uses >87% of 390px mobile screen
+  expect(Math.abs(fitMetrics.renderedRatio - fitMetrics.naturalRatio)).toBeLessThan(0.015);
+  await shot(page, '390-lightbox');
+
+  // 4. Background scroll stays strictly locked while viewer is open (incl. iOS/mobile fixed body lock)
+  expect(
+    await page.evaluate(() => ({
+      locked: document.documentElement.classList.contains('tws-scroll-locked'),
+      overflow: getComputedStyle(document.documentElement).overflowY,
+      bodyPosition: getComputedStyle(document.body).position,
+      scrollY: window.scrollY,
+    }))
+  ).toEqual({ locked: true, overflow: 'hidden', bodyPosition: 'fixed', scrollY: 0 });
+
+  // 5. Double-tap to zoom in, drag while zoomed in, and double-tap to zoom back out
+  const stage = viewer.getByTestId('lightbox-stage');
+  const stageBox = await stage.boundingBox();
+  const cx = stageBox.x + stageBox.width / 2;
+  const cy = stageBox.y + stageBox.height / 2;
+
+  await doubleTap(page, cx, cy);
+  await expect(stage).toHaveAttribute('data-zoom', '2.50');
+  const zoomedBeforeDrag = await viewerImg.boundingBox();
+  expect(zoomedBeforeDrag.width).toBeGreaterThan(fitMetrics.w * 2.3);
+
+  await drag(page, cx + 60, cy + 40, -110, -70);
+  const zoomedAfterDrag = await viewerImg.boundingBox();
+  expect(zoomedAfterDrag.x).toBeLessThan(zoomedBeforeDrag.x - 40);
+  expect(zoomedAfterDrag.y).toBeLessThan(zoomedBeforeDrag.y - 25);
+  await expect(viewer.locator('.lightbox-counter')).toHaveText('1 / 4');
+  expect(
+    await page.evaluate(() => ({
+      scrollY: window.scrollY,
+      top: Math.abs(parseFloat(document.body.style.top || '0')),
+    }))
+  ).toEqual({ scrollY: 0, top: lockedOffset });
+  await shot(page, '390-lightbox-zoomed');
+
+  await doubleTap(page, cx, cy);
+  await expect(stage).toHaveAttribute('data-zoom', '1.00');
+
+  // 6. Pinch-to-zoom outward & inward on mobile
+  await pinch(page, cx, cy, 42, 115);
+  const pinchZoom = Number(await stage.getAttribute('data-zoom'));
+  expect(pinchZoom).toBeGreaterThan(2.0);
+  await pinch(page, cx, cy, 115, 38);
+  await expect(stage).toHaveAttribute('data-zoom', '1.00');
+
+  // 7. Navigate across real gallery images without closing the viewer (swipe + arrow + thumb)
+  await drag(page, 310, cy, -210, 2);
+  await expect(viewer.locator('.lightbox-counter')).toHaveText('2 / 4');
+  await expect(viewerImg).toHaveAttribute('src', '/media/campaign/signature-back.webp');
+
+  await viewer.getByRole('button', { name: 'Next image in viewer' }).click();
+  await expect(viewer.locator('.lightbox-counter')).toHaveText('3 / 4');
+  await expect(viewerImg).toHaveAttribute('src', '/media/campaign/signature-detail.webp');
+
+  await viewer.getByRole('button', { name: 'Show image 4 of 4' }).click();
+  await expect(viewer.locator('.lightbox-counter')).toHaveText('4 / 4');
+  await expect(viewerImg).toHaveAttribute('src', '/media/campaign/fabric-detail.webp');
+
+  // 8. Clear close button dismisses viewer, syncs inline gallery, and restores scroll
+  await viewer.getByRole('button', { name: 'Close image viewer' }).click();
+  await expect(viewer).toHaveCount(0);
+  await expect(thumb.nth(3)).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => document.documentElement.classList.contains('tws-scroll-locked'))).toBe(
+    false
+  );
+  expect(Math.abs((await page.evaluate(() => scrollY)) - lockedOffset)).toBeLessThanOrEqual(1);
   await ctx.close();
+});
+
+test('desktop full-screen viewer: wheel zoom, mouse drag, double-click, keyboard nav & single-photo piece', async ({
+  page,
+}) => {
+  await transport(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(routePiece);
+  await page.locator('.gallery-frame img').first().click();
+
+  const viewer = page.getByRole('dialog', { name: 'TWS Signature Tee image viewer' });
+  await expect(viewer).toBeVisible();
+  const stage = viewer.getByTestId('lightbox-stage');
+  const img = viewer.locator('.lightbox-image');
+
+  const initial = await img.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return {
+      w: r.width,
+      h: r.height,
+      ratio: r.width / r.height,
+      natural: el.naturalWidth / el.naturalHeight,
+    };
+  });
+  expect(initial.h).toBeGreaterThan(640);
+  expect(Math.abs(initial.ratio - initial.natural)).toBeLessThan(0.015);
+  await shot(page, '1440-lightbox');
+
+  // Mouse-wheel zoom in
+  const sBox = await stage.boundingBox();
+  const mx = sBox.x + sBox.width / 2;
+  const my = sBox.y + sBox.height / 2;
+  await page.mouse.move(mx, my);
+  await page.mouse.wheel(0, -380);
+  const wheelScale = Number(await stage.getAttribute('data-zoom'));
+  expect(wheelScale).toBeGreaterThan(1.7);
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+
+  // Desktop mouse drag when zoomed in
+  const beforePan = await img.boundingBox();
+  await page.mouse.down();
+  await page.mouse.move(mx - 140, my - 90, { steps: 8 });
+  await page.mouse.up();
+  const afterPan = await img.boundingBox();
+  expect(afterPan.x).toBeLessThan(beforePan.x - 60);
+  expect(afterPan.y).toBeLessThan(beforePan.y - 40);
+  await expect(viewer).toBeVisible();
+
+  // Double-click resets zoom; keyboard ArrowRight switches image; Escape closes
+  await page.mouse.dblclick(mx, my);
+  await expect(stage).toHaveAttribute('data-zoom', '1.00');
+  await page.keyboard.press('ArrowRight');
+  await expect(viewer.locator('.lightbox-counter')).toHaveText('2 / 4');
+  await expect(img).toHaveAttribute('src', '/media/campaign/signature-back.webp');
+  await page.keyboard.press('Escape');
+  await expect(viewer).toHaveCount(0);
+
+  // Single-image product never invents placeholder slides
+  await page.goto('/product/tws-cross-tee');
+  await page.locator('.gallery-frame img').first().click();
+  const singleViewer = page.getByRole('dialog', { name: 'TWS Cross Tee image viewer' });
+  await expect(singleViewer).toBeVisible();
+  await expect(singleViewer.locator('.lightbox-counter')).toHaveText('1 / 1');
+  await expect(singleViewer.getByRole('button', { name: 'Next image in viewer' })).toHaveCount(0);
+  await singleViewer.getByRole('button', { name: 'Close image viewer' }).click();
+  await expect(singleViewer).toHaveCount(0);
 });
 test('cart, persisted COD order, failed writes, receipt, newsletter and customer account', async ({
   page,
@@ -225,12 +417,18 @@ test('all routes, account boundary, responsive grid and no horizontal document o
       ).toBe(true);
       if (path === '/') {
         await expect(page.locator('.product-plate')).toHaveCount(4);
-        if (width >= 1024)
-          expect(
-            await page
-              .locator('.product-grid')
-              .evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length)
-          ).toBe(4);
+        const noGlobalScaleHack = await page.evaluate(() =>
+          [document.documentElement, document.body, document.querySelector('main')].every((el) => {
+            if (!el) return true;
+            const cs = getComputedStyle(el);
+            return (cs.zoom === '1' || cs.zoom === 'normal' || !cs.zoom) && cs.transform === 'none';
+          })
+        );
+        expect(noGlobalScaleHack).toBe(true);
+        const cols = await page
+          .locator('.product-grid')
+          .evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length);
+        expect(cols).toBe(width >= 1024 ? 4 : 2);
       }
       if ([390, 724, 1440].includes(width) && [routePiece, '/'].includes(path))
         await shot(page, `${width}-${path === '/' ? 'home' : 'product'}`);
@@ -309,58 +507,91 @@ test('populated cart, drawer and checkout at small, tablet and large breakpoints
   }
 });
 
-test('staff tabs require membership; customer account never inherits a staff session', async ({
+test('customer registration appears in admin Customers tab; staff RLS & session isolation hold', async ({
   page,
 }) => {
-  // The identity provider is a test double, not a production password test.
-  // Membership reads and admin data queries still run under real Postgres RLS.
-  const staff = crypto.randomUUID(),
-    customer = crypto.randomUUID(),
-    password = crypto.randomUUID();
-  await db.query('insert into auth.users(id,email) values($1,$2),($3,$4)', [
-    staff,
-    'staff@example.test',
-    customer,
-    'customer@example.test',
-  ]);
+  // The identity endpoint is a local GoTrue test double backed by real Postgres auth.users;
+  // triggers, RPCs, membership checks and admin data reads execute real repository SQL & RLS.
+  const staff = crypto.randomUUID();
+  const namelessUser = crypto.randomUUID();
+  const staffPassword = `Staff!${crypto.randomUUID()}`;
+  const customerPassword = `Cust!${crypto.randomUUID()}`;
+  const passwords = new Map([[staff, staffPassword]]);
+
+  await db.query(
+    `insert into auth.users(id, email, encrypted_password, confirmation_token, raw_user_meta_data, created_at)
+     values
+       ($1, 'staff@example.test', 'HASH_STAFF_SECRET', 'TOK_STAFF_SECRET', '{"full_name":"Studio Staff"}'::jsonb, '2026-11-10T09:00:00Z'),
+       ($2, 'nameless.member@example.test', 'HASH_NAMELESS_SECRET', 'TOK_NAMELESS_SECRET', '{}'::jsonb, '2026-11-17T14:20:00Z')`,
+    [staff, namelessUser]
+  );
   await db.query('insert into admin_users(id,email) values($1,$2)', [staff, 'staff@example.test']);
+
   const sessions = new Map();
   const asPublic = [];
+  const makeSession = (row) => {
+    const now = Math.floor(Date.now() / 1000);
+    const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const token = [
+      enc({ alg: 'HS256', typ: 'JWT' }),
+      enc({ sub: row.id, role: 'authenticated', aud: 'authenticated', iat: now, exp: now + 3600 }),
+      Buffer.from(`SIG_SECRET_${crypto.randomUUID()}`).toString('base64url'),
+    ].join('.');
+    sessions.set(token, row.id);
+    return {
+      access_token: token,
+      token_type: 'bearer',
+      refresh_token: `REFRESH_SECRET_${crypto.randomUUID()}`,
+      expires_in: 3600,
+      user: {
+        id: row.id,
+        email: row.email,
+        aud: 'authenticated',
+        role: 'authenticated',
+        app_metadata: { provider: 'email' },
+        user_metadata: row.raw_user_meta_data || {},
+        identities: [{ id: row.id, user_id: row.id, provider: 'email' }],
+        created_at: new Date(row.created_at).toISOString(),
+      },
+    };
+  };
+
   await page.route('https://studio-fixture.invalid/**', async (route) => {
     const r = route.request(),
       url = new URL(r.url()),
       body = r.postDataJSON();
     const path = url.pathname;
     const reply = (json, status = 200) => route.fulfill({ status, json });
-    if (path === '/auth/v1/token') {
-      const id = body.email === 'staff@example.test' ? staff : customer;
-      if (body.password !== password) return reply({ message: 'Invalid login credentials' }, 400);
-      const now = Math.floor(Date.now() / 1000);
-      const user = {
-        id,
-        email: body.email,
-        aud: 'authenticated',
-        role: 'authenticated',
-        app_metadata: { provider: 'email' },
-        user_metadata: {},
-        created_at: new Date().toISOString(),
-      };
-      const enc = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-      const token = [
-        enc({ alg: 'HS256', typ: 'JWT' }),
-        enc({ sub: id, role: 'authenticated', aud: 'authenticated', iat: now, exp: now + 3600 }),
-        Buffer.from(crypto.randomUUID()).toString('base64url'),
-      ].join('.');
-      sessions.set(token, id);
-      return reply({
-        access_token: token,
-        token_type: 'bearer',
-        refresh_token: crypto.randomUUID(),
-        expires_in: 3600,
-        user,
-      });
+
+    if (path === '/auth/v1/signup') {
+      const id = crypto.randomUUID();
+      const email = String(body.email || '').trim().toLowerCase();
+      const meta = body.data && typeof body.data === 'object' ? body.data : {};
+      const { rows } = await db.query(
+        `insert into auth.users(id, email, encrypted_password, confirmation_token, raw_user_meta_data, created_at)
+         values($1, $2, $3, $4, $5::jsonb, now())
+         returning id, email, raw_user_meta_data, created_at`,
+        [id, email, `BCRYPT_HASH_${body.password}`, `CONFIRM_TOK_${id}`, JSON.stringify(meta)]
+      );
+      passwords.set(id, body.password);
+      return reply(makeSession(rows[0]));
     }
+
+    if (path === '/auth/v1/token') {
+      const email = String(body.email || '').trim().toLowerCase();
+      const { rows } = await db.query(
+        'select id, email, raw_user_meta_data, created_at from auth.users where lower(email)=$1 limit 1',
+        [email]
+      );
+      const found = rows[0];
+      if (!found || passwords.get(found.id) !== body.password) {
+        return reply({ message: 'Invalid login credentials' }, 400);
+      }
+      return reply(makeSession(found));
+    }
+
     if (path === '/auth/v1/logout') return route.fulfill({ status: 204 });
+
     const uid = sessions.get(((await r.headerValue('authorization')) || '').replace('Bearer ', ''));
     const name = path.replace('/rest/v1/', '');
     try {
@@ -369,6 +600,17 @@ test('staff tabs require membership; customer account never inherits a staff ses
           await tx.exec('set local role authenticated');
           await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [uid]);
         } else await tx.exec('set local role anon');
+
+        if (name === 'rpc/register_customer_account') {
+          return (
+            await tx.query('select public.register_customer_account($1) as row', [
+              body?.p_full_name ?? null,
+            ])
+          ).rows[0].row;
+        }
+        if (name === 'rpc/admin_list_customers') {
+          return (await tx.query('select * from public.admin_list_customers()')).rows;
+        }
         if (name === 'products') {
           if (url.searchParams.has('is_published')) asPublic.push(!uid);
           return (await tx.query(productsQuery)).rows.map((v) => v.row);
@@ -400,26 +642,50 @@ test('staff tabs require membership; customer account never inherits a staff ses
           ).rows;
         if (['customers', 'site_settings', 'discount_rules'].includes(name))
           return (await tx.query(`select * from ${name}`)).rows;
-        throw Error('Unexpected test request');
+        throw Error(`Unexpected test request: ${name}`);
       });
       return reply(result);
     } catch (e) {
       return reply({ message: e.message }, 400);
     }
   });
+
+  // 1. Register a real new customer account directly from the storefront Account panel
+  const newCustomerEmail = 'layla.mansour@example.test';
+  const newCustomerName = 'Layla Mansour';
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Your customer account' }).click();
+  const accountDialog = page.getByRole('dialog', { name: 'Account', exact: true });
+  await accountDialog.getByLabel('Full name').fill(newCustomerName);
+  await accountDialog.getByLabel('Account email').fill(newCustomerEmail);
+  await accountDialog.getByLabel('Password', { exact: true }).fill(customerPassword);
+  await accountDialog
+    .locator('form')
+    .first()
+    .getByRole('button', { name: 'Create account', exact: true })
+    .click();
+  await expect(accountDialog.getByRole('heading', { name: newCustomerName })).toBeVisible();
+  await expect(accountDialog).toContainText(newCustomerEmail);
+  await accountDialog.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await expect(accountDialog.getByLabel('Account email')).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // 2. Customer credentials must be denied access to /admin; staff succeeds
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/admin\/login$/);
-  async function login(email) {
+  async function login(email, pwd) {
     await page.locator('#admin-email').fill(email);
-    await page.locator('#admin-password').fill(password);
+    await page.locator('#admin-password').fill(pwd);
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   }
-  await login('customer@example.test');
+  await login(newCustomerEmail, customerPassword);
   await expect(page.getByRole('alert')).toContainText('not authorised');
   await expect(page.getByRole('navigation', { name: 'Console sections' })).toHaveCount(0);
-  await login('staff@example.test');
+
+  await login('staff@example.test', staffPassword);
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   const nav = page.getByRole('navigation', { name: 'Console sections' });
+
   for (const tab of ['Products', 'Inventory', 'Orders', 'Customers', 'Discounts', 'Site content']) {
     await nav.getByRole('button', { name: new RegExp(`^${tab}`) }).click();
     await expect(page.locator('main h1')).toHaveText(tab);
@@ -434,7 +700,6 @@ test('staff tabs require membership; customer account never inherits a staff ses
           "select v.id from product_variants v join products p on p.id=v.product_id where p.slug='tws-cross-tee' and v.size_name='M'"
         )
       ).rows[0].id;
-      // A sale after this screen was loaded must not be overwritten by the stale edit.
       await db.query('update product_variants set stock_quantity=stock_quantity-1 where id=$1', [id]);
       await stock.fill('12');
       await row.getByRole('button', { name: 'Save', exact: true }).click();
@@ -453,6 +718,74 @@ test('staff tabs require membership; customer account never inherits a staff ses
       ).toBe(12);
       await shot(page, 'admin-inventory');
     }
+    if (tab === 'Customers') {
+      // Newly registered customer appears automatically with real name, email, date & ID
+      const laylaDbId = (
+        await db.query('select id from public.customers where email=$1', [newCustomerEmail])
+      ).rows[0].id;
+      const laylaRow = page.getByTestId('admin-customer-row').filter({ hasText: newCustomerEmail });
+      await expect(laylaRow).toBeVisible();
+      await expect(laylaRow).toContainText(newCustomerName);
+      await expect(laylaRow).toContainText('Account');
+      await expect(laylaRow).toContainText(laylaDbId.slice(0, 8));
+      await expect(laylaRow.locator('time')).toBeVisible();
+
+      // Missing name handled gracefully
+      const namelessRow = page
+        .getByTestId('admin-customer-row')
+        .filter({ hasText: 'nameless.member@example.test' });
+      await expect(namelessRow).toContainText('No name provided');
+      await expect(namelessRow.locator('time')).toBeVisible();
+
+      // Staff excluded; no passwords or auth tokens anywhere in console markup
+      await expect(
+        page.getByTestId('admin-customer-row').filter({ hasText: 'staff@example.test' })
+      ).toHaveCount(0);
+      const html = await page.locator('main').innerText();
+      for (const secret of [
+        customerPassword,
+        staffPassword,
+        'BCRYPT_HASH_',
+        'CONFIRM_TOK_',
+        'HASH_NAMELESS_SECRET',
+        'TOK_NAMELESS_SECRET',
+        'REFRESH_SECRET_',
+        'SIG_SECRET_',
+      ]) {
+        expect(html).not.toContain(secret);
+      }
+
+      await shot(page, '1280-admin-customers');
+
+      // Search by name, email and ID
+      const search = page.getByLabel('Search customers');
+      await search.fill('Layla');
+      await expect(page.getByTestId('admin-customer-row')).toHaveCount(1);
+      await expect(laylaRow).toBeVisible();
+      await search.fill(laylaDbId.slice(0, 8));
+      await expect(page.getByTestId('admin-customer-row')).toHaveCount(1);
+      await search.fill('nonexistent-person-xyz');
+      await expect(page.getByText('No customers match your current search or filter.')).toBeVisible();
+      await page.getByRole('button', { name: 'Reset search' }).click();
+      await expect(laylaRow).toBeVisible();
+
+      // Customer detail modal shows full ID, registration date and safe empty order state
+      await laylaRow.getByRole('button', { name: 'View' }).click();
+      const modal = page.getByRole('dialog', { name: 'Customer details' });
+      await expect(modal).toContainText(newCustomerName);
+      await expect(modal).toContainText(newCustomerEmail);
+      await expect(modal).toContainText(laylaDbId);
+      await expect(modal).toContainText('No COD orders placed yet.');
+      await modal.getByRole('button', { name: 'Close customer details' }).click();
+      await expect(modal).toHaveCount(0);
+
+      // Mobile view shows stacked customer cards with zero overflow
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(
+        page.getByTestId('admin-customer-card').filter({ hasText: newCustomerEmail })
+      ).toBeVisible();
+      await shot(page, '390-admin-customers');
+    }
     await page.setViewportSize({ width: 360, height: 800 });
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
@@ -460,9 +793,13 @@ test('staff tabs require membership; customer account never inherits a staff ses
     ).toBe(true);
     await page.setViewportSize({ width: 1280, height: 900 });
   }
+
+  // 3. Storefront stays completely isolated from the admin session
   await page.goto('/');
   await page.getByRole('button', { name: 'Your customer account' }).click();
-  await expect(page.getByRole('dialog', { name: 'Account', exact: true })).toBeVisible();
+  const afterAccount = page.getByRole('dialog', { name: 'Account', exact: true });
+  await expect(afterAccount).toBeVisible();
+  await expect(afterAccount).not.toContainText('staff@example.test');
   await expect(page.locator('a[href^="/admin"]')).toHaveCount(0);
   expect(asPublic).toContain(true);
   expect(asPublic).not.toContain(false);
