@@ -2,7 +2,7 @@ import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useSiteSettings } from '../../context/SiteSettingsContext';
 import { useCatalog } from '../../hooks/useCatalog';
-import { isSupabaseConfigured } from '../../lib/supabase';
+import { showCampaignPreview } from '../../lib/supabase';
 import { CampaignPreview, ProductPlate } from '../shop/ProductPlate';
 
 export function PiecesSection() {
@@ -19,7 +19,7 @@ export function PiecesSection() {
           {settings.products_subheading} <ArrowRight />
         </Link>
       </div>
-      {!isSupabaseConfigured ? (
+      {showCampaignPreview ? (
         <CampaignPreview />
       ) : products.length ? (
         <div className="product-grid">
