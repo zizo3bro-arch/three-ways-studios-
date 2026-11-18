@@ -19,13 +19,18 @@ function Plate({
   price: number;
   url?: string;
   alt?: string;
-  index: number;
+  index?: number;
 }) {
   return (
     <Link to={`/product/${slug}`} className="product-plate">
       <div className="plate-photo">
         {url ? (
-          <img src={url} alt={alt || name} loading={index < 2 ? 'eager' : 'lazy'} decoding="async" />
+          <img
+            src={url}
+            alt={alt || name}
+            loading={index !== undefined && index < 2 ? 'eager' : 'lazy'}
+            decoding="async"
+          />
         ) : (
           <span>Image unavailable</span>
         )}
@@ -35,7 +40,7 @@ function Plate({
     </Link>
   );
 }
-export function ProductPlate({ product, index }: { product: Product; index: number }) {
+export function ProductPlate({ product, index }: { product: Product; index?: number }) {
   const image = primaryImage(product);
   const { openQuickView } = useUI();
   return (

@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 
-export async function studioDb({ upgrade = false } = {}) {
+export async function studioDb({ upgrade = false, legacyCheckout = false } = {}) {
   const db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(`create role anon; create role authenticated; create role service_role;
     create schema auth;
@@ -24,7 +24,7 @@ export async function studioDb({ upgrade = false } = {}) {
     create table storage.objects(bucket_id text); alter table storage.objects enable row level security;
     alter default privileges in schema public grant select,insert,update,delete on tables to anon,authenticated;`);
   const run = async (path) => db.exec(await readFile(`supabase/${path}`, 'utf8'));
-  if (upgrade) {
+  if (upgrade || legacyCheckout) {
     for (const f of [
       '001_schema',
       '002_rls_policies',
@@ -34,8 +34,9 @@ export async function studioDb({ upgrade = false } = {}) {
       await run(`migrations/${f}.sql`);
   } else await run('full_setup.sql');
   await run('migrations/006_admin_hardening_safe.sql');
-  if (upgrade) await run('migrations/007_cod_checkout.sql');
+  if (upgrade && !legacyCheckout) await run('migrations/007_cod_checkout.sql');
   await run('migrations/008_registered_customers.sql');
+  if (!legacyCheckout) await run('migrations/009_checkout_idempotency.sql');
   const catalog = [
     [
       'TWS Signature Tee',
@@ -109,12 +110,16 @@ export async function rpc(tx, name, body) {
       : name === 'get_order_confirmation'
         ? ['p_order_reference', 'p_email']
         : name === 'create_cod_order'
-          ? [...orderArgs, ...('p_payment_method' in body ? ['p_payment_method'] : [])]
+          ? [
+              ...orderArgs,
+              ...('p_payment_method' in body ? ['p_payment_method'] : []),
+              ...('p_checkout_request_id' in body ? ['p_checkout_request_id'] : []),
+            ]
           : [];
   if (!keys.length || keys.some((k) => !(k in body)) || keys.length !== Object.keys(body).length)
     throw Error('Unexpected RPC signature');
   const params = keys
-    .map((k, i) => `${k} => $${i + 1}::${k === 'p_items' ? 'jsonb' : 'text'}`)
+    .map((k, i) => `${k} => $${i + 1}::${{ p_items: 'jsonb', p_checkout_request_id: 'uuid' }[k] || 'text'}`)
     .join(',');
   const result = await tx.query(
     `select public.${name}(${params}) as result`,

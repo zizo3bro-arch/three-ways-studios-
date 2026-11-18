@@ -1,14 +1,17 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
-import { createCodOrder, quoteCodOrder } from '../lib/api';
+import { createCodOrder, isVariantId, quoteCodOrder } from '../lib/api';
 import { EGYPTIAN_GOVERNORATES, formatEGP } from '../lib/format';
 import { refreshCatalog } from '../hooks/useCatalog';
 import type { QuoteResponse } from '../types/database';
 
-type CheckedQuote = { key: string; quote: QuoteResponse | null; error: string | null };
+type QuoteInput = Parameters<typeof quoteCodOrder>[0];
+type CheckedQuote = { input: QuoteInput; quote: QuoteResponse | null; error: string | null };
+type CheckoutAttempt = { bag: string; id: string };
+const CHECKOUT_ATTEMPT_KEY = 'tws_cod_checkout_v1';
 function mobileNumber(raw: string) {
   return raw.replace(/[\s()-]/g, '').replace(/^(?:\+20|0020|20)(1\d{9})$/, '0$1');
 }
@@ -19,6 +22,10 @@ export function CheckoutPage() {
   const navigate = useNavigate();
   const [fullNameInput, setFullNameInput] = useState(() => customer?.fullName ?? '');
   const [email, setEmail] = useState(() => customer?.email ?? '');
+  const [phoneInput, setPhoneInput] = useState('');
+  const [governorate, setGovernorate] = useState('Cairo');
+  const [cityInput, setCityInput] = useState('');
+  const [addressInput, setAddressInput] = useState('');
   const prefilledFor = useRef<string | null>(customer?.id ?? null);
   useEffect(() => {
     if (!customer || prefilledFor.current === customer.id) return;
@@ -33,6 +40,7 @@ export function CheckoutPage() {
   const [checked, setChecked] = useState<CheckedQuote>();
   const [submitting, setSubmitting] = useState(false);
   const writing = useRef(false);
+  const checkoutAttempt = useRef<CheckoutAttempt | null>(null);
   const [notice, setNotice] = useState('');
   // Only quote inputs enter the key. Syncing a price or stock limit must not
   // start a quote loop; stale responses must never enable the submit button.
@@ -41,68 +49,105 @@ export function CheckoutPage() {
     email: email.trim(),
     promoCode: applied,
   });
+  // Use the identity of this request, not just its values: changing a code
+  // and then changing it back still needs to finish the new verification.
+  const input = useMemo<QuoteInput>(() => JSON.parse(key), [key, attempt]);
   const empty = items.length === 0;
   useEffect(() => {
     if (empty) return;
     let current = true;
     const timer = window.setTimeout(async () => {
-      const result = await quoteCodOrder(JSON.parse(key));
+      const result = await quoteCodOrder(input);
       if (!current) return;
-      setChecked({ key, ...result });
+      setChecked({ input, ...result });
       if (result.quote) syncItemStock(result.quote.items);
     }, 220);
     return () => {
       current = false;
       window.clearTimeout(timer);
     };
-  }, [key, attempt, empty, syncItemStock]);
-  const quote = checked?.key === key ? checked.quote : null;
-  const quoteError = checked?.key === key && checked.error;
-  const allowed = Boolean(quote?.valid && !quote.promo_error && payment === 'COD');
+  }, [input, empty, syncItemStock]);
+  const currentCheck = checked?.input === input ? checked : undefined;
+  const quote = currentCheck?.quote;
+  const quoteError = currentCheck?.error;
+  const verifiedQuote = quote?.valid && !quote.promo_error ? quote : null;
+  const fullName = fullNameInput.trim();
+  const phone = mobileNumber(phoneInput);
+  const city = cityInput.trim();
+  const address = addressInput.trim();
+  const detailsComplete =
+    fullName.length >= 3 &&
+    /^01[0125]\d{8}$/.test(phone) &&
+    /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(input.email) &&
+    EGYPTIAN_GOVERNORATES.includes(governorate) &&
+    city.length >= 2 &&
+    address.length >= 10;
+  const allowed = !empty && !!verifiedQuote && detailsComplete && payment === 'COD';
+
+  function retryQuote() {
+    setNotice('');
+    setAttempt((n) => n + 1);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (writing.current || !allowed) return;
+    if (writing.current || !allowed || !event.currentTarget.checkValidity()) return;
     const data = new FormData(event.currentTarget);
-    const field = (name: string) => String(data.get(name) || '').trim();
-    const [fullName, phone, city, address] = [
-      field('full_name'),
-      mobileNumber(field('phone')),
-      field('city'),
-      field('address'),
-    ];
-    if (
-      fullName.length < 3 ||
-      city.length < 2 ||
-      address.length < 10 ||
-      !/^01[0125]\d{8}$/.test(phone)
-    ) {
-      setNotice('Enter a full name, Egyptian mobile number, city and complete street address.');
-      return;
+    if (data.get('payment_method') !== 'COD') return;
+
+    // Keep the same request ID for retries of this bag, including a refresh
+    // after an interrupted response. No contact details are stored here.
+    const bag = JSON.stringify(input.items);
+    if (checkoutAttempt.current?.bag !== bag) {
+      let saved: CheckoutAttempt | null = null;
+      try {
+        saved = JSON.parse(sessionStorage.getItem(CHECKOUT_ATTEMPT_KEY) || 'null');
+      } catch {
+        // Storage may be disabled. The in-memory attempt still works.
+      }
+      if (saved?.bag === bag && typeof saved.id === 'string' && isVariantId(saved.id)) {
+        checkoutAttempt.current = saved;
+      } else {
+        if (!globalThis.crypto?.randomUUID) {
+          setNotice('Open checkout over a secure connection and try again.');
+          return;
+        }
+        checkoutAttempt.current = { bag, id: crypto.randomUUID() };
+        try {
+          sessionStorage.setItem(CHECKOUT_ATTEMPT_KEY, JSON.stringify(checkoutAttempt.current));
+        } catch {
+          // Keep the request ID in memory.
+        }
+      }
     }
-    if (data.get('payment_method') !== 'COD') {
-      setNotice('Select cash on delivery to confirm.');
-      return;
-    }
+
     writing.current = true;
     setSubmitting(true);
     setNotice('');
-    const { order, error } = await createCodOrder({
+    const { order, error, refreshQuote } = await createCodOrder({
       fullName,
-      email,
+      email: input.email,
       phone,
       city,
       address,
-      governorate: field('governorate'),
-      notes: field('notes'),
+      governorate,
+      notes: String(data.get('notes') || ''),
       paymentMethod: payment,
-      items: items.map(({ variant_id, quantity }) => ({ variant_id, quantity })),
-      promoCode: applied,
+      items: input.items,
+      promoCode: input.promoCode,
+      checkoutRequestId: checkoutAttempt.current.id,
     });
-    writing.current = false;
-    setSubmitting(false);
     if (!order || error) {
+      writing.current = false;
+      setSubmitting(false);
       setNotice(error || 'Order not confirmed. Your bag has been kept.');
+      if (refreshQuote) setAttempt((n) => n + 1);
       return;
+    }
+    try {
+      sessionStorage.removeItem(CHECKOUT_ATTEMPT_KEY);
+    } catch {
+      // The order is already saved.
     }
     clearCart();
     void refreshCatalog();
@@ -148,7 +193,15 @@ export function CheckoutPage() {
             </label>
             <label>
               Phone number
-              <input type="tel" name="phone" autoComplete="tel" required placeholder="01x xxxx xxxx" />
+              <input
+                type="tel"
+                name="phone"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                autoComplete="tel"
+                required
+                placeholder="01x xxxx xxxx"
+              />
             </label>
             <label className="field-wide">
               Email address
@@ -164,7 +217,13 @@ export function CheckoutPage() {
             </label>
             <label>
               Governorate
-              <select name="governorate" defaultValue="Cairo" autoComplete="address-level1">
+              <select
+                name="governorate"
+                value={governorate}
+                onChange={(e) => setGovernorate(e.target.value)}
+                autoComplete="address-level1"
+                required
+              >
                 {EGYPTIAN_GOVERNORATES.map((g) => (
                   <option key={g}>{g}</option>
                 ))}
@@ -174,6 +233,8 @@ export function CheckoutPage() {
               City / district
               <input
                 name="city"
+                value={cityInput}
+                onChange={(e) => setCityInput(e.target.value)}
                 autoComplete="address-level2"
                 minLength={2}
                 required
@@ -184,6 +245,8 @@ export function CheckoutPage() {
               Complete address
               <textarea
                 name="address"
+                value={addressInput}
+                onChange={(e) => setAddressInput(e.target.value)}
                 autoComplete="street-address"
                 rows={2}
                 required
@@ -246,13 +309,17 @@ export function CheckoutPage() {
               type="button"
               disabled={submitting}
               className="text-action"
-              onClick={() => setApplied(promo.trim().toUpperCase())}
+              onClick={() => {
+                const code = promo.trim().toUpperCase();
+                if (code === applied) retryQuote();
+                else setApplied(code);
+              }}
             >
               Apply
             </button>
           </div>
           {applied && (
-            <p className="form-note">
+            <p className="form-note" role={quote?.promo_error ? 'alert' : undefined}>
               {quote?.promo_error || applied}{' '}
               <button
                 type="button"
@@ -275,65 +342,59 @@ export function CheckoutPage() {
             <div>
               <dt>Shipping</dt>
               <dd>
-                {quote
-                  ? quote.shipping_cost
-                    ? formatEGP(quote.shipping_cost)
-                    : 'Included'
-                  : 'Awaiting quote'}
+                {verifiedQuote?.shipping_cost === undefined
+                  ? 'Awaiting quote'
+                  : verifiedQuote.shipping_cost === 0
+                    ? 'Included'
+                    : formatEGP(verifiedQuote.shipping_cost)}
               </dd>
             </div>
-            {quote?.email_discount_applied && (
+            {verifiedQuote?.email_discount_applied && (
               <div>
-                <dt>Email discount ({quote.email_discount_percent}%)</dt>
-                <dd>−{formatEGP(quote.email_discount_amount)}</dd>
+                <dt>Email discount ({verifiedQuote.email_discount_percent}%)</dt>
+                <dd>−{formatEGP(verifiedQuote.email_discount_amount)}</dd>
               </div>
             )}
-            {!!quote?.promo_discount_amount && (
+            {!!verifiedQuote?.promo_discount_amount && (
               <div>
                 <dt>Promo discount</dt>
-                <dd>−{formatEGP(quote.promo_discount_amount)}</dd>
+                <dd>−{formatEGP(verifiedQuote.promo_discount_amount)}</dd>
               </div>
             )}
             <div className="cart-total">
               <dt>Total</dt>
-              <dd>{quote ? formatEGP(quote.final_total) : '—'}</dd>
+              <dd>{verifiedQuote ? formatEGP(verifiedQuote.final_total) : '—'}</dd>
             </div>
           </dl>
-          {quoteError ? (
+          {quoteError || (quote && !quote.valid) ? (
             <p role="alert" className="form-note">
-              Could not verify this bag: {quoteError}{' '}
-              <button
-                type="button"
-                className="text-action"
-                onClick={() => {
-                  setChecked(undefined);
-                  setAttempt((n) => n + 1);
-                }}
-              >
+              {quoteError ? `Could not verify this bag: ${quoteError}` : quote?.stock_errors.join(' ')}{' '}
+              <button type="button" className="text-action" disabled={submitting} onClick={retryQuote}>
                 Retry
               </button>
+              {quote && !quote.valid && (
+                <>
+                  {' '}
+                  <Link className="text-action" to="/cart">
+                    Edit cart
+                  </Link>
+                </>
+              )}
             </p>
           ) : !quote ? (
             <p role="status" className="form-note">
               Verifying inventory and total…
             </p>
-          ) : (
-            !quote.valid && (
-              <p role="alert" className="form-note">
-                {quote.stock_errors.join(' ')}{' '}
-                <Link className="text-action" to="/cart">
-                  Edit cart
-                </Link>
-              </p>
-            )
-          )}
+          ) : verifiedQuote && !detailsComplete ? (
+            <p className="form-note">Complete your delivery details to confirm.</p>
+          ) : null}
           {notice && (
             <p role="alert" className="form-note">
               {notice}
             </p>
           )}
-          <button className="tws-pill wide-action" disabled={submitting || !allowed}>
-            {submitting ? 'Confirming…' : 'Confirm COD order'} <ArrowRight />
+          <button type="submit" className="tws-pill wide-action" disabled={submitting || !allowed}>
+            {submitting ? 'Confirming…' : 'Confirm order'} <ArrowRight />
           </button>
         </div>
       </form>

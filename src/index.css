@@ -326,7 +326,7 @@
   .campaign-paint {
     display: block;
     width: 100%;
-    height: clamp(160px, 43.5vw, 560px);
+    height: clamp(178px, 47vw, 416px);
     mix-blend-mode: multiply;
   }
   .campaign-signature {
@@ -589,6 +589,9 @@
     display: grid;
     grid-template-columns: minmax(0, 1.24fr) minmax(0, 0.86fr);
     gap: clamp(28px, 4vw, 68px);
+  }
+  .product-recommendations {
+    padding-bottom: clamp(30px, 3.8vw, 52px);
   }
   .piece-gallery {
     min-width: 0;
@@ -1379,7 +1382,7 @@ html.tws-scroll-locked body {
 }
 @media (min-width: 920px) {
   .campaign-paint {
-    height: clamp(340px, 33vw, 560px);
+    height: clamp(384px, 36vw, 604px);
   }
 }
 @media (max-width: 1023px) {

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ProductGallery } from '../components/shop/ProductGallery';
+import { ProductRecommendations } from '../components/shop/ProductRecommendations';
 import { PurchaseOptions } from '../components/shop/PurchaseOptions';
 import { useProduct } from '../hooks/useCatalog';
 import { campaignPlates } from '../data/campaign';
@@ -46,27 +47,30 @@ export function ProductPage() {
       </section>
     );
   return (
-    <article className="page-width piece-spread">
-      <ProductGallery key={slug} name={name} frames={frames} chosenImage={chosenImage} />
-      {product ? (
-        <PurchaseOptions key={product.id} product={product} onImage={setImage} />
-      ) : (
-        plate && (
-          <div className="purchase">
-            <div className="piece-title">
-              <h1>{name}</h1>
+    <>
+      <article className="page-width piece-spread">
+        <ProductGallery key={slug} name={name} frames={frames} chosenImage={chosenImage} />
+        {product ? (
+          <PurchaseOptions key={product.id} product={product} onImage={setImage} />
+        ) : (
+          plate && (
+            <div className="purchase">
+              <div className="piece-title">
+                <h1>{name}</h1>
+              </div>
+              <p className="piece-price">{formatEGP(plate.printedPrice)}</p>
+              <p className="piece-description">
+                From the 2026 campaign. Live sizes and inventory are unavailable; this preview is not
+                available to order.
+              </p>
+              <Link to="/collections" className="text-action">
+                View collection
+              </Link>
             </div>
-            <p className="piece-price">{formatEGP(plate.printedPrice)}</p>
-            <p className="piece-description">
-              From the 2026 campaign. Live sizes and inventory are unavailable; this preview is not
-              available to order.
-            </p>
-            <Link to="/collections" className="text-action">
-              View collection
-            </Link>
-          </div>
-        )
-      )}
-    </article>
+          )
+        )}
+      </article>
+      {product && <ProductRecommendations product={product} />}
+    </>
   );
 }
