@@ -1,265 +1,133 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Search as SearchIcon, X } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowRight, Search } from 'lucide-react';
 import { useUI } from '../../context/UIContext';
 import { useCatalog } from '../../hooks/useCatalog';
-import { colourNameFor, primaryImage } from '../../data/catalog';
+import { primaryImage } from '../../data/catalog';
 import { formatEGP } from '../../lib/format';
-import { useBodyScrollLock, useEscapeKey } from '../../lib/scrollLock';
-import type { Product } from '../../types/database';
-
-/* =========================================================
-   SEARCH — clean, top-anchored search dropdown / overlay.
-   Searches actual products by name, collection, fabric and color.
-   ========================================================= */
-
-function matchesQuery(product: Product, terms: string[]): boolean {
-  if (terms.length === 0) return true;
-  const colors = (product.variants ?? []).map((v) => v.color_name).join(' ');
-  const haystack = [
-    product.name,
-    product.slug,
-    product.collection_name,
-    product.category,
-    product.fabric_info,
-    product.description,
-    colors,
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-
-  return terms.every((term) => haystack.includes(term));
-}
+import { Overlay } from '../ui/Overlay';
 
 export function SearchOverlay() {
   const { overlay, closeOverlay } = useUI();
-  const { products } = useCatalog();
-  const navigate = useNavigate();
-  const open = overlay === 'search';
-
+  const { products, loading, error, retry } = useCatalog();
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useBodyScrollLock(open);
-  useEscapeKey(open, closeOverlay);
-
+  const navigate = useNavigate();
+  const open = overlay === 'search';
   useEffect(() => {
     if (!open) {
       setQuery('');
       setCursor(0);
-      return;
     }
-    const timer = window.setTimeout(() => inputRef.current?.focus(), 60);
-    return () => window.clearTimeout(timer);
   }, [open]);
-
-  const trimmed = query.trim();
   const results = useMemo(() => {
-    const terms = trimmed.toLowerCase().split(/\s+/).filter(Boolean);
-    if (terms.length === 0) return products;
-    return products.filter((product) => matchesQuery(product, terms));
-  }, [products, trimmed]);
-
-  useEffect(() => {
-    setCursor(0);
-  }, [query]);
-
-  const openProduct = (product: Product | undefined) => {
-    if (!product) return;
-    closeOverlay();
-    navigate(`/product/${product.slug}`);
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (results.length === 0) return;
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setCursor((c) => (c + 1) % results.length);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setCursor((c) => (c - 1 + results.length) % results.length);
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      openProduct(results[cursor]);
-    }
-  };
-
+    const words = query.toLowerCase().trim().split(/\s+/);
+    return products.filter((p) => {
+      const text = [
+        p.name,
+        p.slug,
+        p.category,
+        p.collection_name,
+        p.description,
+        p.fabric_info,
+        ...(p.variants ?? []).map((v) => v.color_name),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return words.every((word) => text.includes(word));
+    });
+  }, [products, query]);
   return (
-    <AnimatePresence>
-      {open ? (
-        <div
-          className="fixed inset-0 z-[75]"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Search products"
-        >
-          {/* Backdrop */}
-          <motion.button
-            type="button"
-            aria-label="Close search"
-            onClick={closeOverlay}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="absolute inset-0 cursor-default bg-[#120e0b]/45 backdrop-blur-[3px]"
+    <Overlay open={open} onClose={closeOverlay} label="Search products" placement="top">
+      <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-col pb-3">
+        <div className="flex items-center gap-3">
+          <Search size={18} className="text-crimson" />
+          <label htmlFor="studio-search" className="sr-only">
+            Search products by name
+          </label>
+          <input
+            id="studio-search"
+            data-initial-focus
+            className="tws-field"
+            placeholder="Search the collection…"
+            autoComplete="off"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setCursor(0);
+            }}
+            onKeyDown={(e) => {
+              if (!results.length) return;
+              if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                setCursor((cursor + (e.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length);
+              }
+              if (e.key === 'Enter' && results[cursor]) {
+                closeOverlay();
+                navigate(`/product/${results[cursor].slug}`);
+              }
+            }}
           />
-
-          {/* Top-anchored Search Bar Panel */}
-          <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10 border-b border-ink/20 bg-[#f3efe7]"
-          >
-            <div className="mx-auto w-full max-w-[1040px] px-4 py-4 sm:px-6 sm:py-5">
-              {/* Search input + clear + close row */}
-              <div className="flex items-center gap-3">
-                <div className="flex h-14 flex-1 items-center gap-3 border-b border-ink/30 px-0 transition-colors focus-within:border-crimson">
-                  <SearchIcon className="h-4 w-4 shrink-0 text-ink-faint" strokeWidth={2} />
-                  <label htmlFor="tws-search-input" className="sr-only">
-                    Search products by name
-                  </label>
-                  <input
-                    ref={inputRef}
-                    id="tws-search-input"
-                    type="text"
-                    autoComplete="off"
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Search the house…"
-                    className="h-full w-full min-w-0 bg-transparent font-display text-lg uppercase tracking-[0.02em] text-ink outline-none placeholder:font-sans placeholder:text-[13px] placeholder:uppercase placeholder:tracking-[0.16em] placeholder:text-ink-faint sm:text-2xl"
-                  />
-                  {query.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setQuery('');
-                        inputRef.current?.focus();
-                      }}
-                      className="shrink-0 rounded px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-ink-soft transition-colors hover:text-crimson"
-                    >
-                      Clear
-                    </button>
-                  ) : null}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={closeOverlay}
-                  aria-label="Close search"
-                  className="flex h-10 shrink-0 items-center justify-center gap-1.5 border border-ink/24 px-3.5 text-[10px] font-bold uppercase tracking-[0.18em] text-ink transition-colors hover:border-crimson hover:text-crimson sm:px-4"
-                >
-                  <X className="h-4 w-4" strokeWidth={2} />
-                  <span className="hidden sm:inline">Close</span>
-                </button>
-              </div>
-
-              {/* Results header */}
-              <div className="mt-5 flex items-center justify-between border-b border-ink/16 pb-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-ink-faint">
-                  {trimmed.length > 0
-                    ? `${results.length} ${results.length === 1 ? 'Product' : 'Products'} Found`
-                    : 'Featured Pieces'}
-                </p>
-                <Link
-                  to="/shop"
-                  onClick={closeOverlay}
-                  className="text-[10px] font-bold uppercase tracking-[0.2em] text-crimson underline-offset-4 hover:underline"
-                >
-                  View All
-                </Link>
-              </div>
-
-              {/* Results list */}
-              <div className="mt-3 max-h-[60vh] overflow-y-auto">
-                {results.length > 0 ? (
-                  <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {results.map((product, index) => {
-                      const img = primaryImage(product);
-                      const inStock = (product.variants ?? []).some((v) => v.stock_quantity > 0);
-                      const isActive = index === cursor;
-                      return (
-                        <li key={product.id}>
-                          <button
-                            type="button"
-                            onMouseEnter={() => setCursor(index)}
-                            onClick={() => openProduct(product)}
-                            className={[
-                              'group flex w-full items-center gap-4 border-b border-ink/12 py-3 text-left transition-colors',
-                              isActive
-                                ? 'border-crimson/60'
-                                : 'border-ink/12 hover:border-ink/35',
-                            ].join(' ')}
-                          >
-                            <div className="flex h-20 w-16 shrink-0 items-end justify-center overflow-hidden bg-[rgba(23,19,15,0.05)] p-1.5">
-                              {img?.url ? (
-                                <img
-                                  src={img.url}
-                                  alt={img.alt_text || product.name}
-                                  className="h-full w-auto object-contain transition-transform duration-300 group-hover:scale-105"
-                                />
-                              ) : null}
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate font-display text-[15px] uppercase leading-tight tracking-[0.01em] text-ink transition-colors group-hover:text-crimson">
-                                {product.name}
-                              </p>
-                              <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-ink-faint">
-                                {colourNameFor(product)}
-                              </p>
-                              <div className="mt-1.5 flex items-center gap-3">
-                                <span className="text-[12px] font-semibold tabular-nums text-ink">
-                                  {formatEGP(product.price)}
-                                </span>
-                                <span
-                                  className={[
-                                    'text-[10px] font-semibold uppercase tracking-wider',
-                                    inStock ? 'text-ink-soft' : 'text-crimson',
-                                  ].join(' ')}
-                                >
-                                  {inStock ? 'In Stock' : 'Sold Out'}
-                                </span>
-                              </div>
-                            </div>
-
-                            <ArrowRight
-                              className="h-4 w-4 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-crimson"
-                              strokeWidth={1.8}
-                            />
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <div className="py-12 text-center">
-                    <p className="font-display text-lg uppercase text-ink">
-                      No products matched “{trimmed}”.
-                    </p>
-                    <p className="mt-1.5 text-[12px] text-ink-faint">
-                      Try searching for “Midnight”, “Wide-Flare”, or “Onyx”.
-                    </p>
-                    <Link
-                      to="/shop"
-                      onClick={closeOverlay}
-                      className="tws-pill mt-4 h-10 px-5 text-[10px]"
-                    >
-                      Browse All Pieces
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
+          {query && (
+            <button
+              className="text-action"
+              onClick={() => {
+                setQuery('');
+                setCursor(0);
+              }}
+            >
+              Clear
+            </button>
+          )}
         </div>
-      ) : null}
-    </AnimatePresence>
+        <div className="my-3 flex items-center justify-between gap-3 text-xs">
+          <p aria-live="polite">{loading ? 'Loading pieces…' : `${results.length} pieces`}</p>
+          <Link to="/shop" className="text-action" onClick={closeOverlay}>
+            View all
+          </Link>
+        </div>
+        {error ? (
+          <p role="alert" className="form-note">
+            {error}{' '}
+            <button onClick={retry} className="text-action">
+              Retry
+            </button>
+          </p>
+        ) : (
+          <ul className="grid max-h-[56svh] gap-x-6 overflow-y-auto sm:grid-cols-2">
+            {results.map((p, i) => {
+              const img = primaryImage(p);
+              return (
+                <li key={p.id}>
+                  <Link
+                    to={`/product/${p.slug}`}
+                    onClick={closeOverlay}
+                    onMouseEnter={() => setCursor(i)}
+                    className={`flex items-center gap-4 border-b py-3 text-sm ${cursor === i ? 'border-crimson' : 'border-ink/20'}`}
+                  >
+                    {img && (
+                      <img
+                        alt=""
+                        src={img.url}
+                        loading="lazy"
+                        className="h-16 w-14 object-contain mix-blend-multiply"
+                      />
+                    )}
+                    <span className="flex-1">
+                      {p.name}
+                      <small className="block">{formatEGP(p.price)}</small>
+                    </span>
+                    <ArrowRight size={16} className="text-crimson" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {!error && !loading && !results.length && (
+          <p className="form-note">No pieces match this search.</p>
+        )}
+      </div>
+    </Overlay>
   );
 }

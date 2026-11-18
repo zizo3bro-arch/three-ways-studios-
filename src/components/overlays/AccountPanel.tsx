@@ -8,7 +8,6 @@ import { useCatalog } from '../../hooks/useCatalog';
 import { fetchOrderConfirmation } from '../../lib/api';
 import { formatEGP } from '../../lib/format';
 import { Overlay } from '../ui/Overlay';
-import { ColourChip } from '../ui/ColourChip';
 import type { OrderConfirmationData } from '../../types/database';
 
 /* =========================================================
@@ -16,7 +15,7 @@ import type { OrderConfirmationData } from '../../types/database';
    1. bag summary with a route to checkout
    2. saved pieces (persisted locally, links back to the pieces)
    3. order lookup — the same confirmation query the receipt page
-      uses (Supabase RPC when configured, local store in demo mode)
+      uses (Supabase RPC; reference + email)
 
    This panel used to end with a "Dashboard sign in" button. It
    does not any more: the public site has no administrative
@@ -45,7 +44,10 @@ export function AccountPanel() {
   const runLookup = async (event: React.FormEvent) => {
     event.preventDefault();
     if (reference.trim().length < 4 || !email.trim()) {
-      setLookup({ status: 'missing', message: 'Enter your TWS reference and the email used on the order.' });
+      setLookup({
+        status: 'missing',
+        message: 'Enter your TWS reference and the email used on the order.',
+      });
       return;
     }
     setLookup({ status: 'loading' });
@@ -66,9 +68,7 @@ export function AccountPanel() {
             className="mt-2 font-display uppercase leading-[0.9] tracking-[0.004em] text-ink"
             style={{ fontSize: 'clamp(1.8rem, 6vw, 2.3rem)' }}
           >
-            The house
-            <br />
-            list
+            Customer account
           </h2>
         </div>
 
@@ -89,7 +89,7 @@ export function AccountPanel() {
           </div>
           <p className="mt-2.5 font-serif text-[15px] leading-snug text-ink">
             {itemCount === 0
-              ? 'Empty — two silhouettes are waiting in the shop.'
+              ? 'Your bag is empty.'
               : `${itemCount} ${itemCount === 1 ? 'piece' : 'pieces'} · ${formatEGP(subtotal)}`}
           </p>
         </section>
@@ -103,14 +103,14 @@ export function AccountPanel() {
 
           {saved.length === 0 ? (
             <p className="mt-3 text-[12.5px] leading-relaxed text-ink-soft">
-              Tap the heart on any piece to keep it here. Saved pieces live on this device — no
-              account needed, because the house sells cash on delivery.
+              Tap the heart on any piece to keep it here. Saved pieces live on this device — no account
+              needed, because the house sells cash on delivery.
             </p>
           ) : (
             <ul className="mt-3 space-y-3">
               {saved.map((product) => (
                 <li key={product.id} className="flex items-center gap-3.5">
-                  <span className="flex h-[68px] w-12 shrink-0 items-end justify-center overflow-hidden bg-[rgba(23,19,15,0.05)]">
+                  <span className="flex h-[68px] w-12 shrink-0 items-end justify-center overflow-hidden">
                     {product.images?.[0]?.url ? (
                       <img
                         src={product.images[0].url}
@@ -131,10 +131,9 @@ export function AccountPanel() {
                     <span className="mt-1 block text-[11px] tracking-wide text-ink-faint">
                       {formatEGP(product.price)}
                     </span>
-                    <ColourChip
-                      label={product.variants?.[0]?.color_name ?? 'Studio colour'}
-                      className="mt-1"
-                    />
+                    <small className="block text-ink-soft">
+                      {product.variants?.[0]?.color_name ?? 'Studio colour'}
+                    </small>
                   </span>
                   <button
                     type="button"
@@ -191,7 +190,11 @@ export function AccountPanel() {
               />
             </div>
 
-            <button type="submit" className="tws-pill h-12 w-full justify-center">
+            <button
+              type="submit"
+              disabled={lookup.status === 'loading'}
+              className="tws-pill h-12 w-full justify-center"
+            >
               {lookup.status === 'loading' ? 'Looking…' : 'Find my order'}
               <ArrowRight className="h-4 w-4" strokeWidth={2} />
             </button>
@@ -218,7 +221,8 @@ export function AccountPanel() {
                 {lookup.order.city || lookup.order.governorate || 'Cairo'}.
               </p>
               <Link
-                to={`/order-confirmation/${lookup.order.order_reference}?email=${encodeURIComponent(lookup.order.customer_email ?? '')}`}
+                to={`/order-confirmation/${lookup.order.order_reference}`}
+                state={{ email: lookup.order.customer_email }}
                 onClick={closeOverlay}
                 className="mt-2.5 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-crimson hover:text-crimson-deep"
               >
@@ -230,8 +234,8 @@ export function AccountPanel() {
         </section>
 
         <p className="mt-7 border-t border-ink/14 pt-5 text-[10px] leading-relaxed text-ink-faint">
-          The house sells cash on delivery — no customer password required. Orders, saved pieces
-          and delivery details all live on this device.
+          The house sells cash on delivery — no customer password required. Your bag and saved pieces are
+          kept on this device.
         </p>
       </div>
     </Overlay>

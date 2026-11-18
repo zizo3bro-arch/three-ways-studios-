@@ -16,7 +16,6 @@ export function JournalPage() {
     <>
       <PageIntro
         eyebrow="The journal"
-        sprayText="JOURNAL"
         title={
           <>
             Notes
@@ -26,8 +25,8 @@ export function JournalPage() {
         meta={`${JOURNAL_ENTRIES.length} entries`}
         description={
           <p>
-            Cloth, cutting and the arguments in between. Written by the people who draft the
-            patterns — three entries, no newsletter filler.
+            Cloth, cutting and the arguments in between. Written by the people who draft the patterns —
+            three entries, no newsletter filler.
           </p>
         }
       />

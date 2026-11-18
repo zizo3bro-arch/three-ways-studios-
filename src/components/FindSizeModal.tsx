@@ -1,18 +1,18 @@
-import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, Check, Ruler, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowRight, Check, Ruler } from 'lucide-react';
 import {
   HEIGHT_RANGE,
   WEIGHT_RANGE,
   recommendPantsSize,
   type FitRecommendation,
 } from '../lib/fitCalculator';
-import { useBodyScrollLock, useEscapeKey } from '../lib/scrollLock';
+import { Overlay } from './ui/Overlay';
 
 type Size = 'S' | 'M' | 'L' | 'XL';
 
 interface FindSizeModalProps {
   open: boolean;
-  currentSize: Size;
+  currentSize: string;
   onClose: () => void;
   onApply: (size: Size) => void;
 }
@@ -22,17 +22,11 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
   const [height, setHeight] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<FitRecommendation | null>(null);
-  const weightRef = useRef<HTMLInputElement>(null);
-
-  useBodyScrollLock(open);
-  useEscapeKey(open, onClose);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
     setResult(null);
-    const timer = window.setTimeout(() => weightRef.current?.focus(), 80);
-    return () => window.clearTimeout(timer);
   }, [open]);
 
   if (!open) return null;
@@ -72,20 +66,8 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
   };
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center">
-      <button
-        type="button"
-        aria-label="Close find my size"
-        onClick={onClose}
-        className="tws-fade-in absolute inset-0 cursor-default bg-[#120e0b]/55 backdrop-blur-[3px]"
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="tws-find-size-title"
-        className="tws-sheet-in relative z-10 max-h-[92svh] w-full overflow-y-auto border border-ink/18 bg-[#f3efe7] p-6 text-ink shadow-[0_30px_90px_rgba(12,10,8,0.34)] sm:max-w-md sm:p-8"
-      >
+    <Overlay open={open} onClose={onClose} label="Find my size" placement="sheet">
+      <div className="overflow-y-auto pb-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.3em] text-crimson">
@@ -96,26 +78,21 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
               Weight &amp; Height
             </h3>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="flex h-9 w-9 shrink-0 items-center justify-center border border-ink/25 text-ink transition-colors duration-200 hover:border-crimson hover:text-crimson"
-          >
-            <X className="h-4 w-4" strokeWidth={2} />
-          </button>
         </div>
 
         {result ? (
           <div className="mt-6">
-            <div className="border border-ink bg-ink px-6 py-7 text-center text-[#f7f4ed]">
-              <p className="text-[9px] font-bold uppercase tracking-[0.32em] text-cream/60">
+            <div className="border-y border-ink/25 px-6 py-7 text-center text-ink">
+              <p className="text-[9px] font-bold uppercase tracking-[0.32em] text-ink-soft">
                 Your recommended size
               </p>
-              <p className="mt-2 font-display text-[5.5rem] leading-none text-cream" aria-live="polite">
+              <p
+                className="mt-2 font-display text-[5.5rem] leading-none text-crimson"
+                aria-live="polite"
+              >
                 {result.size}
               </p>
-              <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-cream/55">
+              <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-ink-soft">
                 BMI {result.bmi} · {result.confidence === 'exact' ? 'Confident match' : 'Best match'}
               </p>
             </div>
@@ -126,11 +103,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
             </p>
 
             <div className="mt-6 flex flex-col gap-2.5">
-              <button
-                type="button"
-                onClick={applySize}
-                className="inline-flex h-14 min-h-12 w-full items-center justify-center gap-2.5 bg-ink px-6 text-[11px] font-bold uppercase tracking-[0.24em] text-[#f7f4ed] transition-colors duration-200 hover:bg-crimson"
-              >
+              <button type="button" onClick={applySize} className="tws-pill wide-action">
                 <Check className="h-4 w-4" strokeWidth={2.6} />
                 Select size {result.size}
               </button>
@@ -146,8 +119,8 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
         ) : (
           <form onSubmit={handleSubmit} className="mt-6" noValidate>
             <p className="text-[13px] leading-relaxed text-ink-soft">
-              Two numbers are all we need. We&apos;ll match you to the closest fit in this
-              garment&apos;s chart.
+              Two numbers are all we need. We&apos;ll match you to the closest fit in the house denim fit
+              ranges.
             </p>
 
             <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -159,7 +132,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
                   Weight (kg)
                 </label>
                 <input
-                  ref={weightRef}
+                  data-initial-focus
                   id="tws-find-weight"
                   type="number"
                   inputMode="decimal"
@@ -200,10 +173,7 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
               </p>
             )}
 
-            <button
-              type="submit"
-              className="mt-5 inline-flex h-14 min-h-12 w-full items-center justify-center gap-2.5 bg-ink px-6 text-[11px] font-bold uppercase tracking-[0.24em] text-[#f7f4ed] transition-colors duration-200 hover:bg-crimson"
-            >
+            <button type="submit" className="tws-pill wide-action mt-5">
               Calculate my size
               <ArrowRight className="h-4 w-4" strokeWidth={2.2} />
             </button>
@@ -214,6 +184,6 @@ export function FindSizeModal({ open, currentSize, onClose, onApply }: FindSizeM
           </form>
         )}
       </div>
-    </div>
+    </Overlay>
   );
 }

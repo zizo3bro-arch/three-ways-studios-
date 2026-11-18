@@ -1,554 +1,330 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Banknote, CheckCircle2, Lock, Tag } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { calculateShippingCost, createCodOrder, quoteCodOrder } from '../lib/api';
+import { createCodOrder, quoteCodOrder } from '../lib/api';
 import { EGYPTIAN_GOVERNORATES, formatEGP } from '../lib/format';
-import { ColourChip } from '../components/ui/ColourChip';
+import { refreshCatalog } from '../hooks/useCatalog';
 import type { QuoteResponse } from '../types/database';
 
-/* =========================================================
-   CHECKOUT — cash on delivery, exactly as the backend models it.
-   The quote is re-asked on every material change (items, email,
-   governorate, promo) and stock/price are synced back into the bag,
-   so what you see is what the courier collects.
-   ========================================================= */
-
-function normalisePhone(raw: string): string {
-  const digits = raw.replace(/[^\d]/g, '');
-  if (digits.startsWith('20') && digits.length === 12) return digits.slice(2);
-  return digits;
-}
-
-function isValidEgyptianPhone(raw: string): boolean {
-  const digits = normalisePhone(raw);
-  return /^01[0125][0-9]{8}$/.test(digits);
+type CheckedQuote = { key: string; quote: QuoteResponse | null; error: string | null };
+function mobileNumber(raw: string) {
+  return raw.replace(/[\s()-]/g, '').replace(/^(?:\+20|0020|20)(1\d{9})$/, '0$1');
 }
 
 export function CheckoutPage() {
   const { items, subtotal, clearCart, syncItemStock } = useCart();
   const navigate = useNavigate();
-
-  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [governorate, setGovernorate] = useState('Cairo');
-  const [city, setCity] = useState('');
-  const [address, setAddress] = useState('');
-  const [notes, setNotes] = useState('');
-  const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [paymentMethod, setPaymentMethod] = useState('COD');
-
-  const [quote, setQuote] = useState<QuoteResponse | null>(null);
-  const [quoting, setQuoting] = useState(false);
+  const [promo, setPromo] = useState('');
+  const [applied, setApplied] = useState('');
+  const [payment, setPayment] = useState<'COD'>('COD');
+  const [attempt, setAttempt] = useState(0);
+  const [checked, setChecked] = useState<CheckedQuote>();
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
+  const writing = useRef(false);
+  const [notice, setNotice] = useState('');
+  // Only quote inputs enter the key. Syncing a price or stock limit must not
+  // start a quote loop; stale responses must never enable the submit button.
+  const key = JSON.stringify({
+    items: items.map(({ variant_id, quantity }) => ({ variant_id, quantity })),
+    email: email.trim(),
+    promoCode: applied,
+  });
+  const empty = items.length === 0;
   useEffect(() => {
-    document.title = 'Checkout (Cash on Delivery) — THREE WAYS STUDIOS';
-  }, []);
-
-  useEffect(() => {
-    if (items.length === 0) {
-      setQuote(null);
-      return;
-    }
-
+    if (empty) return;
+    let current = true;
     const timer = window.setTimeout(async () => {
-      setQuoting(true);
-      const { quote: next } = await quoteCodOrder({
-        items: items.map((item) => ({
-          variant_id: item.variant_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-        })),
-        governorate,
-        email: email.trim(),
-        promoCode: appliedPromo || undefined,
-      });
-      if (next) {
-        setQuote(next);
-        if (next.items?.length) {
-          syncItemStock(
-            next.items.map((line) => ({
-              variant_id: line.variant_id,
-              available_stock: line.available_stock,
-              unit_price: line.unit_price,
-            }))
-          );
-        }
-      }
-      setQuoting(false);
-    }, 240);
-
-    return () => window.clearTimeout(timer);
-  }, [items, email, governorate, appliedPromo, syncItemStock]);
-
-  const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const effectiveSubtotal = quote ? quote.subtotal : subtotal;
-  const effectiveShipping =
-    quote?.shipping_cost !== undefined ? quote.shipping_cost : calculateShippingCost(effectiveSubtotal);
-  const effectiveDiscount = quote ? quote.discount_total : 0;
-  const effectiveTotal = Math.max(0, effectiveSubtotal - effectiveDiscount + effectiveShipping);
-
-  const stockIssues = useMemo(() => (quote && !quote.valid ? quote.stock_errors : []), [quote]);
-
-  if (items.length === 0) {
-    return (
-      <section className="mx-auto flex min-h-[80svh] w-full max-w-xl flex-col items-center justify-center px-4 py-24 text-center">
-        <p className="tws-eyebrow text-crimson">Checkout</p>
-        <h1 className="mt-4 font-display text-[clamp(2rem,6vw,3rem)] uppercase leading-[0.92] text-ink">
-          Your bag is empty
-        </h1>
-        <p className="mt-3 max-w-sm text-[13.5px] leading-relaxed text-ink-soft">
-          Add a piece from Drop 01 and the checkout will open with your delivery details.
-        </p>
-        <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
-          <Link to="/shop" className="tws-pill h-13">
-            Return to the shop
-            <ArrowLeft className="h-4 w-4 rotate-180" strokeWidth={2} />
-          </Link>
-          <Link to="/about#service" className="tws-pill tws-pill--outline h-13">
-            Delivery &amp; returns
-          </Link>
-        </div>
-      </section>
-    );
-  }
-
-  const validate = () => {
-    const errors: Record<string, string> = {};
-    if (fullName.trim().length < 3) errors.fullName = 'Enter the full name for the courier.';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) errors.email = 'A valid email is required for the confirmation.';
-    if (!isValidEgyptianPhone(phone)) errors.phone = 'Enter an Egyptian mobile number, e.g. 01012345678.';
-    if (city.trim().length < 2) errors.city = 'Which district or city?';
-    if (address.trim().length < 10) errors.address = 'Add street, building and apartment details.';
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handlePlaceOrder = async (event: React.FormEvent) => {
+      const result = await quoteCodOrder(JSON.parse(key));
+      if (!current) return;
+      setChecked({ key, ...result });
+      if (result.quote) syncItemStock(result.quote.items);
+    }, 220);
+    return () => {
+      current = false;
+      window.clearTimeout(timer);
+    };
+  }, [key, attempt, empty, syncItemStock]);
+  const quote = checked?.key === key ? checked.quote : null;
+  const quoteError = checked?.key === key && checked.error;
+  const allowed = Boolean(quote?.valid && !quote.promo_error && payment === 'COD');
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitError(null);
-
-    if (quote && !quote.valid) {
-      setSubmitError(stockIssues[0] ?? 'Resolve the stock notes in your bag, then place the order.');
+    if (writing.current || !allowed) return;
+    const data = new FormData(event.currentTarget);
+    const field = (name: string) => String(data.get(name) || '').trim();
+    const [fullName, phone, city, address] = [
+      field('full_name'),
+      mobileNumber(field('phone')),
+      field('city'),
+      field('address'),
+    ];
+    if (
+      fullName.length < 3 ||
+      city.length < 2 ||
+      address.length < 10 ||
+      !/^01[0125]\d{8}$/.test(phone)
+    ) {
+      setNotice('Enter a full name, Egyptian mobile number, city and complete street address.');
       return;
     }
-    if (!validate()) {
-      setSubmitError('Check the highlighted fields before confirming.');
+    if (data.get('payment_method') !== 'COD') {
+      setNotice('Select cash on delivery to confirm.');
       return;
     }
-
+    writing.current = true;
     setSubmitting(true);
+    setNotice('');
     const { order, error } = await createCodOrder({
       fullName,
       email,
       phone,
-      governorate,
       city,
       address,
-      notes,
-      paymentMethod,
-      items: items.map((item) => ({
-        variant_id: item.variant_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-      })),
-      promoCode: appliedPromo || undefined,
+      governorate: field('governorate'),
+      notes: field('notes'),
+      paymentMethod: payment,
+      items: items.map(({ variant_id, quantity }) => ({ variant_id, quantity })),
+      promoCode: applied,
     });
+    writing.current = false;
     setSubmitting(false);
-
-    if (error || !order) {
-      setSubmitError(error ?? 'The order could not be placed. Check the stock notes and try again.');
+    if (!order || error) {
+      setNotice(error || 'Order not confirmed. Your bag has been kept.');
       return;
     }
-
-    try {
-      window.sessionStorage.setItem(`tws_order_${order.order_reference}`, JSON.stringify(order));
-    } catch {
-      // storage unavailable — the reference still resolves through the backend
-    }
-
     clearCart();
-    navigate(`/order-confirmation/${order.order_reference}`);
-  };
-
+    void refreshCatalog();
+    // Pass only the lookup email; even a refresh or forged sessionStorage receipt
+    // cannot render a confirmation without an actual database lookup.
+    navigate(`/order-confirmation/${encodeURIComponent(order.order_reference)}`, {
+      replace: true,
+      state: { email: order.customer_email },
+    });
+  }
+  if (empty)
+    return (
+      <section className="empty-state">
+        <h1>Your bag is empty</h1>
+        <Link to="/shop" className="tws-pill">
+          Back to shop <ArrowRight />
+        </Link>
+      </section>
+    );
   return (
-    <div className="mx-auto w-full max-w-[1800px] px-4 pb-20 pt-[104px] sm:px-6 sm:pt-[124px] lg:px-10">
-      {/* header */}
-      <header className="border-b border-ink/16 pb-6">
-        <p className="tws-eyebrow flex items-center gap-3 text-crimson">
-          <Lock className="h-3.5 w-3.5" strokeWidth={2} />
-          Secure checkout — cash on delivery
-        </p>
-        <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-          <h1 className="font-display uppercase leading-[0.9] tracking-[0.002em] text-ink text-[clamp(2rem,5.6vw,3.4rem)]">
-            Complete
-            <span className="block">the order</span>
-          </h1>
-          <p className="max-w-xs text-[12px] leading-relaxed text-ink-soft sm:text-right">
-            Nothing is charged now. You pay {formatEGP(effectiveTotal)} to the courier when the
-            parcel is in your hands.
-          </p>
-        </div>
+    <section className="page-width checkout-page">
+      <header className="cart-heading">
+        <h1>Checkout</h1>
+        <Link className="text-action" to="/cart">
+          Edit cart <ArrowRight />
+        </Link>
       </header>
-
-      <form onSubmit={handlePlaceOrder} className="mt-8 grid gap-8 lg:grid-cols-12 lg:gap-10">
-        {/* ——— left: contact + delivery ——— */}
-        <div className="space-y-5 lg:col-span-7">
-          <section className="border-t border-ink/25 pt-6">
-            <div className="flex items-baseline gap-3">
-              <span className="font-display text-[1.1rem] text-crimson">01</span>
-              <h2 className="tws-eyebrow text-ink">Contact</h2>
-            </div>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label htmlFor="checkout-email" className="tws-label">
-                  Email *
-                </label>
-                <input
-                  id="checkout-email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  className="tws-field mt-1.5"
-                  aria-invalid={fieldErrors.email ? 'true' : 'false'}
-                />
-                {fieldErrors.email ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.email}</p>
-                ) : quote?.email_discount_applied ? (
-                  <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-crimson">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Verified — {quote.email_discount_percent}% email privilege (−{formatEGP(quote.email_discount_amount)})
-                  </p>
-                ) : (
-                  <p className="mt-1.5 text-[11px] text-ink-faint">
-                    A valid email unlocks the 10% house privilege on this order.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="checkout-name" className="tws-label">
-                  Full name *
-                </label>
-                <input
-                  id="checkout-name"
-                  type="text"
-                  required
-                  autoComplete="name"
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  placeholder="Recipient full name"
-                  className="tws-field mt-1.5"
-                  aria-invalid={fieldErrors.fullName ? 'true' : 'false'}
-                />
-                {fieldErrors.fullName ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.fullName}</p>
-                ) : null}
-              </div>
-
-              <div>
-                <label htmlFor="checkout-phone" className="tws-label">
-                  Mobile *
-                </label>
-                <input
-                  id="checkout-phone"
-                  type="tel"
-                  required
-                  inputMode="tel"
-                  autoComplete="tel"
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                  placeholder="01XXXXXXXXX"
-                  className="tws-field mt-1.5"
-                  aria-invalid={fieldErrors.phone ? 'true' : 'false'}
-                />
-                {fieldErrors.phone ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.phone}</p>
-                ) : null}
-              </div>
-            </div>
-          </section>
-
-          <section className="border-t border-ink/25 pt-6">
-            <div className="flex items-baseline gap-3">
-              <span className="font-display text-[1.1rem] text-crimson">02</span>
-              <h2 className="tws-eyebrow text-ink">Delivery address</h2>
-            </div>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="checkout-gov" className="tws-label">
-                  Governorate *
-                </label>
-                <select
-                  id="checkout-gov"
-                  required
-                  value={governorate}
-                  onChange={(event) => setGovernorate(event.target.value)}
-                  className="tws-field mt-1.5"
-                >
-                  {EGYPTIAN_GOVERNORATES.map((gov) => (
-                    <option key={gov} value={gov}>
-                      {gov}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="checkout-city" className="tws-label">
-                  City / district *
-                </label>
-                <input
-                  id="checkout-city"
-                  type="text"
-                  required
-                  autoComplete="address-level2"
-                  value={city}
-                  onChange={(event) => setCity(event.target.value)}
-                  placeholder="e.g. Zamalek, Maadi, New Cairo"
-                  className="tws-field mt-1.5"
-                  aria-invalid={fieldErrors.city ? 'true' : 'false'}
-                />
-                {fieldErrors.city ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.city}</p>
-                ) : null}
-              </div>
-
-              <div className="sm:col-span-2">
-                <label htmlFor="checkout-address" className="tws-label">
-                  Street, building, apartment *
-                </label>
-                <textarea
-                  id="checkout-address"
-                  required
-                  rows={3}
-                  autoComplete="street-address"
-                  value={address}
-                  onChange={(event) => setAddress(event.target.value)}
-                  placeholder="Street name, building number, floor, apartment and a landmark the courier will know"
-                  className="tws-field mt-1.5"
-                  aria-invalid={fieldErrors.address ? 'true' : 'false'}
-                />
-                {fieldErrors.address ? (
-                  <p className="mt-1.5 text-[11px] font-semibold text-crimson">{fieldErrors.address}</p>
-                ) : null}
-              </div>
-
-              <div className="sm:col-span-2">
-                <label htmlFor="checkout-notes" className="tws-label">
-                  Courier notes (optional)
-                </label>
-                <input
-                  id="checkout-notes"
-                  type="text"
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Preferred delivery window, gate code, or hem length"
-                  className="tws-field mt-1.5"
-                />
-              </div>
-            </div>
-          </section>
-
-          <section className="flex items-start gap-4 border-l-2 border-crimson bg-[rgba(165,18,27,0.06)] px-4 py-4">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center bg-crimson text-[#f7f4ed]">
-              <Banknote className="h-4 w-4" strokeWidth={1.9} />
-            </span>
-            <div>
-              <div className="flex items-baseline gap-3">
-                <span className="font-display text-[1.1rem] text-crimson">03</span>
-                <h2 className="tws-eyebrow text-ink">Payment method</h2>
-              </div>
-              <p className="mt-2 text-[13.5px] font-semibold text-ink">Cash on delivery</p>
-              <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-soft">
-                You pay the courier in cash when the parcel arrives — inspect the garment before you
-                pay. No card, wallet or advance transfer is required.
-              </p>
-              <div className="mt-3 flex flex-col gap-2" role="radiogroup" aria-label="Payment method">
-                <label
-                  className={`flex cursor-pointer items-center gap-3 rounded-sm border px-3 py-2.5 ${
-                    paymentMethod === 'COD'
-                      ? 'border-crimson bg-[rgba(165,18,27,0.06)]'
-                      : 'border-ink/20 bg-white/60'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="payment-method"
-                    value="COD"
-                    checked={paymentMethod === 'COD'}
-                    onChange={() => setPaymentMethod('COD')}
-                    className="h-4 w-4 accent-crimson"
-                  />
-                  <span className="flex-1">
-                    <span className="block text-[13px] font-semibold text-ink">Cash on delivery</span>
-                    <span className="block text-[11.5px] leading-snug text-ink-soft">
-                      Pay the courier in cash on arrival.
-                    </span>
-                  </span>
-                </label>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        {/* ——— right: summary ——— */}
-        <aside className="lg:col-span-5">
-          <div className="pt-6 lg:sticky lg:top-[116px] lg:border-t lg:border-ink/25">
-            <h2 className="tws-eyebrow border-b border-ink/12 pb-3 text-ink">
-              Your bag · {totalItems} {totalItems === 1 ? 'piece' : 'pieces'}
-            </h2>
-
-            <ul className="mt-3 max-h-[300px] space-y-3 overflow-y-auto pr-1">
-              {items.map((item) => (
-                <li key={item.variant_id} className="flex gap-3.5 border-b border-ink/8 pb-3.5 last:border-b-0">
-                  <Link
-                    to={`/product/${item.product_slug}`}
-                    className="flex h-[92px] w-[62px] shrink-0 items-end justify-center overflow-hidden bg-[rgba(23,19,15,0.05)]"
-                  >
-                    {item.product_image ? (
-                      <img src={item.product_image} alt={item.product_name} loading="lazy" className="h-full w-auto object-contain object-bottom" />
-                    ) : null}
-                  </Link>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12px] font-bold uppercase tracking-[0.06em] text-ink">
-                      {item.product_name}
-                    </p>
-                    <p className="mt-1 text-[11px] text-ink-soft">
-                      Size {item.size_name} · Qty {item.quantity}
-                    </p>
-                    <ColourChip label={item.color_name} className="mt-1" />
-                  </div>
-                  <span className="text-[12px] font-bold tabular-nums text-ink">
-                    {formatEGP(item.unit_price * item.quantity)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-
-            {/* promo */}
-            <div className="mt-4 border-t border-ink/12 pt-4">
-              <label htmlFor="promo-code" className="tws-label flex items-center gap-1.5">
-                <Tag className="h-3 w-3" strokeWidth={2} />
-                Promo code
-              </label>
-              <div className="mt-1.5 flex gap-2">
-                <input
-                  id="promo-code"
-                  type="text"
-                  value={promoInput}
-                  onChange={(event) => setPromoInput(event.target.value.toUpperCase())}
-                  placeholder="WELCOME10"
-                  className="tws-field h-11 flex-1 text-[12px] tracking-[0.12em]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setAppliedPromo(promoInput.trim().toUpperCase())}
-                  className="h-11 shrink-0 border border-ink/24 px-4 text-[10px] font-bold uppercase tracking-[0.16em] text-ink transition-colors duration-300 hover:border-crimson hover:text-crimson"
-                >
-                  Apply
-                </button>
-              </div>
-              {quote?.promo_error ? (
-                <p className="mt-1.5 text-[11px] font-semibold text-crimson">{quote.promo_error}</p>
-              ) : null}
-              {quote?.promo_code_applied ? (
-                <p className="mt-1.5 text-[11px] font-semibold text-crimson">
-                  Code {quote.promo_code_applied} applied (−{quote.promo_discount_percent}%).
-                </p>
-              ) : null}
-            </div>
-
-            {/* totals */}
-            <dl className="mt-4 space-y-2 border-t border-ink/12 pt-4 text-[12.5px]">
-              <div className="flex items-baseline justify-between">
-                <dt className="text-ink-soft">Subtotal</dt>
-                <dd className="font-semibold text-ink">{formatEGP(effectiveSubtotal)}</dd>
-              </div>
-              {quote?.email_discount_applied ? (
-                <div className="flex items-baseline justify-between text-crimson">
-                  <dt>Email privilege ({quote.email_discount_percent}%)</dt>
-                  <dd>−{formatEGP(quote.email_discount_amount)}</dd>
-                </div>
-              ) : null}
-              {quote && quote.promo_discount_amount > 0 ? (
-                <div className="flex items-baseline justify-between text-crimson">
-                  <dt>Promo {quote.promo_code_applied}</dt>
-                  <dd>−{formatEGP(quote.promo_discount_amount)}</dd>
-                </div>
-              ) : null}
-              {effectiveDiscount > 0 ? (
-                <div className="flex items-baseline justify-between text-ink-soft">
-                  <dt>Total discount</dt>
-                  <dd>−{formatEGP(effectiveDiscount)}</dd>
-                </div>
-              ) : null}
-              <div className="flex items-baseline justify-between">
-                <dt className="text-ink-soft">Delivery</dt>
-                <dd className="font-semibold text-ink">
-                  {effectiveShipping === 0 ? 'Free' : formatEGP(effectiveShipping)}
-                </dd>
-              </div>
-              <div className="flex items-baseline justify-between border-t border-ink/12 pt-3">
-                <dt className="tws-eyebrow text-ink">Due on delivery</dt>
-                <dd className="font-display text-[1.6rem] leading-none tracking-[0.01em] text-ink">
-                  {formatEGP(effectiveTotal)}
-                </dd>
-              </div>
-            </dl>
-
-            {quoting ? (
-              <p className="mt-2.5 text-[9px] font-bold uppercase tracking-[0.2em] text-ink-faint">
-                Verifying inventory &amp; discounts…
-              </p>
-            ) : null}
-
-            {stockIssues.length > 0 ? (
-              <div className="mt-4 border-l-2 border-crimson bg-[rgba(165,18,27,0.06)] px-3.5 py-3">
-                {stockIssues.map((message) => (
-                  <p key={message} className="flex items-start gap-2 text-[11.5px] leading-relaxed text-crimson-deep">
-                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    {message}
-                  </p>
+      <form onSubmit={submit} className="checkout-spread">
+        <fieldset disabled={submitting} className="checkout-fields">
+          <legend className="section-label">Delivery details</legend>
+          <div className="field-grid">
+            <label>
+              Full name
+              <input
+                name="full_name"
+                autoComplete="name"
+                required
+                minLength={3}
+                placeholder="Recipient’s full name"
+              />
+            </label>
+            <label>
+              Phone number
+              <input type="tel" name="phone" autoComplete="tel" required placeholder="01x xxxx xxxx" />
+            </label>
+            <label className="field-wide">
+              Email address
+              <input
+                type="email"
+                name="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                required
+                placeholder="you@example.com"
+              />
+            </label>
+            <label>
+              Governorate
+              <select name="governorate" defaultValue="Cairo" autoComplete="address-level1">
+                {EGYPTIAN_GOVERNORATES.map((g) => (
+                  <option key={g}>{g}</option>
                 ))}
-              </div>
-            ) : null}
-
-            {submitError ? (
-              <p role="alert" className="mt-4 border-l-2 border-crimson bg-[rgba(165,18,27,0.06)] px-3.5 py-3 text-[11.5px] leading-relaxed text-crimson-deep">
-                {submitError}
-              </p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={submitting || quoting || (quote !== null && !quote.valid)}
-              className="tws-pill tws-pill--crimson mt-5 h-14 w-full justify-center disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              <Lock className="h-3.5 w-3.5" strokeWidth={2} />
-              {submitting ? 'Confirming order…' : 'Place cash-on-delivery order'}
-            </button>
-
-            <Link
-              to="/shop"
-              className="mt-3 flex items-center justify-center gap-2 text-[9px] font-bold uppercase tracking-[0.2em] text-ink-faint transition-colors hover:text-crimson"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Keep shopping
-            </Link>
+              </select>
+            </label>
+            <label>
+              City / district
+              <input
+                name="city"
+                autoComplete="address-level2"
+                minLength={2}
+                required
+                placeholder="City or district"
+              />
+            </label>
+            <label className="field-wide">
+              Complete address
+              <textarea
+                name="address"
+                autoComplete="street-address"
+                rows={2}
+                required
+                minLength={10}
+                placeholder="Street, building, floor and apartment"
+              />
+            </label>
+            <label className="field-wide">
+              Courier notes (optional)
+              <input name="notes" placeholder="Delivery instructions" />
+            </label>
           </div>
-        </aside>
+          <fieldset className="payment-options">
+            <legend className="section-label">Payment method</legend>
+            <label className="cod-row">
+              <input
+                type="radio"
+                name="payment_method"
+                value="COD"
+                checked={payment === 'COD'}
+                onChange={() => setPayment('COD')}
+                required
+              />
+              <span>
+                Cash on delivery<small>Pay the courier in cash when your order arrives.</small>
+              </span>
+            </label>
+          </fieldset>
+        </fieldset>
+        <div className="checkout-summary">
+          <h2 className="section-label">Order summary</h2>
+          <ul>
+            {items.map((i) => (
+              <li key={i.variant_id}>
+                <Link to={`/product/${i.product_slug}`} aria-label={`View ${i.product_name}`}>
+                  {i.product_image && <img src={i.product_image} alt="" />}
+                </Link>
+                <div>
+                  <h3>{i.product_name}</h3>
+                  <small>
+                    Size: {i.size_name} · {i.color_name} · Qty: {i.quantity}
+                  </small>
+                </div>
+                <p>{formatEGP(i.unit_price * i.quantity)}</p>
+              </li>
+            ))}
+          </ul>
+          <label htmlFor="promo-code" className="option-label">
+            Promo code
+          </label>
+          <div className="promo-row">
+            <input
+              id="promo-code"
+              value={promo}
+              disabled={submitting}
+              onChange={(e) => setPromo(e.target.value)}
+              placeholder="Enter code"
+            />
+            <button
+              type="button"
+              disabled={submitting}
+              className="text-action"
+              onClick={() => setApplied(promo.trim().toUpperCase())}
+            >
+              Apply
+            </button>
+          </div>
+          {applied && (
+            <p className="form-note">
+              {quote?.promo_error || applied}{' '}
+              <button
+                type="button"
+                disabled={submitting}
+                className="text-action"
+                onClick={() => {
+                  setPromo('');
+                  setApplied('');
+                }}
+              >
+                Remove code
+              </button>
+            </p>
+          )}
+          <dl className="cart-totals">
+            <div>
+              <dt>Subtotal</dt>
+              <dd>{formatEGP(quote?.subtotal ?? subtotal)}</dd>
+            </div>
+            <div>
+              <dt>Shipping</dt>
+              <dd>
+                {quote
+                  ? quote.shipping_cost
+                    ? formatEGP(quote.shipping_cost)
+                    : 'Included'
+                  : 'Awaiting quote'}
+              </dd>
+            </div>
+            {quote?.email_discount_applied && (
+              <div>
+                <dt>Email discount ({quote.email_discount_percent}%)</dt>
+                <dd>−{formatEGP(quote.email_discount_amount)}</dd>
+              </div>
+            )}
+            {!!quote?.promo_discount_amount && (
+              <div>
+                <dt>Promo discount</dt>
+                <dd>−{formatEGP(quote.promo_discount_amount)}</dd>
+              </div>
+            )}
+            <div className="cart-total">
+              <dt>Total</dt>
+              <dd>{quote ? formatEGP(quote.final_total) : '—'}</dd>
+            </div>
+          </dl>
+          {quoteError ? (
+            <p role="alert" className="form-note">
+              Could not verify this bag: {quoteError}{' '}
+              <button
+                type="button"
+                className="text-action"
+                onClick={() => {
+                  setChecked(undefined);
+                  setAttempt((n) => n + 1);
+                }}
+              >
+                Retry
+              </button>
+            </p>
+          ) : !quote ? (
+            <p role="status" className="form-note">
+              Verifying inventory and total…
+            </p>
+          ) : (
+            !quote.valid && (
+              <p role="alert" className="form-note">
+                {quote.stock_errors.join(' ')}{' '}
+                <Link className="text-action" to="/cart">
+                  Edit cart
+                </Link>
+              </p>
+            )
+          )}
+          {notice && (
+            <p role="alert" className="form-note">
+              {notice}
+            </p>
+          )}
+          <button className="tws-pill wide-action" disabled={submitting || !allowed}>
+            {submitting ? 'Confirming…' : 'Confirm COD order'} <ArrowRight />
+          </button>
+        </div>
       </form>
-    </div>
+    </section>
   );
 }

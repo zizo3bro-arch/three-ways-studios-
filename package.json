@@ -7,15 +7,15 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b --force",
+    "test": "node --test tests/commerce.test.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource-variable/newsreader": "^5.3.0",
     "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
     "@fontsource/alex-brush": "^5.3.0",
-    "@fontsource/allison": "^5.3.0",
     "@fontsource/anton": "^5.3.0",
-    "@fontsource/hurricane": "^5.3.0",
     "@supabase/supabase-js": "^2.49.1",
     "framer-motion": "^12.4.7",
     "lucide-react": "^0.475.0",
@@ -24,6 +24,8 @@
     "react-router-dom": "^7.2.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.0.9",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",

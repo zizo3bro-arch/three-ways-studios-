@@ -1,3 +1,5 @@
+-- For NEW installations only. Apply migrations/006_admin_hardening_safe.sql after this file.
+-- Existing installations: use migrations/007_cod_checkout.sql, not this setup script.
 -- THREE WAYS STUDIOS — 001_schema.sql
 -- Complete relational PostgreSQL schema for women's streetwear pants e-commerce
 
@@ -419,6 +421,14 @@ CREATE POLICY "Admins delete newsletter subscribers"
 -- THREE WAYS STUDIOS — 003_functions_and_storage.sql
 -- Authoritative backend RPCs (10% email discount validation, promo codes, atomic COD orders) & Storage
 
+-- Historical receipts retain their original totals. This field records delivery on new orders.
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (shipping_cost >= 0);
+
+CREATE OR REPLACE FUNCTION public.studio_shipping_cost(p_subtotal NUMERIC)
+RETURNS NUMERIC LANGUAGE sql IMMUTABLE SET search_path = public, pg_temp AS $$
+  SELECT CASE WHEN p_subtotal <= 0 OR p_subtotal >= 3500 THEN 0 ELSE 75 END::NUMERIC;
+$$;
+
 -- 1. Quote COD Order (authoritative server-side price, stock & discount preview)
 CREATE OR REPLACE FUNCTION public.quote_cod_order(
   p_items JSONB,
@@ -428,7 +438,7 @@ CREATE OR REPLACE FUNCTION public.quote_cod_order(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_item JSONB;
@@ -441,15 +451,16 @@ DECLARE
   v_valid BOOLEAN := TRUE;
   v_clean_email TEXT;
   v_email_valid BOOLEAN := FALSE;
-  v_email_rule RECORD;
+  v_email_rule public.discount_rules%ROWTYPE;
   v_email_discount_percent NUMERIC(5, 2) := 0;
   v_email_discount_amount NUMERIC(10, 2) := 0;
-  v_promo_rule RECORD;
+  v_promo_rule public.discount_rules%ROWTYPE;
   v_clean_promo TEXT;
   v_promo_discount_percent NUMERIC(5, 2) := 0;
   v_promo_discount_amount NUMERIC(10, 2) := 0;
   v_promo_error TEXT := NULL;
   v_discount_total NUMERIC(10, 2) := 0;
+  v_shipping NUMERIC(10, 2) := 0;
   v_final_total NUMERIC(10, 2) := 0;
   v_primary_image TEXT;
 BEGIN
@@ -520,7 +531,7 @@ BEGIN
     SELECT url INTO v_primary_image
     FROM public.product_images
     WHERE product_id = v_variant.product_id
-    ORDER BY is_primary DESC, display_order ASC
+    ORDER BY (color_name IS NOT DISTINCT FROM v_variant.color_name) DESC, is_primary DESC, display_order ASC
     LIMIT 1;
 
     v_line_total := ROUND(v_variant.price * v_qty, 2);
@@ -590,13 +601,15 @@ BEGIN
   END IF;
 
   v_discount_total := LEAST(v_subtotal, ROUND(v_email_discount_amount + v_promo_discount_amount, 2));
-  v_final_total := GREATEST(0, ROUND(v_subtotal - v_discount_total, 2));
+  v_shipping := public.studio_shipping_cost(v_subtotal);
+  v_final_total := GREATEST(0, ROUND(v_subtotal - v_discount_total + v_shipping, 2));
 
   RETURN jsonb_build_object(
     'valid', v_valid,
     'stock_errors', v_stock_errors,
     'items', v_items_out,
     'subtotal', v_subtotal,
+    'shipping_cost', v_shipping,
     'email_discount_applied', v_email_discount_amount > 0,
     'email_discount_percent', v_email_discount_percent,
     'email_discount_amount', v_email_discount_amount,
@@ -625,7 +638,7 @@ CREATE OR REPLACE FUNCTION public.create_cod_order(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_clean_email TEXT;
@@ -641,11 +654,12 @@ DECLARE
   v_qty INTEGER;
   v_subtotal NUMERIC(10, 2) := 0;
   v_line_total NUMERIC(10, 2);
-  v_email_rule RECORD;
+  v_email_rule public.discount_rules%ROWTYPE;
   v_email_discount_amount NUMERIC(10, 2) := 0;
-  v_promo_rule RECORD;
+  v_promo_rule public.discount_rules%ROWTYPE;
   v_promo_discount_amount NUMERIC(10, 2) := 0;
   v_discount_total NUMERIC(10, 2) := 0;
+  v_shipping NUMERIC(10, 2) := 0;
   v_final_total NUMERIC(10, 2) := 0;
   v_customer_id UUID;
   v_order_id UUID;
@@ -754,7 +768,8 @@ BEGIN
   END IF;
 
   v_discount_total := LEAST(v_subtotal, ROUND(v_email_discount_amount + v_promo_discount_amount, 2));
-  v_final_total := GREATEST(0, ROUND(v_subtotal - v_discount_total, 2));
+  v_shipping := public.studio_shipping_cost(v_subtotal);
+  v_final_total := GREATEST(0, ROUND(v_subtotal - v_discount_total + v_shipping, 2));
 
   -- Upsert customer by email
   INSERT INTO public.customers (full_name, email, phone, governorate, city, address)
@@ -769,7 +784,7 @@ BEGIN
   RETURNING id INTO v_customer_id;
 
   -- Generate unique order reference: TWS-2026-XXXXXX
-  v_order_ref := 'TWS-2026-' || UPPER(SUBSTR(ENCODE(gen_random_bytes(4), 'hex'), 1, 6));
+  v_order_ref := 'TWS-' || TO_CHAR(NOW(), 'YYYY') || '-' || UPPER(LEFT(REPLACE(gen_random_uuid()::TEXT, '-', ''), 12));
 
   INSERT INTO public.orders (
     order_reference,
@@ -783,6 +798,7 @@ BEGIN
     order_notes,
     payment_method,
     subtotal,
+    shipping_cost,
     email_discount_amount,
     promo_discount_amount,
     discount_total,
@@ -802,6 +818,7 @@ BEGIN
     v_clean_notes,
     'COD',
     v_subtotal,
+    v_shipping,
     v_email_discount_amount,
     v_promo_discount_amount,
     v_discount_total,
@@ -833,7 +850,7 @@ BEGIN
     SELECT url INTO v_primary_image
     FROM public.product_images
     WHERE product_id = v_variant.product_id
-    ORDER BY is_primary DESC, display_order ASC
+    ORDER BY (color_name IS NOT DISTINCT FROM v_variant.color_name) DESC, is_primary DESC, display_order ASC
     LIMIT 1;
 
     v_line_total := ROUND(v_variant.price * v_qty, 2);
@@ -911,6 +928,7 @@ BEGIN
     'order_notes', v_clean_notes,
     'payment_method', 'COD',
     'subtotal', v_subtotal,
+    'shipping_cost', v_shipping,
     'email_discount_amount', v_email_discount_amount,
     'promo_discount_amount', v_promo_discount_amount,
     'discount_total', v_discount_total,
@@ -931,7 +949,7 @@ CREATE OR REPLACE FUNCTION public.get_order_confirmation(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_order RECORD;
@@ -974,6 +992,7 @@ BEGIN
     'order_notes', v_order.order_notes,
     'payment_method', v_order.payment_method,
     'subtotal', v_order.subtotal,
+    'shipping_cost', v_order.shipping_cost,
     'email_discount_amount', v_order.email_discount_amount,
     'promo_discount_amount', v_order.promo_discount_amount,
     'discount_total', v_order.discount_total,
@@ -985,6 +1004,23 @@ BEGIN
   );
 END;
 $$;
+
+-- Explicit payment selection for new clients. The original 9-argument function
+-- remains callable by older storefronts and still enforces COD in the table.
+CREATE OR REPLACE FUNCTION public.create_cod_order(
+  p_full_name TEXT, p_email TEXT, p_phone TEXT, p_governorate TEXT, p_city TEXT,
+  p_address TEXT, p_notes TEXT, p_items JSONB, p_promo_code TEXT, p_payment_method TEXT
+) RETURNS JSONB LANGUAGE plpgsql SECURITY INVOKER SET search_path = public, pg_temp AS $$
+BEGIN
+  IF p_payment_method IS DISTINCT FROM 'COD' THEN
+    RAISE EXCEPTION 'Cash on delivery is the only supported payment method.';
+  END IF;
+  RETURN public.create_cod_order(p_full_name, p_email, p_phone, p_governorate, p_city,
+    p_address, p_notes, p_items, p_promo_code);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.create_cod_order(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB,TEXT,TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.create_cod_order(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB,TEXT,TEXT) TO anon, authenticated, service_role;
 
 -- 4. Admin Order Status Update with automatic stock restore on cancellation
 CREATE OR REPLACE FUNCTION public.admin_update_order_status(

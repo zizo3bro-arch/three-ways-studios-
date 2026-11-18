@@ -1,0 +1,118 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { studioDb, anon, rpc } from './studio-db.mjs';
+
+test('upgrade: COD transactions, delivery, discounts, receipt privacy and staff policies', async (t) => {
+  const db = await studioDb({ upgrade: true });
+  t.after(() => db.close());
+  const variant = (
+    await db.query(
+      `select v.id from product_variants v join products p on p.id=v.product_id where slug='tws-signature-tee' and size_name='L'`
+    )
+  ).rows[0].id;
+  const quote = {
+    p_items: [{ variant_id: variant, quantity: 1 }],
+    p_email: 'buyer@example.test',
+    p_promo_code: null,
+  };
+  const order = {
+    ...quote,
+    p_full_name: 'Fixture Buyer',
+    p_phone: '01012345678',
+    p_governorate: 'Cairo',
+    p_city: 'Cairo',
+    p_address: 'Test fixture address',
+    p_notes: '',
+    p_payment_method: 'COD',
+  };
+  const call = (name, args) => anon(db, (tx) => rpc(tx, name, args));
+  const q = await call('quote_cod_order', quote);
+  assert.equal(q.valid, true);
+  assert.equal(q.shipping_cost, 75);
+  assert.equal(q.email_discount_amount, 245);
+  assert.equal(q.final_total, 2280);
+  const free = await call('quote_cod_order', {
+    ...quote,
+    p_items: [{ variant_id: variant, quantity: 2 }],
+  });
+  assert.equal(free.shipping_cost, 0);
+  await assert.rejects(call('create_cod_order', { ...order, p_payment_method: 'unsupported' }));
+  await assert.rejects(
+    call('create_cod_order', { ...order, p_items: [{ variant_id: variant, quantity: 999 }] })
+  );
+  assert.equal((await db.query('select count(*) as n from orders')).rows[0].n, 0);
+  const saved = await call('create_cod_order', order);
+  assert.equal(saved.total_amount, q.final_total);
+  const row = (await db.query('select * from orders where id=$1', [saved.order_id])).rows[0];
+  assert.equal(row.payment_method, 'COD');
+  assert.equal(Number(row.total_amount), q.final_total);
+  assert.equal(
+    (await db.query('select stock_quantity from product_variants where id=$1', [variant])).rows[0]
+      .stock_quantity,
+    7
+  );
+  assert.equal(
+    await call('get_order_confirmation', {
+      p_order_reference: saved.order_reference,
+      p_email: 'other@example.test',
+    }),
+    null
+  );
+  const receipt = await call('get_order_confirmation', {
+    p_order_reference: saved.order_reference,
+    p_email: order.p_email,
+  });
+  assert.equal(receipt.total_amount, q.final_total);
+  assert.equal(receipt.shipping_cost, 75);
+  const { p_payment_method: unused, ...legacy } = order;
+  assert.equal((await call('create_cod_order', legacy)).payment_method, 'COD');
+  await anon(db, (tx) =>
+    tx.query('insert into newsletter_subscribers(email) values($1)', ['news@example.test'])
+  );
+  await assert.rejects(
+    anon(db, (tx) =>
+      tx.query('insert into newsletter_subscribers(email) values($1)', ['news@example.test'])
+    ),
+    (e) => e.code === '23505'
+  );
+  assert.equal((await db.query('select count(*) n from newsletter_subscribers')).rows[0].n, 1);
+  await anon(db, async (tx) => {
+    for (const table of ['orders', 'customers', 'order_items', 'admin_users', 'newsletter_subscribers'])
+      assert.deepEqual((await tx.query(`select * from ${table}`)).rows, []);
+  });
+  const staff = crypto.randomUUID();
+  await db.query('insert into auth.users(id,email) values($1,$2)', [staff, 'staff@example.test']);
+  await db.query('insert into admin_users(id,email) values($1,$2)', [staff, 'staff@example.test']);
+  for (const [uid, allowed] of [
+    [crypto.randomUUID(), false],
+    [staff, true],
+  ])
+    await db.transaction(async (tx) => {
+      await tx.exec('set local role authenticated');
+      await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [uid]);
+      assert.equal((await tx.query('select public.is_admin() ok')).rows[0].ok, allowed);
+      assert.equal((await tx.query('select id from orders')).rows.length, allowed ? 2 : 0);
+      for (const [sql, args] of [
+        [
+          'update products set description=description where slug=$1 returning id',
+          ['tws-signature-tee'],
+        ],
+        [
+          'update product_variants set stock_quantity=stock_quantity where id=$1 returning id',
+          [variant],
+        ],
+        [
+          'update site_settings set newsletter_text=newsletter_text where id=$1 returning id',
+          ['default'],
+        ],
+        ['update orders set order_notes=order_notes where id=$1 returning id', [saved.order_id]],
+      ])
+        assert.equal((await tx.query(sql, args)).rows.length, allowed ? 1 : 0);
+      if (allowed) await tx.query("select admin_update_order_status($1,'cancelled')", [saved.order_id]);
+    });
+  assert.equal(
+    (await db.query('select stock_quantity from product_variants where id=$1', [variant])).rows[0]
+      .stock_quantity,
+    7
+  );
+});

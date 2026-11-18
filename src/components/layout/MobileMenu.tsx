@@ -3,7 +3,7 @@ import { ArrowRight, Search, ShoppingBag, User } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useUI } from '../../context/UIContext';
 import { useSiteSettings } from '../../context/SiteSettingsContext';
-import { buildNavLinks, NAV_ITEMS } from '../../data/navigation';
+import { buildNavLinks } from '../../data/navigation';
 import { Overlay } from '../ui/Overlay';
 
 /* =========================================================
@@ -11,24 +11,11 @@ import { Overlay } from '../ui/Overlay';
    bar, set large on the paper. No administrative entry point.
    ========================================================= */
 
-const EDITORIAL = [
-  { label: 'About', to: '/about' },
-  { label: 'Journal', to: '/journal' },
-  { label: 'Collections', to: '/collections' },
-];
-
 export function MobileMenu() {
   const { overlay, closeOverlay, openOverlay } = useUI();
   const { itemCount, openDrawer } = useCart();
   const { settings } = useSiteSettings();
-  const links = buildNavLinks(settings.nav_links);
-  const base = links.length > 0 ? links : NAV_ITEMS;
-
-  // merge configured destinations with the editorial pages, de-duplicated
-  const items = [
-    ...base.map((link) => ({ label: link.label, to: link.to })),
-    ...EDITORIAL.filter((entry) => !base.some((link) => link.to === entry.to)),
-  ];
+  const items = buildNavLinks(settings.nav_links);
   const open = overlay === 'menu';
 
   return (

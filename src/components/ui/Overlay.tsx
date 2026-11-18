@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useEffect, useRef, type ReactNode } from 'react';
@@ -9,7 +10,7 @@ import { useBodyScrollLock, useEscapeKey } from '../../lib/scrollLock';
    backdrop, escape, tab trap, focus restore, ref-counted scroll lock.
    ========================================================= */
 
-type Placement = 'right' | 'sheet' | 'full';
+type Placement = 'right' | 'sheet' | 'full' | 'top';
 
 interface OverlayProps {
   open: boolean;
@@ -25,6 +26,7 @@ const PANEL_VARIANTS: Record<Placement, typeof overlayPanelRight> = {
   right: overlayPanelRight,
   sheet: overlaySheet,
   full: overlaySheet,
+  top: overlaySheet,
 };
 
 const FOCUSABLE =
@@ -48,7 +50,9 @@ export function Overlay({
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const timer = window.setTimeout(() => {
-      const first = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+      const first =
+        panelRef.current?.querySelector<HTMLElement>('[data-initial-focus]') ??
+        panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
       (first ?? panelRef.current)?.focus();
     }, 90);
 
@@ -79,14 +83,23 @@ export function Overlay({
       ? 'justify-end'
       : placement === 'sheet'
         ? 'items-end justify-center'
-        : 'items-center justify-center';
+        : placement === 'top'
+          ? 'items-start justify-center'
+          : 'items-center justify-center';
 
-  return (
+  if (typeof document === 'undefined') return null;
+  return createPortal(
     <AnimatePresence>
       {open ? (
-        <div className={`fixed inset-0 z-[70] flex ${alignment}`} role="dialog" aria-modal="true" aria-label={label}>
+        <div
+          className={`fixed inset-0 z-[70] flex ${alignment}`}
+          role="dialog"
+          aria-modal="true"
+          aria-label={label}
+        >
           <motion.button
             type="button"
+            tabIndex={-1}
             aria-label={`Close ${label.toLowerCase()}`}
             onClick={onClose}
             variants={overlayBackdrop}
@@ -105,10 +118,17 @@ export function Overlay({
             exit="hidden"
             onKeyDown={trapFocus}
             className={[
-              'relative z-10 flex max-h-full flex-col overflow-hidden border-ink/16 bg-[#f3efe7] text-ink outline-none shadow-[0_30px_90px_rgba(12,10,8,0.38)]',
-              placement === 'right' ? 'h-full w-full max-w-[452px] border-l px-5 py-4 sm:px-7 sm:py-6' : '',
-              placement === 'sheet' ? 'w-full max-w-3xl border-x border-t px-5 pb-6 pt-4 sm:px-8 sm:pb-9 sm:pt-5' : '',
-              placement === 'full' ? 'h-[100svh] w-full max-w-[1180px] px-5 py-4 sm:h-auto sm:max-h-[88svh] sm:border sm:border-ink/18 sm:px-7 sm:py-6' : '',
+              'relative z-10 flex max-h-full flex-col overflow-hidden border-ink/16 paper-surface text-ink outline-none ',
+              placement === 'right'
+                ? 'h-full w-full max-w-[452px] border-l px-5 py-4 sm:px-7 sm:py-6'
+                : '',
+              placement === 'sheet'
+                ? 'w-full max-w-3xl border-x border-t px-5 pb-6 pt-4 sm:px-8 sm:pb-9 sm:pt-5'
+                : '',
+              placement === 'top' ? 'w-full border-b p-4 sm:p-6' : '',
+              placement === 'full'
+                ? 'h-[100svh] w-full max-w-[1180px] px-5 py-4 sm:h-auto sm:max-h-[88svh] sm:border sm:border-ink/18 sm:px-7 sm:py-6'
+                : '',
               panelClassName,
             ].join(' ')}
           >
@@ -119,7 +139,7 @@ export function Overlay({
                   type="button"
                   onClick={onClose}
                   aria-label={`Close ${label.toLowerCase()}`}
-                  className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center border border-ink/28 text-ink transition-colors duration-300 hover:border-crimson hover:text-crimson"
+                  className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center text-crimson transition-colors duration-300 hover:border-crimson hover:text-crimson"
                 >
                   <X className="h-4 w-4" strokeWidth={2} />
                 </button>
@@ -129,6 +149,7 @@ export function Overlay({
           </motion.div>
         </div>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

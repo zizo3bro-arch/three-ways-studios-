@@ -1,50 +1,68 @@
-import { useEffect, useState } from 'react';
-import { DEMO_PRODUCTS } from '../data/demoProducts';
-import { fetchPublishedProducts } from '../lib/api';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { fetchPublishedProducts, fetchProductBySlug } from '../lib/api';
 import type { Product } from '../types/database';
 
-/* =========================================================
-   useCatalog — real product data with a sane offline path.
-   Supabase rows win when configured; the studio-shot demo
-   records are the fallback so the site is never empty.
-   Module-level cache = one network round-trip per page load.
-   ========================================================= */
-
-let cache: Product[] | null = null;
-let inflight: Promise<Product[]> | null = null;
-
+// One shared store. A failed or empty response never substitutes a sellable sample SKU.
+type State = { products: Product[]; loading: boolean; error: string | null };
+let state: State = { products: [], loading: true, error: null };
+let pending: Promise<void> | undefined;
+let lastFetch = 0;
+const listeners = new Set<() => void>();
+const listen = (fn: () => void) => {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+};
+const snapshot = () => state;
+function publish(next: State) {
+  state = next;
+  listeners.forEach((fn) => fn());
+}
+export function refreshCatalog() {
+  if (pending) return pending;
+  publish({ ...state, loading: true, error: null });
+  pending = fetchPublishedProducts()
+    .then((result) => {
+      lastFetch = Date.now();
+      publish({ ...result, loading: false });
+    })
+    .finally(() => {
+      pending = undefined;
+    });
+  return pending;
+}
 export function useCatalog() {
-  const [products, setProducts] = useState<Product[]>(cache ?? (DEMO_PRODUCTS as Product[]));
-  const [loading, setLoading] = useState(cache === null);
-
+  const data = useSyncExternalStore(listen, snapshot, snapshot);
   useEffect(() => {
-    if (cache) {
-      setProducts(cache);
-      setLoading(false);
-      return;
-    }
-
-    let alive = true;
-
-    const load = async () => {
-      if (!inflight) {
-        inflight = fetchPublishedProducts().then(({ products: rows }) => {
-          cache = rows;
-          return rows;
-        });
-      }
-      const rows = await inflight;
-      if (alive) {
-        setProducts(rows);
-        setLoading(false);
-      }
-    };
-
-    void load();
-    return () => {
-      alive = false;
-    };
+    if (Date.now() - lastFetch > 60_000) void refreshCatalog();
   }, []);
+  return { ...data, retry: refreshCatalog };
+}
 
-  return { products, loading };
+export function useProduct(slug = '') {
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<{
+    slug: string;
+    product: Product | null;
+    error: string | null;
+  }>();
+  useEffect(() => {
+    const abort = new AbortController();
+    if (slug)
+      void fetchProductBySlug(slug, abort.signal).then((response) => {
+        if (!abort.signal.aborted) setResult({ slug, ...response });
+      });
+    return () => abort.abort();
+  }, [slug, attempt]);
+  const match = result?.slug === slug ? result : null;
+  return {
+    product: match?.product,
+    loading: !match,
+    error: match?.error,
+    retry: () => {
+      setResult(undefined);
+      setAttempt((n) => n + 1);
+    },
+  };
 }

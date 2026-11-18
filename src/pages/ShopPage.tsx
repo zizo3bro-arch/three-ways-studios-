@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { PageIntro } from '../components/layout/PageIntro';
-import { ProductPlate } from '../components/shop/ProductPlate';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { CampaignPreview, ProductPlate } from '../components/shop/ProductPlate';
 import { useCatalog } from '../hooks/useCatalog';
 
 /* =========================================================
@@ -27,7 +28,7 @@ const SORTS: Array<{ id: Sort; label: string }> = [
 ];
 
 export function ShopPage() {
-  const { products, loading } = useCatalog();
+  const { products, loading, error, retry } = useCatalog();
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<Sort>('curated');
 
@@ -56,13 +57,12 @@ export function ShopPage() {
     <>
       <PageIntro
         eyebrow="The shop — Drop 01, 2026"
-        sprayText="SHOP"
         title="All pieces"
         meta={`${products.length} pieces · ${inStockCount} in stock`}
         description={
           <p>
-            Two silhouettes, cut once. Cash on delivery across Egypt, dispatched from the Cairo
-            atelier in 1–2 working days.
+            The current collection. Cash on delivery across Egypt, dispatched from the Cairo atelier in
+            1–2 working days.
           </p>
         }
         actions={
@@ -79,64 +79,91 @@ export function ShopPage() {
 
       <section aria-label="Product catalogue" className="pb-16 sm:pb-20">
         <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-y border-ink/16 py-4">
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2" role="group" aria-label="Filter pieces">
-              {FILTERS.map((option) => {
-                const active = option.id === filter;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setFilter(option.id)}
-                    className={[
-                      'text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200',
-                      active
-                        ? 'text-crimson underline decoration-crimson decoration-1 underline-offset-[6px]'
-                        : 'text-ink-faint hover:text-ink',
-                    ].join(' ')}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <label htmlFor="shop-sort" className="tws-eyebrow text-ink-faint">
-                Sort
-              </label>
-              <select
-                id="shop-sort"
-                value={sort}
-                onChange={(event) => setSort(event.target.value as Sort)}
-                className="h-9 border-b border-ink/30 bg-transparent pr-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink outline-none transition-colors focus:border-crimson"
-              >
-                {SORTS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {visible.length === 0 ? (
-            <div className="mt-14 text-center">
-              <p className="font-display text-[1.6rem] uppercase text-ink">
-                {loading ? 'Opening the rail…' : 'Nothing in this filter'}
-              </p>
-              <button type="button" onClick={() => setFilter('all')} className="tws-pill mt-6 h-11">
-                Show all pieces
-                <ArrowRight className="h-4 w-4" strokeWidth={2} />
-              </button>
-            </div>
+          {!isSupabaseConfigured ? (
+            <CampaignPreview />
           ) : (
-            <div className="mt-9 grid grid-cols-2 gap-x-4 gap-y-9 sm:gap-x-6 lg:grid-cols-4 lg:gap-x-6">
-              {visible.map((product, index) => (
-                <ProductPlate key={product.id} product={product} index={index} />
-              ))}
-            </div>
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-4 border-y border-ink/16 py-4">
+                <div
+                  className="flex flex-wrap items-center gap-x-5 gap-y-2"
+                  role="group"
+                  aria-label="Filter pieces"
+                >
+                  {FILTERS.map((option) => {
+                    const active = option.id === filter;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setFilter(option.id)}
+                        className={[
+                          'text-[10px] font-bold uppercase tracking-[0.2em] transition-colors duration-200',
+                          active
+                            ? 'text-crimson underline decoration-crimson decoration-1 underline-offset-[6px]'
+                            : 'text-ink-faint hover:text-ink',
+                        ].join(' ')}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2.5">
+                  <label htmlFor="shop-sort" className="tws-eyebrow text-ink-faint">
+                    Sort
+                  </label>
+                  <select
+                    id="shop-sort"
+                    value={sort}
+                    onChange={(event) => setSort(event.target.value as Sort)}
+                    className="h-9 border-b border-ink/30 bg-transparent pr-1 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-ink outline-none transition-colors focus:border-crimson"
+                  >
+                    {SORTS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {error ? (
+                <p role="alert" className="catalog-notice">
+                  {error}{' '}
+                  <button className="text-action" onClick={retry}>
+                    Retry
+                  </button>
+                </p>
+              ) : visible.length === 0 ? (
+                <div className="mt-14 text-center">
+                  <p className="font-display text-[1.6rem] uppercase text-ink">
+                    {loading
+                      ? 'Opening the collection…'
+                      : !products.length
+                        ? 'No pieces published yet.'
+                        : 'Nothing in this filter'}
+                  </p>
+                  {products.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFilter('all')}
+                      className="tws-pill mt-6 h-11"
+                    >
+                      Show all pieces
+                      <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-9 grid grid-cols-2 gap-x-4 gap-y-9 sm:gap-x-6 lg:grid-cols-4 lg:gap-x-6">
+                  {visible.map((product, index) => (
+                    <ProductPlate key={product.id} product={product} index={index} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </section>

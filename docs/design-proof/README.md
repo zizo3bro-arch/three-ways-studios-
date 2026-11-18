@@ -1,48 +1,25 @@
-# Hero — design proof
+# Reference comparison and verification · 18 November 2026
 
-`hero-390 / 768 / 1024 / 1440 / 1920.jpg` are **renders of the hero's layout
-model, not browser screenshots.** No browser was available in the build
-environment (no Chrome/WebKit binary, and the sandbox has no package index to
-install one), so these images were produced with Skia (`@napi-rs/canvas`) using
-the *real* self-hosted webfonts — Anton, Alex Brush, Plus Jakarta Sans — and the
-*real* `paper-tile.png`.
+The three supplied 852 × 1846 images specify the homepage, cart and signature tee page. Browser and phone furniture (time, signal, battery, home bar) are not webpage content. These renders are actual Chromium screenshots of the application, not layout illustrations. The product records in these screenshots belong to the **isolated test database** and use photography isolated from the supplied references; they are not evidence of the production assortment.
 
-What that makes them good for, and what it does not:
+| Reference | Differences found in the previous implementation | Implemented / compared |
+| --- | --- | --- |
+| Home | Two-line hard-edged mobile headline, font imitation of the signature, dark buttons, two boxed plates, brand/campaign/journal chapters, newsletter name and invented reward, oversized footer | Single-line live paint at every width, traced white signature, supplied emblem, crimson pill and corner labels. Four aligned, unframed photos and centered captions; email only and compact social/legal row. |
+| Product | Single replaced image with arrow clicks, lookbook shot added to unrelated one-image products, fixed swatches, square size controls, no fetched measurements | Paper gallery with native swiping and independently operable thumbnails/arrows; exact image ordering and chart rows from the database. Split desktop and stacked mobile, selected crimson sizes, quantity capsule, full-width CTA and three ruled disclosures. |
+| Cart | Boxed images, progress meter and promotional copy; only a drawer | Shared full-page cart and drawer; aligned thumbnails, variant details, quantity/remove, totals, filled checkout and outlined continue. |
 
-| Faithful | Not faithful |
-| --- | --- |
-| Anton / Alex Brush glyph shapes and advance widths | Font hinting, subpixel AA |
-| The exact scale formula (`(100vw − gutter) / 4.254` desktop, `/2.194` mobile) | Tailwind cascade edge cases |
-| `scaleY(1.5)` desktop / `1.24` mobile paint stretch | CSS `mix-blend-mode: multiply` (approximated in the mock) |
-| Per-band hero heights and furniture baselines | Browser scrollbar width, iOS `svh` behaviour |
-| Paper tile and vignette | Hover/focus states, motion |
+[Mobile home](home-mobile.webp) · [Desktop home](home-desktop.webp) · [Mobile product](product-mobile.webp) · [Mobile cart](cart-mobile.webp) · [Desktop product](product-desktop.webp) · [Mobile checkout](checkout-mobile.webp)
 
-The mock geometry (`/tmp/pkgs/hero-mock.mjs` at build time) mirrors `index.css`
-line for line: header height, the `clamp()` hero bands at each breakpoint, the
-stage padding, and the measured furniture block height that reserves space for
-the tagline + rule + scroll cue. Where it departs from a browser it is called
-out above.
+## Functional verification
 
-Verified against these images at 5 viewports: the paint fills the gutter
-edge-to-edge without clipping, the white lockup crosses it and stays within
-88% of the content width, no text overflows its container, and the furniture
-never collides with the paint.
+- `npm run typecheck`, `npm run build`, `npm test`, `npm run test:e2e`. The old SSR marker script did not fail its exit code and did not exercise gestures or persistence. The replacement tests do.
+- Chromium, 320, 360, 375, 390, 430, 724, 768, 1024, 1440 and 1920 CSS pixels. Public routing, valid and missing dynamic slugs, shop search, quick view, account, legal routes, receipt lookup and staff gate. Additional checks of populated carts, drawer widths and checkout controls at nine widths. Reviewed screenshot composition after adjusting spray density, image baseline, header and footer spacing.
+- Actual Chromium touch input: swipe forward, swipe back, vertical scroll stays vertical, and tapping the image does not advance it. Desktop next/thumbnail navigation. No synthetic scroll-position changes in the gesture test.
+- Browser → Supabase JS → **test HTTP adapter** → actual PostgreSQL policies/functions (PGlite). Verified database rows for orders and subscribers; default and clicked COD radio, submitted method, discounts, shipping, stock decrement, cancellation restore, invalid quantities, duplicate subscription and failed writes. A failed quote prevents submission and a failed create leaves the bag intact.
+- Admin gate and tab rendering with isolated staff/non-staff identities. Verified a staff inventory edit in the database, refusal to overwrite a concurrent stock change, non-staff write restrictions, and the mobile dashboard at 360 px. Tested anonymous storefront reads even in a browser with a staff session. The identity-provider response is a fixture; the membership check and row-level policies are real SQL. A production staff password was neither requested nor tested.
 
-A numeric overflow audit of the same type sizes is in the smoke suite; the
-measurements are reproduced here for reference.
+## Remaining differences / limits
 
-| viewport | content | paint | signature | result |
-| --- | --- | --- | --- | --- |
-| 360 | 296 | 281 | 246 / 260 | ok |
-| 390 | 326 | 309 | 271 / 287 | ok |
-| 414 | 350 | 332 | 291 / 308 | ok |
-| 640 | 544 | 543 | 420 / 479 | ok |
-| 768 | 672 | 670 | 518 / 591 | ok |
-| 1024 | 864 | 862 | 680 / 760 | ok |
-| 1280 | 1120 | 1118 | 881 / 986 | ok |
-| 1440 | 1280 | 1277 | 1007 / 1126 | ok |
-| 1920 | 1640 | 1636 | 1290 / 1320 | ok |
+The live catalog determines which products, photos, sizes, colors, prices and discounts appear. No inventory was overwritten to match a screenshot. Paper and paint use a repeating grain and a live filter, so the individual fibers and aerosol marks are not pixel-identical. Mobile touch targets, the required color/size guide, newsletter heading, contact information and saved-piece control take a little more room than the reference. On small screens the primary links move into the menu; below 390 px the home rail becomes two columns. These are intentional to avoid illegible text and clipped controls.
 
-All values in px. "signature" is `measured / container`.
-
-_Last regenerated: 2026-11-17._
+No physical iOS Safari or Android device was available. Local tests do **not** establish that the existing hosted Supabase schema, staff credentials, mail delivery or Vercel production environment are configured. Verify the production catalog, a sanctioned newsletter address and an authorized test order against the hosted database after rollout. Apply migrations only in the authorized project, never from the browser.

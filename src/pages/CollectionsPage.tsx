@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import { CampaignPreview } from '../components/shop/ProductPlate';
+import { isSupabaseConfigured } from '../lib/supabase';
 import { PageIntro } from '../components/layout/PageIntro';
 import { useCatalog } from '../hooks/useCatalog';
 import { imagesOf } from '../data/catalog';
@@ -24,7 +26,7 @@ interface CollectionSummary {
 }
 
 export function CollectionsPage() {
-  const { products } = useCatalog();
+  const { products, loading, error, retry } = useCatalog();
 
   const collections = useMemo<CollectionSummary[]>(() => {
     const grouped = new Map<string, CollectionSummary>();
@@ -60,7 +62,6 @@ export function CollectionsPage() {
     <>
       <PageIntro
         eyebrow="Collections"
-        sprayText="COLLECTIONS"
         title={
           <>
             The drop
@@ -70,17 +71,26 @@ export function CollectionsPage() {
         meta={`${collections.length} ${collections.length === 1 ? 'release' : 'releases'}`}
         description={
           <p>
-            We release one drop at a time and let it stand. Each collection is a single argument
-            about the leg — cut, cloth and hem, nothing else.
+            Explore Three Ways Studios by collection. Each release brings its own cuts, cloth and
+            finishing details.
           </p>
         }
       />
 
       <section className="pb-16 sm:pb-20">
         <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
-          {collections.length === 0 ? (
+          {!isSupabaseConfigured ? (
+            <CampaignPreview />
+          ) : error ? (
+            <p role="alert" className="catalog-notice">
+              {error}{' '}
+              <button className="text-action" onClick={retry}>
+                Retry
+              </button>
+            </p>
+          ) : collections.length === 0 ? (
             <p className="py-20 text-center text-[10px] font-bold uppercase tracking-[0.24em] text-ink-faint">
-              No collections published yet.
+              {loading ? 'Loading collections…' : 'No collections published yet.'}
             </p>
           ) : (
             <ul className="border-t border-ink/16">
@@ -94,14 +104,14 @@ export function CollectionsPage() {
                       {String(index + 1).padStart(2, '0')}
                     </span>
 
-                    <span className="relative block aspect-[16/9] overflow-hidden bg-[rgba(23,19,15,0.05)] lg:col-span-3 lg:aspect-[4/3]">
+                    <span className="relative block aspect-[16/9] overflow-hidden  lg:col-span-3 lg:aspect-[4/3]">
                       {collection.image ? (
                         <img
                           src={collection.image}
                           alt={collection.imageAlt}
                           loading={index === 0 ? 'eager' : 'lazy'}
                           decoding="async"
-                          className="h-full w-full object-cover object-top transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
+                          className="h-full w-full object-contain mix-blend-multiply transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
                         />
                       ) : null}
                     </span>
@@ -111,11 +121,14 @@ export function CollectionsPage() {
                         Release {String(index + 1).padStart(2, '0')} · {collection.count}{' '}
                         {collection.count === 1 ? 'piece' : 'pieces'}
                       </span>
-                      <span className="mt-2.5 block font-display uppercase leading-[0.88] tracking-[0.005em] text-ink transition-colors duration-300 group-hover:text-crimson" style={{ fontSize: 'clamp(1.7rem, 4vw, 3rem)' }}>
+                      <span
+                        className="mt-2.5 block font-display uppercase leading-[0.88] tracking-[0.005em] text-ink transition-colors duration-300 group-hover:text-crimson"
+                        style={{ fontSize: 'clamp(1.7rem, 4vw, 3rem)' }}
+                      >
                         {collection.name}
                       </span>
                       <span className="mt-3 block max-w-xl font-serif text-[14.5px] italic leading-relaxed text-ink-soft">
-                        Heavyweight selvedge in wide-flare and super-flare silhouettes. Sizes S — XL.
+                        Explore the pieces in this release.
                       </span>
                     </span>
 
@@ -135,7 +148,10 @@ export function CollectionsPage() {
                       </span>
                       <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-ink transition-colors group-hover:text-crimson">
                         View
-                        <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" strokeWidth={2} />
+                        <ArrowRight
+                          className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+                          strokeWidth={2}
+                        />
                       </span>
                     </span>
                   </Link>

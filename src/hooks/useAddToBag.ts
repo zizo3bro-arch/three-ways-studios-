@@ -33,7 +33,7 @@ export function useAddToBag() {
         return { ok: false, message: `Size ${variant.size_name} is sold out.` };
       }
 
-      const image = primaryImage(product);
+      const image = primaryImage(product, variant.color_name);
       const result = addItem({
         variant_id: variant.id,
         product_id: product.id,

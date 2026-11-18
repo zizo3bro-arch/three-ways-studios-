@@ -1,244 +1,103 @@
-import { DEMO_PRODUCTS } from '../data/demoProducts';
-import { isSupabaseConfigured, supabase } from './supabase';
-import type {
-  OrderConfirmationData,
-  OrderItem,
-  Product,
-  ProductImage,
-  ProductVariant,
-  QuoteResponse,
-  SizeChartRow,
-} from '../types/database';
+import { supabase } from './supabase';
+import type { OrderConfirmationData, Product, QuoteResponse } from '../types/database';
 
-const LOCAL_ORDERS_KEY = 'tws_local_orders_v1';
-const LOCAL_NEWSLETTER_KEY = 'tws_newsletter_emails_v1';
-export const STANDARD_SHIPPING_EGP = 75;
-export const FREE_SHIPPING_THRESHOLD_EGP = 3500;
+const OFFLINE = 'The studio is not connected. Please try again later.';
+const UUID = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i;
+export const isVariantId = (value: string) => UUID.test(value);
+const productFields = '*, images:product_images(*), variants:product_variants(*)';
 
-function lookupDemoVariant(variantId: string) {
-  for (const product of DEMO_PRODUCTS) {
-    const variant = product.variants?.find((v) => v.id === variantId);
-    if (variant) {
-      return { product, variant };
-    }
-  }
-  return null;
+function message(error: unknown, fallback: string) {
+  return error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+    ? error.message
+    : fallback;
 }
-
-export function calculateShippingCost(subtotal: number): number {
-  if (subtotal <= 0) return 0;
-  return subtotal >= FREE_SHIPPING_THRESHOLD_EGP ? 0 : STANDARD_SHIPPING_EGP;
+function published(row: Product): Product {
+  return {
+    ...row,
+    images: [...(row.images ?? [])].sort((a, b) => a.display_order - b.display_order),
+    variants: (row.variants ?? []).filter((v) => v.is_active),
+    size_charts: [...(row.size_charts ?? [])].sort((a, b) => a.size_order - b.size_order),
+  };
 }
-
-export async function fetchPublishedProducts(): Promise<{
-  products: Product[];
-  error: string | null;
-}> {
-  if (!isSupabaseConfigured || !supabase) {
-    return { products: DEMO_PRODUCTS, error: null };
-  }
-
+export async function fetchPublishedProducts(): Promise<{ products: Product[]; error: string | null }> {
+  if (!supabase) return { products: [], error: OFFLINE };
   try {
     const { data, error } = await supabase
       .from('products')
-      .select(`
-        *,
-        images:product_images(*),
-        variants:product_variants(*)
-      `)
+      .select(productFields)
       .eq('is_published', true)
-      .order('sort_order', { ascending: true })
+      .order('sort_order')
       .order('created_at', { ascending: false });
-
-    if (error) {
-      return { products: DEMO_PRODUCTS, error: error.message };
-    }
-
-    const rows = (data ?? []).map((p) => ({
-      ...p,
-      images: ((p.images ?? []) as ProductImage[]).sort((a, b) => a.display_order - b.display_order),
-      variants: (p.variants ?? []) as ProductVariant[],
-    }));
-
-    return { products: rows.length > 0 ? rows : DEMO_PRODUCTS, error: null };
-  } catch {
-    return { products: DEMO_PRODUCTS, error: null };
+    if (error) throw error;
+    return { products: (data ?? []).map(published), error: null };
+  } catch (e) {
+    return { products: [], error: message(e, 'Unable to load the collection.') };
   }
 }
 
-export async function fetchProductBySlug(slug: string): Promise<{
-  product: Product | null;
-  related: Product[];
-  error: string | null;
-}> {
-  const demoMatch = DEMO_PRODUCTS.find((p) => p.slug === slug);
-
-  if (!isSupabaseConfigured || !supabase) {
-    return {
-      product: demoMatch ?? null,
-      related: DEMO_PRODUCTS.filter((p) => p.slug !== slug).slice(0, 4),
-      error: demoMatch ? null : 'Product not found.',
-    };
-  }
-
+/** Detail reads are by slug, not limited to a cached page of listings. Charts
+ * and fresh availability are fetched only when a piece is actually opened. */
+export async function fetchProductBySlug(
+  slug: string,
+  signal: AbortSignal
+): Promise<{ product: Product | null; error: string | null }> {
+  if (!supabase) return { product: null, error: OFFLINE };
   try {
     const { data, error } = await supabase
       .from('products')
-      .select(`
-        *,
-        images:product_images(*),
-        variants:product_variants(*),
-        size_charts:product_size_charts(*)
-      `)
+      .select(`${productFields}, size_charts(*)`)
       .eq('slug', slug)
       .eq('is_published', true)
+      .abortSignal(signal)
       .maybeSingle();
-
-    if (error || !data) {
-      if (demoMatch) {
-        return {
-          product: demoMatch,
-          related: DEMO_PRODUCTS.filter((p) => p.slug !== slug).slice(0, 4),
-          error: null,
-        };
-      }
-      return { product: null, related: [], error: error?.message ?? 'Product not found.' };
-    }
-
-    const product: Product = {
-      ...data,
-      images: ((data.images ?? []) as ProductImage[]).sort((a, b) => a.display_order - b.display_order),
-      variants: (data.variants ?? []) as ProductVariant[],
-      size_charts: ((data.size_charts ?? []) as SizeChartRow[]).sort((a, b) => a.size_order - b.size_order),
-    };
-
-    const { data: relatedData } = await supabase
-      .from('products')
-      .select(`*, images:product_images(*), variants:product_variants(*)`)
-      .eq('is_published', true)
-      .neq('id', product.id)
-      .order('sort_order', { ascending: true })
-      .limit(4);
-
-    const related = (relatedData ?? []).map((p) => ({
-      ...p,
-      images: ((p.images ?? []) as ProductImage[]).sort((a, b) => a.display_order - b.display_order),
-      variants: (p.variants ?? []) as ProductVariant[],
-    }));
-
-    return {
-      product,
-      related: related.length > 0 ? related : DEMO_PRODUCTS.filter((p) => p.slug !== slug).slice(0, 4),
-      error: null,
-    };
-  } catch {
-    return {
-      product: demoMatch ?? null,
-      related: DEMO_PRODUCTS.filter((p) => p.slug !== slug).slice(0, 4),
-      error: demoMatch ? null : 'Product not found.',
-    };
+    if (error) throw error;
+    return { product: data ? published(data) : null, error: null };
+  } catch (e) {
+    return { product: null, error: message(e, 'Unable to load this piece.') };
   }
 }
 
-export async function quoteCodOrder(params: {
-  items: Array<{ variant_id: string; quantity: number; unit_price?: number }>;
-  governorate?: string;
-  email?: string;
-  discountCode?: string | null;
-  promoCode?: string | null;
-}): Promise<{ quote: QuoteResponse; error: string | null }> {
-  const quoteItems = params.items.map((item) => {
-    const demo = lookupDemoVariant(item.variant_id);
-    const unitPrice = demo?.product.price ?? item.unit_price ?? 2650;
-    return {
-      variant_id: item.variant_id,
-      product_id: demo?.product.id ?? '',
-      product_name: demo?.product.name ?? 'THREE WAYS STUDIOS Piece',
-      product_slug: demo?.product.slug ?? '',
-      product_image: demo?.product.images?.[0]?.url ?? null,
-      color_name: demo?.variant.color_name ?? 'Onyx Black',
-      color_hex: demo?.variant.color_hex ?? '#09090b',
-      size_name: demo?.variant.size_name ?? 'M',
-      quantity: item.quantity,
-      available_stock: demo?.variant.stock_quantity ?? 10,
-      unit_price: unitPrice,
-      line_total: unitPrice * item.quantity,
-    };
-  });
-
-  const subtotal = quoteItems.reduce((sum, item) => sum + item.line_total, 0);
-  const shippingCost = calculateShippingCost(subtotal);
-  const cleanEmail = (params.email ?? '').trim().toLowerCase();
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
-  const emailDiscountPercent = isEmailValid && subtotal > 0 ? 10 : 0;
-  const emailDiscountAmount = emailDiscountPercent > 0 ? Math.round(subtotal * 0.1) : 0;
-
-  const normalizedCode = (params.discountCode ?? params.promoCode)?.trim().toUpperCase() || '';
-  const isWelcomeCode = normalizedCode === 'WELCOME10' || normalizedCode === 'TWS10';
-  const promoError =
-    normalizedCode && !isWelcomeCode ? 'Invalid or inactive promo code.' : null;
-  const promoDiscountPercent = isWelcomeCode ? 10 : 0;
-  const promoDiscountAmount = isWelcomeCode
-    ? Math.round(Math.max(0, subtotal - emailDiscountAmount) * 0.1)
-    : 0;
-
-  const discountTotal = Math.min(subtotal, emailDiscountAmount + promoDiscountAmount);
-  const finalTotal = Math.max(0, subtotal - discountTotal + shippingCost);
-
-  const fallbackQuote: QuoteResponse = {
-    valid: true,
-    stock_errors: [],
-    items: quoteItems,
-    subtotal,
-    shipping_cost: shippingCost,
-    email_discount_applied: emailDiscountAmount > 0,
-    email_discount_percent: emailDiscountPercent,
-    email_discount_amount: emailDiscountAmount,
-    promo_code_applied: isWelcomeCode ? normalizedCode : null,
-    promo_discount_percent: promoDiscountPercent,
-    promo_discount_amount: promoDiscountAmount,
-    promo_error: promoError,
-    discount_total: discountTotal,
-    final_total: finalTotal,
-  };
-
-  if (!isSupabaseConfigured || !supabase) {
-    return { quote: fallbackQuote, error: null };
-  }
-
-  // Only query Supabase RPC when variant IDs are database UUIDs (not demo-* IDs)
-  const hasDemoIds = params.items.some((i) => !/^[0-9a-f-]{36}$/i.test(i.variant_id));
-  if (hasDemoIds) {
-    return { quote: fallbackQuote, error: null };
-  }
-
+type Line = { variant_id: string; quantity: number };
+function cartError(items: Line[]) {
+  return !items.length ||
+    items.some((i) => !isVariantId(i.variant_id) || !Number.isSafeInteger(i.quantity) || i.quantity < 1)
+    ? 'One or more items cannot be ordered. Please update your bag.'
+    : null;
+}
+export async function quoteCodOrder(params: { items: Line[]; email: string; promoCode?: string }) {
+  const invalid = cartError(params.items);
+  if (!supabase || invalid) return { quote: null, error: invalid || OFFLINE };
   try {
     const { data, error } = await supabase.rpc('quote_cod_order', {
-      p_items: params.items.map((item) => ({
-        variant_id: item.variant_id,
-        quantity: item.quantity,
-      })),
-      p_email: params.email?.trim() || null,
-      p_promo_code: (params.discountCode ?? params.promoCode)?.trim() || null,
+      p_items: params.items,
+      p_email: params.email.trim() || null,
+      p_promo_code: params.promoCode?.trim() || null,
     });
-
-    if (error || !data) {
-      return { quote: fallbackQuote, error: null };
+    if (error) throw error;
+    if (
+      !data ||
+      typeof data.valid !== 'boolean' ||
+      !Array.isArray(data.items) ||
+      !Number.isFinite(data.final_total)
+    ) {
+      throw new Error('The studio could not verify your total.');
     }
-
-    const rpcQuote = data as QuoteResponse;
-    const rpcShipping = rpcQuote.shipping_cost ?? calculateShippingCost(rpcQuote.subtotal);
-    return {
-      quote: {
-        ...rpcQuote,
-        shipping_cost: rpcShipping,
-        final_total: Math.max(0, rpcQuote.subtotal - rpcQuote.discount_total + rpcShipping),
-      },
-      error: null,
-    };
-  } catch {
-    return { quote: fallbackQuote, error: null };
+    return { quote: data as QuoteResponse, error: null };
+  } catch (e) {
+    return { quote: null, error: message(e, 'Could not verify pricing and stock.') };
   }
+}
+
+function receipt(data: OrderConfirmationData | null): data is OrderConfirmationData {
+  return Boolean(
+    data &&
+      UUID.test(data.order_id) &&
+      data.order_reference &&
+      data.payment_method === 'COD' &&
+      Number.isFinite(data.total_amount) &&
+      Array.isArray(data.items) &&
+      data.items.length
+  );
 }
 
 export async function createCodOrder(params: {
@@ -248,197 +107,83 @@ export async function createCodOrder(params: {
   governorate: string;
   city: string;
   address: string;
-  notes?: string;
-  discountCode?: string | null;
-  promoCode?: string | null;
-  paymentMethod?: string;
-  items: Array<{ variant_id: string; quantity: number; unit_price?: number }>;
+  notes: string;
+  promoCode?: string;
+  paymentMethod: 'COD';
+  items: Line[];
 }): Promise<{ order: OrderConfirmationData | null; error: string | null }> {
-  const effectiveCode = params.discountCode ?? params.promoCode ?? null;
-  const { quote } = await quoteCodOrder({
-    items: params.items,
-    governorate: params.governorate,
-    email: params.email,
-    discountCode: effectiveCode,
-  });
-
-  const hasDemoIds = params.items.some((i) => !/^[0-9a-f-]{36}$/i.test(i.variant_id));
-
-  // Real, persisted order path. When Supabase is configured and the cart
-  // holds genuine database variant ids we MUST use the backend and never
-  // fall back to a locally fabricated record — otherwise a visitor would
-  // see an order confirmation for an order that does not exist in the
-  // database. The local fallback below runs only for the demo (Supabase not
-  // configured) or when the cart contains demo ids.
-  if (isSupabaseConfigured && supabase && !hasDemoIds) {
-    try {
-      const { data, error } = await supabase.rpc('create_cod_order', {
-        p_full_name: params.fullName.trim(),
-        p_email: params.email.trim(),
-        p_phone: params.phone.trim(),
-        p_governorate: params.governorate.trim(),
-        p_city: params.city.trim(),
-        p_address: params.address.trim(),
-        p_notes: params.notes?.trim() || '',
-        p_items: params.items.map((item) => ({
-          variant_id: item.variant_id,
-          quantity: item.quantity,
-        })),
-        p_promo_code: effectiveCode?.trim() || null,
-      });
-
-      if (error) {
-        return {
-          order: null,
-          error: error.message || 'The order could not be placed. Please try again.',
-        };
-      }
-      if (data) {
-        const rpcOrder = data as OrderConfirmationData;
-        const shippingCost = rpcOrder.shipping_cost ?? calculateShippingCost(rpcOrder.subtotal);
-        return {
-          order: {
-            ...rpcOrder,
-            shipping_cost: shippingCost,
-            total_amount: rpcOrder.total_amount + (rpcOrder.shipping_cost !== undefined ? 0 : shippingCost),
-          },
-          error: null,
-        };
-      }
-      return { order: null, error: 'The order could not be placed. Please try again.' };
-    } catch {
-      return {
-        order: null,
-        error: 'The order could not be placed. Please try again in a moment.',
-      };
-    }
-  }
-
-  const orderRef = `TWS-${Math.floor(100000 + Math.random() * 900000)}`;
-  const orderItems: OrderItem[] = quote.items.map((qi) => ({
-    variant_id: qi.variant_id,
-    product_id: qi.product_id || null,
-    product_name: qi.product_name,
-    product_slug: qi.product_slug || null,
-    product_image: qi.product_image,
-    color_name: qi.color_name,
-    color_hex: qi.color_hex,
-    size_name: qi.size_name,
-    unit_price: qi.unit_price,
-    quantity: qi.quantity,
-    line_total: qi.line_total,
-  }));
-
-  const shippingCost = quote.shipping_cost ?? calculateShippingCost(quote.subtotal);
-  const orderRecord: OrderConfirmationData = {
-    order_id: orderRef,
-    order_reference: orderRef,
-    customer_name: params.fullName.trim(),
-    customer_email: params.email.trim().toLowerCase(),
-    customer_phone: params.phone.trim(),
-    governorate: params.governorate.trim(),
-    city: params.city.trim(),
-    delivery_address: params.address.trim(),
-    order_notes: params.notes?.trim() || '',
-    payment_method: (params.paymentMethod || 'COD') as 'COD',
-    subtotal: quote.subtotal,
-    shipping_cost: shippingCost,
-    email_discount_amount: quote.email_discount_amount,
-    promo_discount_amount: quote.promo_discount_amount,
-    discount_total: quote.discount_total,
-    applied_promo_code: quote.promo_code_applied,
-    total_amount: quote.final_total,
-    status: 'pending',
-    created_at: new Date().toISOString(),
-    items: orderItems,
+  const invalid = cartError(params.items);
+  if (!supabase || invalid || params.paymentMethod !== 'COD')
+    return { order: null, error: invalid || (!supabase ? OFFLINE : 'Select cash on delivery.') };
+  const payload = {
+    p_full_name: params.fullName.trim(),
+    p_email: params.email.trim().toLowerCase(),
+    p_phone: params.phone.trim(),
+    p_governorate: params.governorate.trim(),
+    p_city: params.city.trim(),
+    p_address: params.address.trim(),
+    p_notes: params.notes.trim(),
+    p_promo_code: params.promoCode?.trim() || null,
+    // Legacy RPCs consume the JSON lines and enforce COD themselves. No price or stock travels from the client.
+    p_items: params.items.map(({ variant_id, quantity }) => ({
+      variant_id,
+      quantity,
+      payment_method: params.paymentMethod,
+    })),
   };
-
   try {
-    const existing = JSON.parse(localStorage.getItem(LOCAL_ORDERS_KEY) || '[]');
-    existing.unshift(orderRecord);
-    localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(existing));
-  } catch {
-    // ignore storage errors
+    let response = await supabase
+      .rpc('create_cod_order', { ...payload, p_payment_method: params.paymentMethod })
+      .retry(false);
+    // PGRST202 is a signature lookup failure *before* execution, not a failed transaction.
+    // Never retry an ambiguous network/write error: the first request may have committed.
+    if (response.error?.code === 'PGRST202')
+      response = await supabase.rpc('create_cod_order', payload).retry(false);
+    if (response.error) throw response.error;
+    if (!receipt(response.data))
+      throw new Error(
+        'The studio did not return a saved order reference. Please contact the studio before trying again.'
+      );
+    return { order: response.data, error: null };
+  } catch (e) {
+    return {
+      order: null,
+      error: message(e, 'The order could not be confirmed. Please contact the studio before retrying.'),
+    };
   }
-
-  return { order: orderRecord, error: null };
 }
-
 export async function fetchOrderConfirmation(
   orderReference: string,
   email: string
 ): Promise<{ order: OrderConfirmationData | null; error: string | null }> {
-  if (isSupabaseConfigured && supabase) {
-    try {
-      const { data, error } = await supabase.rpc('get_order_confirmation', {
-        p_order_reference: orderReference,
-        p_email: email,
-      });
-      if (!error && data) {
-        return { order: data as OrderConfirmationData, error: null };
-      }
-    } catch {
-      // fallback below
-    }
-  }
-
+  if (!supabase) return { order: null, error: OFFLINE };
   try {
-    const existing = JSON.parse(
-      localStorage.getItem(LOCAL_ORDERS_KEY) || '[]'
-    ) as OrderConfirmationData[];
-    const found = existing.find(
-      (o) =>
-        o.order_reference?.toUpperCase() === orderReference.trim().toUpperCase() &&
-        o.customer_email?.toLowerCase() === email.trim().toLowerCase()
-    );
-    if (found) {
-      return { order: found, error: null };
-    }
-  } catch {
-    // ignore
+    const { data, error } = await supabase.rpc('get_order_confirmation', {
+      p_order_reference: orderReference.trim(),
+      p_email: email.trim().toLowerCase(),
+    });
+    if (error) throw error;
+    return receipt(data)
+      ? { order: data, error: null }
+      : { order: null, error: 'No order matched that reference and email.' };
+  } catch (e) {
+    return { order: null, error: message(e, 'Order lookup is unavailable.') };
   }
-
-  return { order: null, error: 'Order not found.' };
 }
-
-export async function subscribeNewsletter(
-  email: string
-): Promise<{ ok: boolean; error: string | null; discountCode?: string }> {
+export async function subscribeNewsletter(email: string) {
   const normalized = email.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-    return { ok: false, error: 'Please enter a valid email address.' };
-  }
-
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized))
+    return { ok: false, message: 'Enter a valid email address.' };
+  if (!supabase)
+    return { ok: false, message: 'Subscriptions are unavailable. Your email has not been saved.' };
   try {
-    const seen = JSON.parse(localStorage.getItem(LOCAL_NEWSLETTER_KEY) || '[]') as string[];
-    if (seen.includes(normalized)) {
-      return {
-        ok: true,
-        error: null,
-        discountCode: 'WELCOME10',
-      };
-    }
-    seen.push(normalized);
-    localStorage.setItem(LOCAL_NEWSLETTER_KEY, JSON.stringify(seen));
-  } catch {
-    // ignore
+    // INSERT only: the public role must never need SELECT or UPDATE on subscribers.
+    const { error } = await supabase.from('newsletter_subscribers').insert({ email: normalized });
+    if (error?.code === '23505')
+      return { ok: true, message: 'This address is already on the studio list.' };
+    if (error) throw error;
+    return { ok: true, message: 'You’re on the list. Thank you for subscribing.' };
+  } catch (e) {
+    return { ok: false, message: `Subscription not confirmed. ${message(e, 'Please try again.')}` };
   }
-
-  if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase
-      .from('newsletter_subscribers')
-      .upsert({ email: normalized }, { onConflict: 'email' });
-    // Surface a real backend failure instead of pretending the signup
-    // succeeded. The storefront shows this error to the visitor.
-    if (error) {
-      return {
-        ok: false,
-        error:
-          error.message ||
-          'The subscription could not be saved. Please try again in a moment.',
-      };
-    }
-  }
-
-  return { ok: true, error: null, discountCode: 'WELCOME10' };
 }

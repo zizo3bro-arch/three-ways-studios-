@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, Check, Save } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { adminClient as supabase } from '../../lib/adminClient';
 import type { Product, ProductVariant } from '../../types/database';
 
 interface AdminInventoryTabProps {
@@ -14,6 +14,7 @@ export function AdminInventoryTab({ products, onRefresh }: AdminInventoryTabProp
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(null);
 
+  const [error, setError] = useState<string | null>(null);
   const rows: Array<{ product: Product; variant: ProductVariant }> = [];
   for (const p of products) {
     for (const v of p.variants ?? []) {
@@ -27,11 +28,24 @@ export function AdminInventoryTab({ products, onRefresh }: AdminInventoryTabProp
     if (!supabase) return;
     const nextQty = draftStock[variant.id] ?? variant.stock_quantity;
     setSavingId(variant.id);
-    await supabase
+    setError(null);
+    const { data, error } = await supabase
       .from('product_variants')
       .update({ stock_quantity: Math.max(0, nextQty) })
-      .eq('id', variant.id);
+      .eq('id', variant.id)
+      .eq('updated_at', variant.updated_at)
+      .select('id')
+      .maybeSingle();
     setSavingId(null);
+    if (error || !data) {
+      setError(error?.message || 'Stock changed or access was lost. Refresh and review before saving.');
+      return;
+    }
+    setDraftStock((previous) => {
+      const next = { ...previous };
+      delete next[variant.id];
+      return next;
+    });
     setSavedId(variant.id);
     setTimeout(() => setSavedId(null), 1500);
     await onRefresh();
@@ -41,10 +55,8 @@ export function AdminInventoryTab({ products, onRefresh }: AdminInventoryTabProp
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-sm font-medium tracking-[0.2em] text-white uppercase">
-            Inventory Matrix
-          </h2>
-          <p className="mt-1 text-xs text-[#9e9494]">
+          <h2 className="text-sm font-medium tracking-[0.2em] text-ink uppercase">Inventory Matrix</h2>
+          <p className="mt-1 text-xs text-ink-faint">
             Track and update live stock quantities for every color and size variant.
           </p>
         </div>
@@ -61,8 +73,8 @@ export function AdminInventoryTab({ products, onRefresh }: AdminInventoryTabProp
               onClick={() => setFilterMode(tab.id as 'all' | 'low' | 'out')}
               className={`rounded-full px-4 py-1.5 text-xs ${
                 filterMode === tab.id
-                  ? 'bg-[#e6dada] font-medium text-[#0c0708]'
-                  : 'border border-white/20 text-[#cfc6c6]'
+                  ? 'bg-crimson font-medium text-paper'
+                  : 'border border-ink/20 text-ink-soft'
               }`}
             >
               {tab.label}
@@ -71,15 +83,20 @@ export function AdminInventoryTab({ products, onRefresh }: AdminInventoryTabProp
         </div>
       </div>
 
+      {error && (
+        <p role="alert" className="text-xs text-crimson-deep">
+          {error}
+        </p>
+      )}
       {rows.length === 0 ? (
-        <div className="border border-white/12 bg-white/[0.015] p-10 text-center text-xs text-[#9e9494]">
+        <div className="border border-ink/12 bg-transparent p-10 text-center text-xs text-ink-faint">
           No variants match this filter.
         </div>
       ) : (
-        <div className="overflow-x-auto border border-white/12 bg-white/[0.025]">
+        <div className="overflow-x-auto border border-ink/12 bg-transparent">
           <table className="w-full min-w-[680px] text-left text-xs">
             <thead>
-              <tr className="border-b border-white/12 text-[10px] tracking-[0.18em] text-[#9e9494] uppercase">
+              <tr className="border-b border-ink/12 text-[10px] tracking-[0.18em] text-ink-faint uppercase">
                 <th className="p-4 font-medium">Product</th>
                 <th className="p-4 font-medium">Color</th>
                 <th className="p-4 font-medium">Size</th>
@@ -88,27 +105,28 @@ export function AdminInventoryTab({ products, onRefresh }: AdminInventoryTabProp
                 <th className="p-4 text-right font-medium">Update</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/8">
+            <tbody className="divide-y divide-ink/8">
               {rows.map(({ product, variant }) => {
                 const val = draftStock[variant.id] ?? variant.stock_quantity;
                 const isLow = variant.stock_quantity <= variant.low_stock_threshold;
                 return (
                   <tr key={variant.id}>
-                    <td className="p-4 font-medium text-white">{product.name}</td>
+                    <td className="p-4 font-medium text-ink">{product.name}</td>
                     <td className="p-4">
-                      <span className="inline-flex items-center gap-2 text-[#e6dfdf]">
+                      <span className="inline-flex items-center gap-2 text-ink-soft">
                         <span
-                          className="h-3 w-3 rounded-full border border-white/25"
+                          className="h-3 w-3 rounded-full border border-ink/25"
                           style={{ backgroundColor: variant.color_hex }}
                         />
                         {variant.color_name}
                       </span>
                     </td>
-                    <td className="p-4 text-[#e6dfdf]">{variant.size_name}</td>
-                    <td className="p-4 font-mono text-[#847878]">{variant.sku || '—'}</td>
+                    <td className="p-4 text-ink-soft">{variant.size_name}</td>
+                    <td className="p-4 font-mono text-ink-faint">{variant.sku || '—'}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <input
+                          aria-label={`Stock for ${product.name}, ${variant.color_name}, size ${variant.size_name}`}
                           type="number"
                           min="0"
                           value={val}
@@ -118,10 +136,10 @@ export function AdminInventoryTab({ products, onRefresh }: AdminInventoryTabProp
                               [variant.id]: Number(e.target.value),
                             }))
                           }
-                          className="w-20 border border-white/15 bg-black/50 px-2.5 py-1 text-xs text-white"
+                          className="w-20 border border-ink/15 bg-paper/50 px-2.5 py-1 text-xs text-ink"
                         />
                         {isLow && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-[#e89d6b]">
+                          <span className="inline-flex items-center gap-1 text-[10px] text-crimson-deep">
                             <AlertTriangle className="h-3 w-3" />
                             {variant.stock_quantity === 0 ? 'Out' : 'Low'}
                           </span>
@@ -133,11 +151,11 @@ export function AdminInventoryTab({ products, onRefresh }: AdminInventoryTabProp
                         type="button"
                         disabled={savingId === variant.id}
                         onClick={() => handleSaveStock(variant)}
-                        className="inline-flex items-center gap-1.5 border border-white/20 px-3 py-1 text-[11px] text-white hover:border-[#d4121b]"
+                        className="inline-flex items-center gap-1.5 border border-ink/20 px-3 py-1 text-[11px] text-ink hover:border-crimson"
                       >
                         {savedId === variant.id ? (
                           <>
-                            <Check className="h-3 w-3 text-[#7bd389]" /> Saved
+                            <Check className="h-3 w-3 text-emerald-800" /> Saved
                           </>
                         ) : (
                           <>

@@ -22,7 +22,7 @@ import { AdminOrdersTab } from '../../components/admin/AdminOrdersTab';
 import { AdminOverviewTab } from '../../components/admin/AdminOverviewTab';
 import { AdminProductsTab } from '../../components/admin/AdminProductsTab';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { adminClient as supabase } from '../../lib/adminClient';
 import type { Customer, DiscountRule, Order, Product } from '../../types/database';
 
 /* =========================================================
@@ -33,14 +33,7 @@ import type { Customer, DiscountRule, Order, Product } from '../../types/databas
    separation between the console and the storefront.
    ========================================================= */
 
-type AdminTab =
-  | 'overview'
-  | 'products'
-  | 'inventory'
-  | 'orders'
-  | 'customers'
-  | 'discounts'
-  | 'content';
+type AdminTab = 'overview' | 'products' | 'inventory' | 'orders' | 'customers' | 'discounts' | 'content';
 
 const TABS: Array<{
   id: AdminTab;
@@ -84,12 +77,11 @@ export function AdminDashboardPage() {
       const [prodRes, orderRes, custRes, discRes] = await Promise.all([
         supabase
           .from('products')
-          .select('*, images:product_images(*), variants:product_variants(*), size_charts:size_charts(*)')
+          .select(
+            '*, images:product_images(*), variants:product_variants(*), size_charts:size_charts(*)'
+          )
           .order('created_at', { ascending: false }),
-        supabase
-          .from('orders')
-          .select('*, order_items(*)')
-          .order('created_at', { ascending: false }),
+        supabase.from('orders').select('*, order_items(*)').order('created_at', { ascending: false }),
         supabase.from('customers').select('*').order('created_at', { ascending: false }),
         supabase.from('discount_rules').select('*').order('created_at', { ascending: false }),
       ]);
@@ -140,30 +132,32 @@ export function AdminDashboardPage() {
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/admin/login', { replace: true });
+    try {
+      await signOut();
+      navigate('/admin/login', { replace: true });
+    } catch (error) {
+      setFetchError(error instanceof Error ? error.message : 'Could not sign out.');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#0e0a09]">
+    <div className="min-h-screen paper-surface">
       {/* ——— mobile top bar ——— */}
-      <div className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b border-white/10 bg-[#0e0a09]/95 px-4 backdrop-blur lg:hidden">
+      <div className="sticky top-0 z-40 flex h-14 items-center justify-between gap-3 border-b border-ink/10 paper-surface px-4 backdrop-blur lg:hidden">
         <button
           type="button"
           onClick={() => setRailOpen(true)}
           aria-label="Open console navigation"
-          className="flex h-9 w-9 items-center justify-center border border-white/15 text-white"
+          className="flex h-9 w-9 items-center justify-center border border-ink/15 text-ink"
         >
           <Menu className="h-4 w-4" />
         </button>
-        <p className="text-[9px] font-bold uppercase tracking-[0.26em] text-[#bd1a22]">
-          Studio console
-        </p>
+        <p className="text-[9px] font-bold uppercase tracking-[0.26em] text-crimson">Studio console</p>
         <button
           type="button"
           onClick={handleSignOut}
           aria-label="Sign out"
-          className="flex h-9 w-9 items-center justify-center border border-white/15 text-[#a89e98]"
+          className="flex h-9 w-9 items-center justify-center border border-ink/15 text-ink-faint"
         >
           <LogOut className="h-4 w-4" />
         </button>
@@ -173,22 +167,16 @@ export function AdminDashboardPage() {
         {/* ——— rail ——— */}
         <aside
           className={[
-            'fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col border-r border-white/10 bg-[#0e0a09] transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
+            'fixed inset-y-0 left-0 z-50 flex w-[272px] flex-col border-r border-ink/10 paper-surface transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
             railOpen ? 'translate-x-0' : '-translate-x-full',
           ].join(' ')}
         >
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-5">
+          <div className="flex items-center justify-between gap-3 border-b border-ink/10 px-5 py-5">
             <div className="flex items-center gap-2.5">
-              <img
-                src="/assets/three-ways-studios-logo.png"
-                alt=""
-                className="h-8 w-8 object-contain"
-              />
+              <img src="/assets/three-ways-studios-logo.png" alt="" className="h-8 w-8 object-contain" />
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white">
-                  Three Ways
-                </p>
-                <p className="text-[8px] font-bold uppercase tracking-[0.24em] text-[#bd1a22]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink">Three Ways</p>
+                <p className="text-[8px] font-bold uppercase tracking-[0.24em] text-crimson">
                   Studio console
                 </p>
               </div>
@@ -197,14 +185,14 @@ export function AdminDashboardPage() {
               type="button"
               onClick={() => setRailOpen(false)}
               aria-label="Close navigation"
-              className="text-[#8d8480] lg:hidden"
+              className="text-ink-faint lg:hidden"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
           <nav aria-label="Console sections" className="flex-1 overflow-y-auto px-3 py-4">
-            <p className="px-2 pb-2 text-[8.5px] font-bold uppercase tracking-[0.26em] text-[#5f5854]">
+            <p className="px-2 pb-2 text-[8.5px] font-bold uppercase tracking-[0.26em] text-ink-faint">
               Manage
             </p>
             <ul className="space-y-0.5">
@@ -221,28 +209,28 @@ export function AdminDashboardPage() {
                       className={[
                         'group flex w-full items-center gap-3 px-2.5 py-2.5 text-left transition-colors',
                         active
-                          ? 'bg-white/[0.07] text-white'
-                          : 'text-[#a89e98] hover:bg-white/[0.04] hover:text-white',
+                          ? 'bg-crimson/8 text-ink'
+                          : 'text-ink-faint hover:bg-ink/[0.04] hover:text-crimson',
                       ].join(' ')}
                     >
                       <span
                         className={[
                           'flex h-7 w-7 shrink-0 items-center justify-center border transition-colors',
                           active
-                            ? 'border-[#bd1a22] bg-[#bd1a22] text-white'
-                            : 'border-white/12 text-[#8d8480] group-hover:border-white/30',
+                            ? 'border-crimson bg-crimson text-paper'
+                            : 'border-ink/12 text-ink-faint group-hover:border-ink/30',
                         ].join(' ')}
                       >
                         <Icon className="h-3.5 w-3.5" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block text-[12px] font-medium">{tab.label}</span>
-                        <span className="mt-0.5 block truncate text-[9px] uppercase tracking-[0.1em] text-[#5f5854]">
+                        <span className="mt-0.5 block truncate text-[9px] uppercase tracking-[0.1em] text-ink-faint">
                           {tab.hint}
                         </span>
                       </span>
                       {typeof count === 'number' && count > 0 ? (
-                        <span className="shrink-0 text-[10px] font-semibold tabular-nums text-[#8d8480]">
+                        <span className="shrink-0 text-[10px] font-semibold tabular-nums text-ink-faint">
                           {count}
                         </span>
                       ) : null}
@@ -253,16 +241,16 @@ export function AdminDashboardPage() {
             </ul>
           </nav>
 
-          <div className="border-t border-white/10 px-4 py-4">
-            <p className="truncate text-[10px] uppercase tracking-[0.14em] text-[#8d8480]">Signed in</p>
-            <p className="mt-0.5 truncate text-[11.5px] text-white">{user?.email}</p>
+          <div className="border-t border-ink/10 px-4 py-4">
+            <p className="truncate text-[10px] uppercase tracking-[0.14em] text-ink-faint">Signed in</p>
+            <p className="mt-0.5 truncate text-[11.5px] text-ink">{user?.email}</p>
 
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Link
                 to="/"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex h-9 items-center justify-center gap-1.5 border border-white/15 text-[9px] font-bold uppercase tracking-[0.14em] text-[#e6dfdf] transition-colors hover:border-white/50"
+                className="inline-flex h-9 items-center justify-center gap-1.5 border border-ink/15 text-[9px] font-bold uppercase tracking-[0.14em] text-ink-soft transition-colors hover:border-ink/50"
               >
                 <ExternalLink className="h-3 w-3" />
                 Site
@@ -270,7 +258,7 @@ export function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="inline-flex h-9 items-center justify-center gap-1.5 border border-[#bd1a22]/50 text-[9px] font-bold uppercase tracking-[0.14em] text-[#e87a80] transition-colors hover:bg-[#bd1a22] hover:text-white"
+                className="inline-flex h-9 items-center justify-center gap-1.5 border border-crimson/50 text-[9px] font-bold uppercase tracking-[0.14em] text-crimson-deep transition-colors hover:bg-crimson-deep hover:text-paper"
               >
                 <LogOut className="h-3 w-3" />
                 Out
@@ -290,15 +278,15 @@ export function AdminDashboardPage() {
 
         {/* ——— content ——— */}
         <main className="min-w-0 flex-1 px-4 pb-16 pt-6 sm:px-7 lg:px-9 lg:pt-8">
-          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-ink/10 pb-5">
             <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.26em] text-[#bd1a22]">
+              <p className="text-[9px] font-bold uppercase tracking-[0.26em] text-crimson">
                 {activeMeta.label}
               </p>
-              <h1 className="mt-1.5 font-display text-[1.9rem] uppercase leading-none tracking-[0.01em] text-white sm:text-[2.3rem]">
+              <h1 className="mt-1.5 font-display text-[1.9rem] uppercase leading-none tracking-[0.01em] text-ink sm:text-[2.3rem]">
                 {activeMeta.label}
               </h1>
-              <p className="mt-1.5 text-[11.5px] text-[#8d8480]">
+              <p className="mt-1.5 text-[11.5px] text-ink-faint">
                 {fetchError
                   ? 'Data could not be loaded — see the notice below.'
                   : loadingData
@@ -314,7 +302,7 @@ export function AdminDashboardPage() {
                 type="button"
                 onClick={() => void loadAll()}
                 disabled={loadingData}
-                className="inline-flex h-9 items-center gap-1.5 border border-white/20 px-3.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-[#e6dfdf] transition-colors hover:border-white disabled:opacity-50"
+                className="inline-flex h-9 items-center gap-1.5 border border-ink/20 px-3.5 text-[9.5px] font-bold uppercase tracking-[0.16em] text-ink-soft transition-colors hover:border-ink disabled:opacity-50"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${loadingData ? 'animate-spin' : ''}`} />
                 Refresh
@@ -325,13 +313,13 @@ export function AdminDashboardPage() {
           {fetchError ? (
             <div
               role="alert"
-              className="mt-5 border-l-2 border-[#bd1a22] bg-[rgba(189,26,34,0.1)] px-4 py-3 text-[11.5px] leading-relaxed text-[#f0b9b6]"
+              className="mt-5 border-l-2 border-crimson bg-[rgba(189,26,34,0.1)] px-4 py-3 text-[11.5px] leading-relaxed text-crimson-deep"
             >
               <p className="font-semibold">Supabase said:</p>
               <p className="mt-1">{fetchError}</p>
-              <p className="mt-2 text-[#c39a98]">
-                Check that the migration in <code>supabase/</code> has been applied and that your
-                account has a row in <code>public.admin_users</code>.
+              <p className="mt-2 text-ink-faint">
+                Check that the migration in <code>supabase/</code> has been applied and that your account
+                has a row in <code>public.admin_users</code>.
               </p>
             </div>
           ) : null}
@@ -346,8 +334,8 @@ export function AdminDashboardPage() {
                 className={[
                   'shrink-0 border px-3 py-1.5 text-[9.5px] font-bold uppercase tracking-[0.14em] transition-colors',
                   activeTab === tab.id
-                    ? 'border-[#bd1a22] bg-[#bd1a22] text-white'
-                    : 'border-white/15 text-[#a89e98]',
+                    ? 'border-crimson bg-crimson text-paper'
+                    : 'border-ink/15 text-ink-faint',
                 ].join(' ')}
               >
                 {tab.label}
@@ -367,7 +355,9 @@ export function AdminDashboardPage() {
             {activeTab === 'inventory' && <AdminInventoryTab products={products} onRefresh={loadAll} />}
             {activeTab === 'orders' && <AdminOrdersTab orders={orders} onRefresh={loadAll} />}
             {activeTab === 'customers' && <AdminCustomersTab customers={customers} orders={orders} />}
-            {activeTab === 'discounts' && <AdminDiscountsTab discounts={discounts} onRefresh={loadAll} />}
+            {activeTab === 'discounts' && (
+              <AdminDiscountsTab discounts={discounts} onRefresh={loadAll} />
+            )}
             {activeTab === 'content' && <AdminContentTab />}
           </div>
         </main>

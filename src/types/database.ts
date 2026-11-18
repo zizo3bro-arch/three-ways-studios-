@@ -77,13 +77,7 @@ export interface Customer {
   updated_at: string;
 }
 
-export type OrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'processing'
-  | 'shipped'
-  | 'delivered'
-  | 'cancelled';
+export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
 export interface OrderItem {
   id?: string;
@@ -114,6 +108,7 @@ export interface Order {
   order_notes: string;
   payment_method: 'COD';
   subtotal: number;
+  shipping_cost?: number;
   email_discount_amount: number;
   promo_discount_amount: number;
   discount_total: number;
