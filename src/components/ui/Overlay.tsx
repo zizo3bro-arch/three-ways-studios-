@@ -120,14 +120,14 @@ export function Overlay({
             className={[
               'relative z-10 flex max-h-full flex-col overflow-hidden border-ink/16 paper-surface text-ink outline-none ',
               placement === 'right'
-                ? 'h-full w-full max-w-[452px] border-l px-5 py-4 sm:px-7 sm:py-6'
+                ? 'h-full w-full max-w-[500px] border-l px-5 py-4 sm:px-7 sm:py-6'
                 : '',
               placement === 'sheet'
                 ? 'w-full max-w-3xl border-x border-t px-5 pb-6 pt-4 sm:px-8 sm:pb-9 sm:pt-5'
                 : '',
               placement === 'top' ? 'w-full border-b p-4 sm:p-6' : '',
               placement === 'full'
-                ? 'h-[100svh] w-full max-w-[1180px] px-5 py-4 sm:h-auto sm:max-h-[88svh] sm:border sm:border-ink/18 sm:px-7 sm:py-6'
+                ? 'h-[100svh] w-full max-w-[1320px] px-5 py-4 sm:h-auto sm:max-h-[90svh] sm:border sm:border-ink/18 sm:px-8 sm:py-7'
                 : '',
               panelClassName,
             ].join(' ')}

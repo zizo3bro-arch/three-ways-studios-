@@ -77,8 +77,8 @@ export function CollectionsPage() {
         }
       />
 
-      <section className="pb-16 sm:pb-20">
-        <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
+      <section className="pb-14 sm:pb-18">
+        <div className="page-width">
           {showCampaignPreview ? (
             <CampaignPreview />
           ) : error ? (
@@ -122,31 +122,31 @@ export function CollectionsPage() {
                         {collection.count === 1 ? 'piece' : 'pieces'}
                       </span>
                       <span
-                        className="mt-2.5 block font-display uppercase leading-[0.88] tracking-[0.005em] text-ink transition-colors duration-300 group-hover:text-crimson"
-                        style={{ fontSize: 'clamp(1.7rem, 4vw, 3rem)' }}
+                        className="mt-2.5 block font-display uppercase leading-[0.9] tracking-[0.005em] text-ink transition-colors duration-300 group-hover:text-crimson"
+                        style={{ fontSize: 'clamp(1.9rem, 4.2vw, 3.3rem)' }}
                       >
                         {collection.name}
                       </span>
-                      <span className="mt-3 block max-w-xl font-serif text-[14.5px] italic leading-relaxed text-ink-soft">
+                      <span className="mt-3 block max-w-xl font-serif text-[16px] italic leading-relaxed text-ink-soft">
                         Explore the pieces in this release.
                       </span>
                     </span>
 
                     <span className="flex items-end justify-between gap-4 lg:col-span-3 lg:flex-col lg:items-end lg:justify-center lg:gap-3">
                       <span className="text-right">
-                        <span className="block text-[9px] font-bold uppercase tracking-[0.22em] text-ink-faint">
+                        <span className="block text-[11px] font-bold uppercase tracking-[0.2em] text-ink-faint">
                           From
                         </span>
-                        <span className="mt-1 block text-[16px] font-semibold tabular-nums text-ink">
+                        <span className="mt-1 block text-[18px] font-semibold tabular-nums text-ink">
                           {formatEGP(collection.fromPrice)}
                         </span>
                         {collection.toPrice !== collection.fromPrice ? (
-                          <span className="mt-0.5 block text-[10.5px] text-ink-faint tabular-nums">
+                          <span className="mt-0.5 block text-xs text-ink-faint tabular-nums">
                             to {formatEGP(collection.toPrice)}
                           </span>
                         ) : null}
                       </span>
-                      <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-ink transition-colors group-hover:text-crimson">
+                      <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-ink transition-colors group-hover:text-crimson">
                         View
                         <ArrowRight
                           className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"

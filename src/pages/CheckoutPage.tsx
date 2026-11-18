@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { createCodOrder, quoteCodOrder } from '../lib/api';
 import { EGYPTIAN_GOVERNORATES, formatEGP } from '../lib/format';
 import { refreshCatalog } from '../hooks/useCatalog';
@@ -14,8 +15,17 @@ function mobileNumber(raw: string) {
 
 export function CheckoutPage() {
   const { items, subtotal, clearCart, syncItemStock } = useCart();
+  const { customer } = useCustomerAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [fullNameInput, setFullNameInput] = useState(() => customer?.fullName ?? '');
+  const [email, setEmail] = useState(() => customer?.email ?? '');
+  const prefilledFor = useRef<string | null>(customer?.id ?? null);
+  useEffect(() => {
+    if (!customer || prefilledFor.current === customer.id) return;
+    prefilledFor.current = customer.id;
+    if (!fullNameInput && customer.fullName) setFullNameInput(customer.fullName);
+    if (!email && customer.email) setEmail(customer.email);
+  }, [customer, fullNameInput, email]);
   const [promo, setPromo] = useState('');
   const [applied, setApplied] = useState('');
   const [payment, setPayment] = useState<'COD'>('COD');
@@ -128,6 +138,8 @@ export function CheckoutPage() {
               Full name
               <input
                 name="full_name"
+                value={fullNameInput}
+                onChange={(e) => setFullNameInput(e.target.value)}
                 autoComplete="name"
                 required
                 minLength={3}

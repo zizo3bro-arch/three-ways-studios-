@@ -8,7 +8,16 @@ import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 export async function studioDb({ upgrade = false } = {}) {
   const db = new PGlite({ extensions: { pgcrypto } });
   await db.exec(`create role anon; create role authenticated; create role service_role;
-    create schema auth; create table auth.users(id uuid primary key, email text);
+    create schema auth;
+    create table auth.users(
+      id uuid primary key,
+      email text,
+      encrypted_password text,
+      confirmation_token text,
+      raw_user_meta_data jsonb not null default '{}'::jsonb,
+      created_at timestamptz not null default now(),
+      deleted_at timestamptz
+    );
     create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
     grant usage on schema auth to anon,authenticated;
     create schema storage; create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
@@ -26,6 +35,7 @@ export async function studioDb({ upgrade = false } = {}) {
   } else await run('full_setup.sql');
   await run('migrations/006_admin_hardening_safe.sql');
   if (upgrade) await run('migrations/007_cod_checkout.sql');
+  await run('migrations/008_registered_customers.sql');
   const catalog = [
     [
       'TWS Signature Tee',

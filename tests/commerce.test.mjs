@@ -115,4 +115,109 @@ test('upgrade: COD transactions, delivery, discounts, receipt privacy and staff 
       .stock_quantity,
     7
   );
+
+  // Registered storefront customers sync automatically, respect RLS, and exclude secrets
+  const registeredId = crypto.randomUUID();
+  const namelessId = crypto.randomUUID();
+  await db.query(
+    `insert into auth.users(id, email, encrypted_password, confirmation_token, raw_user_meta_data, created_at)
+     values
+       ($1, 'Nour.Hassan@example.test', '$2a$10$SECRET_HASH_VALUE', 'SECRET_CONFIRM_TOKEN', '{"full_name":"Nour Hassan"}'::jsonb, '2026-11-18T08:15:00Z'),
+       ($2, 'nameless@example.test', '$2a$10$OTHER_HASH', 'OTHER_TOKEN', '{}'::jsonb, '2026-11-18T09:30:00Z')`,
+    [registeredId, namelessId]
+  );
+
+  // Anon cannot list customers or register accounts
+  await assert.rejects(anon(db, (tx) => tx.query('select * from public.admin_list_customers()')));
+  await assert.rejects(anon(db, (tx) => tx.query('select public.register_customer_account($1)', ['X'])));
+
+  // Authenticated non-admin customer can self-sync only their own account, cannot read customer list
+  await assert.rejects(
+    db.transaction(async (tx) => {
+      await tx.exec('set local role authenticated');
+      await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [registeredId]);
+      await tx.query('select * from public.admin_list_customers()');
+    })
+  );
+  await db.transaction(async (tx) => {
+    await tx.exec('set local role authenticated');
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [registeredId]);
+    assert.deepEqual((await tx.query('select * from public.customers')).rows, []);
+    const selfRow = (
+      await tx.query('select public.register_customer_account($1) as row', ['Nour Hassan'])
+    ).rows[0].row;
+    assert.equal(selfRow.email, 'nour.hassan@example.test');
+    assert.equal(selfRow.full_name, 'Nour Hassan');
+    assert.equal('encrypted_password' in selfRow, false);
+    assert.equal('confirmation_token' in selfRow, false);
+  });
+
+  // Verified admin receives all real registered users + guest buyer, zero staff, zero secrets
+  await db.transaction(async (tx) => {
+    await tx.exec('set local role authenticated');
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [staff]);
+    const directory = (await tx.query('select * from public.admin_list_customers()')).rows;
+    assert.equal(directory.length, 3);
+    assert.equal(
+      directory.some((c) => c.email === 'staff@example.test'),
+      false
+    );
+    const serialized = JSON.stringify(directory);
+    assert.equal(serialized.includes('SECRET_HASH_VALUE'), false);
+    assert.equal(serialized.includes('SECRET_CONFIRM_TOKEN'), false);
+
+    const nour = directory.find((c) => c.email === 'nour.hassan@example.test');
+    assert.ok(nour);
+    assert.equal(nour.full_name, 'Nour Hassan');
+    assert.equal(nour.auth_user_id, registeredId);
+    assert.equal(nour.is_registered, true);
+    assert.ok(nour.registered_at);
+
+    const nameless = directory.find((c) => c.email === 'nameless@example.test');
+    assert.ok(nameless);
+    assert.equal(nameless.full_name, '');
+    assert.equal(nameless.is_registered, true);
+
+    const buyer = directory.find((c) => c.email === 'buyer@example.test');
+    assert.ok(buyer);
+    assert.equal(buyer.full_name, 'Fixture Buyer');
+    assert.equal(buyer.is_registered, false);
+  });
+
+  // When a registered customer subsequently places a COD order, it merges without duplicating
+  await call('create_cod_order', {
+    ...order,
+    p_full_name: 'Nour Hassan',
+    p_email: 'nour.hassan@example.test',
+  });
+  await db.transaction(async (tx) => {
+    await tx.exec('set local role authenticated');
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [staff]);
+    const directory = (await tx.query('select * from public.admin_list_customers()')).rows;
+    assert.equal(directory.length, 3);
+    const nour = directory.find((c) => c.email === 'nour.hassan@example.test');
+    assert.equal(nour.is_registered, true);
+    assert.equal(nour.city, 'Cairo');
+  });
+
+  // Metadata variants (name, first_name+last_name, whitespace-only) and migration idempotency
+  const [uName, uSplit, uBlank] = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
+  await db.query(
+    `insert into auth.users(id, email, raw_user_meta_data, created_at)
+     values
+       ($1, 'sara@example.test', '{"name":"Sara Ali"}'::jsonb, '2026-11-18T10:00:00Z'),
+       ($2, 'omar@example.test', '{"first_name":"Omar","last_name":"Farouk"}'::jsonb, '2026-11-18T10:05:00Z'),
+       ($3, 'blank@example.test', '{"full_name":"   "}'::jsonb, '2026-11-18T10:10:00Z')`,
+    [uName, uSplit, uBlank]
+  );
+  const { readFile } = await import('node:fs/promises');
+  await db.exec(await readFile('supabase/migrations/008_registered_customers.sql', 'utf8'));
+  await db.transaction(async (tx) => {
+    await tx.exec('set local role authenticated');
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [staff]);
+    const list = (await tx.query('select * from public.admin_list_customers()')).rows;
+    assert.equal(list.find((c) => c.email === 'sara@example.test')?.full_name, 'Sara Ali');
+    assert.equal(list.find((c) => c.email === 'omar@example.test')?.full_name, 'Omar Farouk');
+    assert.equal(list.find((c) => c.email === 'blank@example.test')?.full_name, '');
+  });
 });

@@ -67,12 +67,15 @@ export interface SizeChartRow {
 
 export interface Customer {
   id: string;
-  full_name: string;
+  auth_user_id?: string | null;
+  full_name: string | null;
   email: string;
-  phone: string;
-  governorate: string;
-  city: string;
-  address: string;
+  phone: string | null;
+  governorate: string | null;
+  city: string | null;
+  address: string | null;
+  is_registered?: boolean;
+  registered_at?: string | null;
   created_at: string;
   updated_at: string;
 }

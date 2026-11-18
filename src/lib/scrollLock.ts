@@ -1,22 +1,45 @@
 import { useEffect, useRef } from 'react';
 
 /* =========================================================
-   Overlay plumbing: ref-counted scroll lock + escape handling with
-   a dialog stack, so Escape always closes the TOP layer only
+   Overlay plumbing: ref-counted scroll lock (including iOS Safari /
+   mobile momentum containment via fixed body offset) + escape handling
+   with a dialog stack, so Escape always closes the TOP layer only
    (e.g. “Find my size” inside the quick view, quick view under it).
    ========================================================= */
 
 let activeLocks = 0;
+let lockedScrollY = 0;
 
 export function lockBodyScroll() {
+  if (activeLocks === 0) {
+    lockedScrollY = window.scrollY;
+    const scrollbarGap = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+    document.documentElement.classList.add('tws-scroll-locked');
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${lockedScrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    if (scrollbarGap > 0) {
+      document.body.style.paddingRight = `${scrollbarGap}px`;
+    }
+  }
   activeLocks += 1;
-  document.documentElement.classList.add('tws-scroll-locked');
 }
 
 export function unlockBodyScroll() {
-  activeLocks = Math.max(0, activeLocks - 1);
+  if (activeLocks === 0) return;
+  activeLocks -= 1;
   if (activeLocks === 0) {
+    const restoreY = lockedScrollY;
     document.documentElement.classList.remove('tws-scroll-locked');
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    document.body.style.paddingRight = '';
+    window.scrollTo(0, restoreY);
   }
 }
 

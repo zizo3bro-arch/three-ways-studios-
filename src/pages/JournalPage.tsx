@@ -31,8 +31,8 @@ export function JournalPage() {
         }
       />
 
-      <section className="pb-16 sm:pb-20">
-        <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
+      <section className="pb-14 sm:pb-18">
+        <div className="page-width">
           {lead ? (
             <Reveal preset="soft">
               <Link

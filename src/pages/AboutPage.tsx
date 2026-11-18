@@ -80,18 +80,18 @@ export function AboutPage() {
       />
 
       {/* manifesto */}
-      <section className="pb-14 sm:pb-20">
-        <div className="mx-auto grid w-full max-w-[1800px] gap-10 px-4 sm:px-6 lg:grid-cols-12 lg:gap-12 lg:px-10">
+      <section className="pb-14 sm:pb-18">
+        <div className="page-width grid gap-10 lg:grid-cols-12 lg:gap-12">
           <div className="lg:col-span-6">
             <Reveal preset="soft">
               <p className="tws-index">01 / The refusal</p>
               <h2
-                className="mt-3 font-display uppercase leading-[0.86] tracking-[0.004em] text-ink"
-                style={{ fontSize: 'clamp(1.9rem, 4.6vw, 3.4rem)' }}
+                className="mt-3 font-display uppercase leading-[0.88] tracking-[0.004em] text-ink"
+                style={{ fontSize: 'clamp(2rem, 4.6vw, 3.6rem)' }}
               >
                 A house is defined by what it refuses
               </h2>
-              <div className="mt-5 space-y-4 border-t border-ink/16 pt-5 text-[14px] leading-[1.75] text-ink-soft">
+              <div className="mt-5 space-y-4 border-t border-ink/16 pt-5 text-[15.5px] leading-[1.75] text-ink-soft sm:text-[16.5px]">
                 <p>
                   We refuse the tight leg, the seasonal print and the filler drop. What is left is a
                   trouser that has to carry the whole idea on its own — so the cloth, the rise and the
@@ -124,19 +124,19 @@ export function AboutPage() {
 
       {/* principles */}
       <section className="border-y border-ink/16 py-12 sm:py-16">
-        <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
+        <div className="page-width">
           <div className="grid gap-9 lg:grid-cols-12">
             <h2 className="tws-index lg:col-span-3">02 / Three principles</h2>
             <ul className="grid gap-8 sm:grid-cols-3 sm:gap-6 lg:col-span-9 lg:gap-10">
               {PRINCIPLES.map((principle, index) => (
                 <Reveal as="li" key={principle.n} preset="soft" delay={index * 0.07}>
-                  <p className="font-display text-[2.4rem] leading-none text-crimson/80">
+                  <p className="font-display text-[2.6rem] leading-none text-crimson/80">
                     {principle.n}
                   </p>
-                  <h3 className="mt-2.5 font-display text-[1.2rem] uppercase leading-[1.02] tracking-[0.008em] text-ink">
+                  <h3 className="mt-2.5 font-display text-[1.3rem] uppercase leading-[1.04] tracking-[0.008em] text-ink">
                     {principle.title}
                   </h3>
-                  <p className="mt-2.5 text-[12.5px] leading-relaxed text-ink-soft">{principle.copy}</p>
+                  <p className="mt-2.5 text-[14.5px] leading-relaxed text-ink-soft">{principle.copy}</p>
                 </Reveal>
               ))}
             </ul>
@@ -145,8 +145,8 @@ export function AboutPage() {
       </section>
 
       {/* fit + service */}
-      <section className="py-14 sm:py-20">
-        <div className="mx-auto grid w-full max-w-[1800px] gap-12 px-4 sm:px-6 lg:grid-cols-12 lg:gap-12 lg:px-10">
+      <section className="py-14 sm:py-18">
+        <div className="page-width grid gap-12 lg:grid-cols-12 lg:gap-12">
           <div id="fit" className="scroll-mt-28 lg:col-span-6">
             <Reveal preset="soft">
               <p className="tws-index">03 / Sizes &amp; fit</p>
@@ -232,8 +232,8 @@ export function AboutPage() {
       </section>
 
       {/* the atelier plate */}
-      <section className="pb-16 sm:pb-20">
-        <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
+      <section className="pb-14 sm:pb-18">
+        <div className="page-width">
           <Reveal preset="soft">
             <figure className="relative overflow-hidden">
               <img

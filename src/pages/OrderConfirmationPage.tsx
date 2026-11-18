@@ -112,7 +112,7 @@ export function OrderConfirmationPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[940px] px-4 pb-20 pt-[104px] sm:px-6 sm:pt-[136px]">
+    <div className="page-width max-w-[1140px] pb-20 pt-[calc(var(--header)+clamp(20px,3.6vw,52px))]">
       <div className="border-t border-ink/25">
         {/* the stamp */}
         <div className="relative border-b border-ink/16 px-0 py-8 sm:py-9">
