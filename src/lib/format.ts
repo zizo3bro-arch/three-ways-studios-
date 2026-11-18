@@ -6,13 +6,6 @@ export function formatEGP(amount: number): string {
   })}`;
 }
 
-export const formatPrice = formatEGP;
-
-export function getDiscountPercent(price: number, originalPrice: number | null): number | null {
-  if (!originalPrice || originalPrice <= price || originalPrice <= 0) return null;
-  return Math.round(((originalPrice - price) / originalPrice) * 100);
-}
-
 export function slugify(text: string): string {
   return text
     .toLowerCase()

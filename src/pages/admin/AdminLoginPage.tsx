@@ -49,41 +49,25 @@ export function AdminLoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-14">
-      {/* faint crimson wash so the dark console has a house tone */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-70"
-        style={{
-          background:
-            'radial-gradient(80% 60% at 50% -10%, rgba(165,18,27,0.24), transparent 65%), radial-gradient(60% 50% at 100% 100%, rgba(165,18,27,0.1), transparent 70%)',
-        }}
-      />
-
       <div className="relative z-10 w-full max-w-[420px]">
         <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center border border-white/15">
-            <img
-              src="/assets/three-ways-studios-logo.png"
-              alt=""
-              className="h-7 w-7 object-contain"
-            />
+          <span className="flex h-11 w-11 items-center justify-center border border-ink/15">
+            <img src="/assets/three-ways-studios-logo.png" alt="" className="h-7 w-7 object-contain" />
           </span>
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.26em] text-[#bd1a22]">
+            <p className="text-[9px] font-bold uppercase tracking-[0.26em] text-crimson">
               Private access
             </p>
-            <p className="mt-1 text-[13px] font-medium tracking-[0.04em] text-white">
-              Three Ways Studios
-            </p>
+            <p className="mt-1 text-[13px] font-medium tracking-[0.04em] text-ink">Three Ways Studios</p>
           </div>
         </div>
 
-        <h1 className="mt-9 font-display text-[2.4rem] uppercase leading-[0.9] tracking-[0.01em] text-white sm:text-[2.9rem]">
+        <h1 className="mt-9 font-display text-[2.4rem] uppercase leading-[0.9] tracking-[0.01em] text-ink sm:text-[2.9rem]">
           Studio
           <br />
           console
         </h1>
-        <p className="mt-3 max-w-xs text-[12.5px] leading-relaxed text-[#9d938e]">
+        <p className="mt-3 max-w-xs text-[12.5px] leading-relaxed text-ink-faint">
           Staff only. Inventory, orders, customers and site content are managed behind this door.
         </p>
 
@@ -91,7 +75,7 @@ export function AdminLoginPage() {
           <div>
             <label
               htmlFor="admin-email"
-              className="mb-1.5 block text-[9px] font-bold uppercase tracking-[0.24em] text-[#8d8480]"
+              className="mb-1.5 block text-[9px] font-bold uppercase tracking-[0.24em] text-ink-faint"
             >
               Admin email
             </label>
@@ -102,15 +86,15 @@ export function AdminLoginPage() {
               autoComplete="username"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@threewaysstudios.com"
-              className="h-12 w-full border-0 border-b border-white/20 bg-transparent px-0 text-[14px] text-white outline-none transition-colors placeholder:text-[#5f5854] focus:border-[#bd1a22]"
+              placeholder="Staff email address"
+              className="h-12 w-full border-0 border-b border-ink/20 bg-transparent px-0 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-crimson"
             />
           </div>
 
           <div>
             <label
               htmlFor="admin-password"
-              className="mb-1.5 block text-[9px] font-bold uppercase tracking-[0.24em] text-[#8d8480]"
+              className="mb-1.5 block text-[9px] font-bold uppercase tracking-[0.24em] text-ink-faint"
             >
               Password
             </label>
@@ -123,13 +107,13 @@ export function AdminLoginPage() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="••••••••••"
-                className="h-12 w-full border-0 border-b border-white/20 bg-transparent px-0 pr-10 text-[14px] text-white outline-none transition-colors placeholder:text-[#5f5854] focus:border-[#bd1a22]"
+                className="h-12 w-full border-0 border-b border-ink/20 bg-transparent px-0 pr-10 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-crimson"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((value) => !value)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
-                className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-[#8d8480] transition-colors hover:text-white"
+                className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-ink-faint transition-colors hover:text-crimson"
               >
                 {showPassword ? (
                   <EyeOff className="h-4 w-4" strokeWidth={1.8} />
@@ -143,7 +127,7 @@ export function AdminLoginPage() {
           {error ? (
             <div
               role="alert"
-              className="flex items-start gap-2.5 border-l-2 border-[#bd1a22] bg-[rgba(189,26,34,0.1)] px-3.5 py-3 text-[11.5px] leading-relaxed text-[#f0b9b6]"
+              className="flex items-start gap-2.5 border-l-2 border-crimson bg-[rgba(189,26,34,0.1)] px-3.5 py-3 text-[11.5px] leading-relaxed text-crimson-deep"
             >
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2} />
               <span>{error}</span>
@@ -153,22 +137,22 @@ export function AdminLoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="flex h-12 w-full items-center justify-center gap-2.5 bg-[#bd1a22] text-[10.5px] font-bold uppercase tracking-[0.24em] text-white transition-colors hover:bg-[#a5121b] disabled:opacity-50"
+            className="flex h-12 w-full items-center justify-center gap-2.5 bg-crimson text-[10.5px] font-bold uppercase tracking-[0.24em] text-paper transition-colors hover:bg-crimson-deep disabled:opacity-50"
           >
             <Lock className="h-3.5 w-3.5" strokeWidth={2} />
             {submitting ? 'Authenticating…' : 'Sign in'}
           </button>
         </form>
 
-        <div className="mt-8 flex items-center justify-between gap-4 border-t border-white/10 pt-5">
+        <div className="mt-8 flex items-center justify-between gap-4 border-t border-ink/10 pt-5">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.2em] text-[#8d8480] transition-colors hover:text-white"
+            className="inline-flex items-center gap-2 text-[9.5px] font-bold uppercase tracking-[0.2em] text-ink-faint transition-colors hover:text-crimson"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Storefront
           </Link>
-          <p className="text-right text-[9px] uppercase tracking-[0.16em] text-[#5f5854]">
+          <p className="text-right text-[9px] uppercase tracking-[0.16em] text-ink-faint">
             Authorised staff only
           </p>
         </div>

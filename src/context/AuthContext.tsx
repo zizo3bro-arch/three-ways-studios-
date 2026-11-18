@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { isSupabaseConfigured } from '../lib/supabase';
+import { adminClient as supabase } from '../lib/adminClient';
 
 /* =========================================================
    AUTH — Supabase Auth, unchanged in substance.
@@ -40,24 +41,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const verifyAdmin = useCallback(async (uid: string | undefined) => {
     if (!supabase || !uid) {
-      setIsAdmin(false);
       return false;
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('admin_users')
-        .select('id')
-        .eq('id', uid)
-        .maybeSingle();
-
-      const ok = !error && Boolean(data?.id);
-      setIsAdmin(ok);
-      return ok;
-    } catch {
-      setIsAdmin(false);
-      return false;
-    }
+    const { data, error } = await supabase.from('admin_users').select('id').eq('id', uid).maybeSingle();
+    if (error) throw error;
+    return data?.id === uid;
   }, []);
 
   const applySession = useCallback(
@@ -72,7 +61,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const ok = await verifyAdmin(next.user.id);
+      let ok = false;
+      try {
+        ok = await verifyAdmin(next.user.id);
+      } catch (error) {
+        console.error('Staff membership check failed:', error);
+      }
       // a newer session event has already claimed the state
       if (myCheck !== checkId.current) return;
       setIsAdmin(ok);
@@ -89,18 +83,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      void applySession(data.session);
-    });
-
+    let timer: number | undefined;
+    let lastUid: string | undefined;
+    // INITIAL_SESSION is emitted on subscription. Postpone the database read
+    // until the auth callback has released the Supabase session lock.
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
       if (!mounted) return;
-      void applySession(next);
+      ++checkId.current;
+      clearTimeout(timer);
+      if (next?.user.id !== lastUid || !next) {
+        setIsAdmin(false);
+        setLoading(Boolean(next));
+        setUser(next?.user ?? null);
+        setSession(next);
+      }
+      lastUid = next?.user.id;
+      timer = window.setTimeout(() => {
+        if (mounted) void applySession(next);
+      }, 0);
     });
 
     return () => {
       mounted = false;
+      ++checkId.current;
+      clearTimeout(timer);
       listener.subscription.unsubscribe();
     };
   }, [applySession]);
@@ -120,28 +126,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error) {
       // never echo provider wording that hints at account existence
-      const message =
-        error.message.toLowerCase().includes('invalid login')
-          ? 'That email and password do not match a studio account.'
-          : error.message;
+      const message = error.message.toLowerCase().includes('invalid login')
+        ? 'That email and password do not match a studio account.'
+        : error.message;
       return { error: message };
     }
 
-    const ok = await verifyAdmin(data.user?.id);
-    if (!ok) {
-      await supabase.auth.signOut();
-      return {
-        error:
-          'This account is authenticated but is not registered as studio staff (no row in public.admin_users).',
-      };
+    let denial = 'This account is not authorised for the studio console.';
+    try {
+      if (await verifyAdmin(data.user?.id)) return { error: null };
+    } catch (error) {
+      console.error('Staff membership check failed:', error);
+      denial = 'Unable to verify staff access. Please try again.';
     }
-
-    return { error: null };
+    const { error: logoutError } = await supabase.auth.signOut({ scope: 'local' });
+    if (logoutError) console.error('Unable to end unverified session:', logoutError.message);
+    return { error: denial };
   };
 
   const signOut = async () => {
     if (supabase) {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: 'local' });
+      if (error) throw error;
     }
     checkId.current += 1;
     setIsAdmin(false);

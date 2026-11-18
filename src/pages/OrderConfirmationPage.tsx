@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Banknote, CheckCircle2, Printer } from 'lucide-react';
 import { fetchOrderConfirmation } from '../lib/api';
 import { formatEGP } from '../lib/format';
-import { ColourChip } from '../components/ui/ColourChip';
 import type { OrderConfirmationData } from '../types/database';
 
 /* =========================================================
@@ -15,18 +14,30 @@ import type { OrderConfirmationData } from '../types/database';
 export function OrderConfirmationPage() {
   const { orderRef } = useParams<{ orderRef: string }>();
   const [params] = useSearchParams();
-  const [order, setOrder] = useState<OrderConfirmationData | null>(() => {
-    if (!orderRef) return null;
-    try {
-      const raw = window.sessionStorage.getItem(`tws_order_${orderRef}`);
-      return raw ? (JSON.parse(raw) as OrderConfirmationData) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [lookupEmail, setLookupEmail] = useState(params.get('email') ?? '');
+  const location = useLocation();
+  const initialEmail = (location.state as { email?: string } | null)?.email || params.get('email') || '';
+  const [order, setOrder] = useState<OrderConfirmationData | null>(null);
+  const [lookupEmail, setLookupEmail] = useState(initialEmail);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    let current = true;
+    setOrder(null);
+    setLookupError(null);
+    setLookupEmail(initialEmail);
+    setLoading(Boolean(initialEmail));
+    if (orderRef && initialEmail)
+      void fetchOrderConfirmation(orderRef, initialEmail).then((result) => {
+        if (current) {
+          setOrder(result.order);
+          setLookupError(result.error);
+          setLoading(false);
+        }
+      });
+    return () => {
+      current = false;
+    };
+  }, [orderRef, initialEmail]);
 
   useEffect(() => {
     document.title = orderRef
@@ -48,7 +59,7 @@ export function OrderConfirmationPage() {
     setOrder(found);
   };
 
-  if (!order) {
+  if (!order || order.order_reference.toUpperCase() !== orderRef?.toUpperCase()) {
     return (
       <section className="relative flex min-h-[82svh] items-center justify-center px-4 py-24">
         <div className="relative z-10 w-full max-w-md border-t border-ink/25 pt-6">
@@ -80,7 +91,11 @@ export function OrderConfirmationPage() {
                 {lookupError}
               </p>
             ) : null}
-            <button type="submit" disabled={loading} className="tws-pill h-13 w-full justify-center disabled:opacity-60">
+            <button
+              type="submit"
+              disabled={loading}
+              className="tws-pill h-13 w-full justify-center disabled:opacity-60"
+            >
               {loading ? 'Verifying…' : 'Open the receipt'}
               <ArrowRight className="h-4 w-4" strokeWidth={2} />
             </button>
@@ -154,7 +169,9 @@ export function OrderConfirmationPage() {
         <div className="grid gap-6 px-5 py-7 sm:grid-cols-2 sm:px-9">
           <div>
             <p className="tws-eyebrow text-ink-faint">Delivering to</p>
-            <p className="mt-2.5 text-[13px] font-semibold leading-snug text-ink">{order.customer_name}</p>
+            <p className="mt-2.5 text-[13px] font-semibold leading-snug text-ink">
+              {order.customer_name}
+            </p>
             <p className="mt-1 text-[12.5px] leading-relaxed text-ink-soft">{order.delivery_address}</p>
             <p className="text-[12.5px] text-ink-soft">
               {order.city}, {order.governorate}
@@ -165,7 +182,9 @@ export function OrderConfirmationPage() {
             <p className="mt-2.5 text-[12.5px] text-ink-soft">{order.customer_email}</p>
             <p className="mt-1 text-[12.5px] text-ink-soft">{order.customer_phone}</p>
             {order.order_notes ? (
-              <p className="mt-2 text-[12px] italic leading-relaxed text-ink-faint">Note: {order.order_notes}</p>
+              <p className="mt-2 text-[12px] italic leading-relaxed text-ink-faint">
+                Note: {order.order_notes}
+              </p>
             ) : null}
             <p className="mt-3 inline-flex border border-ink/20 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-ink-soft">
               Status · {order.status}
@@ -179,9 +198,14 @@ export function OrderConfirmationPage() {
           <ul className="mt-3.5 space-y-3.5">
             {order.items.map((item, index) => (
               <li key={`${item.variant_id ?? 'line'}-${index}`} className="flex items-center gap-4">
-                <span className="flex h-[74px] w-12 shrink-0 items-end justify-center overflow-hidden bg-[rgba(23,19,15,0.05)]">
+                <span className="flex h-[74px] w-12 shrink-0 items-end justify-center overflow-hidden">
                   {item.product_image ? (
-                    <img src={item.product_image} alt={item.product_name} loading="lazy" className="h-full w-auto object-contain object-bottom" />
+                    <img
+                      src={item.product_image}
+                      alt={item.product_name}
+                      loading="lazy"
+                      className="h-full w-auto object-contain object-bottom"
+                    />
                   ) : null}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -189,10 +213,14 @@ export function OrderConfirmationPage() {
                     {item.product_name}
                   </span>
                   <span className="mt-1 block">
-                    <ColourChip label={`${item.color_name} · Size ${item.size_name} · Qty ${item.quantity}`} />
+                    <small>
+                      {item.color_name} · Size {item.size_name} · Qty {item.quantity}
+                    </small>
                   </span>
                 </span>
-                <span className="text-[12.5px] font-bold tabular-nums text-ink">{formatEGP(item.line_total)}</span>
+                <span className="text-[12.5px] font-bold tabular-nums text-ink">
+                  {formatEGP(item.line_total)}
+                </span>
               </li>
             ))}
           </ul>
@@ -236,8 +264,8 @@ export function OrderConfirmationPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink/12 px-5 py-5 sm:px-9">
           <p className="max-w-sm text-[11.5px] leading-relaxed text-ink-faint">
-            Keep the reference. Dispatch calls before the courier arrives, and returns are open for
-            14 days from delivery.
+            Keep the reference. Dispatch calls before the courier arrives, and returns are open for 14
+            days from delivery.
           </p>
           <Link to="/shop" className="tws-pill h-12 print:hidden">
             Continue shopping

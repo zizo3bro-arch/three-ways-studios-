@@ -7,14 +7,18 @@ import { SiteFooter } from './components/layout/SiteFooter';
 import { MobileMenu } from './components/layout/MobileMenu';
 import { SearchOverlay } from './components/overlays/SearchOverlay';
 import { AccountPanel } from './components/overlays/AccountPanel';
-import { QuickView } from './components/shop/QuickView';
 import { CartProvider } from './context/CartContext';
 import { SiteSettingsProvider } from './context/SiteSettingsContext';
-import { UIProvider } from './context/UIContext';
+import { UIProvider, useUI } from './context/UIContext';
 import { WishlistProvider } from './context/WishlistContext';
 import { applyMeta } from './lib/seo';
 import { HomePage } from './pages/HomePage';
 
+const QuickView = lazy(() =>
+  import('./components/shop/QuickView').then((m) => ({ default: m.QuickView }))
+);
+const CartPage = lazy(() => import('./pages/CartPage').then((m) => ({ default: m.CartPage })));
+const PolicyPage = lazy(() => import('./pages/PolicyPage').then((m) => ({ default: m.PolicyPage })));
 const ShopPage = lazy(() => import('./pages/ShopPage').then((m) => ({ default: m.ShopPage })));
 const CollectionsPage = lazy(() =>
   import('./pages/CollectionsPage').then((m) => ({ default: m.CollectionsPage }))
@@ -28,8 +32,12 @@ const JournalPage = lazy(() => import('./pages/JournalPage').then((m) => ({ defa
 const JournalEntryPage = lazy(() =>
   import('./pages/JournalEntryPage').then((m) => ({ default: m.JournalEntryPage }))
 );
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })));
-const CheckoutPage = lazy(() => import('./pages/CheckoutPage').then((m) => ({ default: m.CheckoutPage })));
+const NotFoundPage = lazy(() =>
+  import('./pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage }))
+);
+const CheckoutPage = lazy(() =>
+  import('./pages/CheckoutPage').then((m) => ({ default: m.CheckoutPage }))
+);
 const OrderConfirmationPage = lazy(() =>
   import('./pages/OrderConfirmationPage').then((m) => ({ default: m.OrderConfirmationPage }))
 );
@@ -47,22 +55,29 @@ function ScrollManager() {
     if (hash) {
       const targetId = hash.replace(/^#/, '');
       let attempts = 0;
+      let timer: number | undefined;
 
       const tryScroll = () => {
         const element = document.getElementById(targetId);
         if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          element.scrollIntoView({
+            behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+            block: 'start',
+          });
           return;
         }
         attempts += 1;
-        if (attempts < 14) window.setTimeout(tryScroll, 90);
+        if (attempts < 14) timer = window.setTimeout(tryScroll, 90);
       };
 
-      window.requestAnimationFrame(tryScroll);
-      return;
+      const frame = window.requestAnimationFrame(tryScroll);
+      return () => {
+        cancelAnimationFrame(frame);
+        clearTimeout(timer);
+      };
     }
 
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [pathname, hash]);
 
   return null;
@@ -120,6 +135,9 @@ function StorefrontRoutes() {
       <Route path="/about" element={<AboutPage />} />
       <Route path="/journal" element={<JournalPage />} />
       <Route path="/journal/:slug" element={<JournalEntryPage />} />
+      <Route path="/cart" element={<CartPage />} />
+      <Route path="/privacy" element={<PolicyPage privacy />} />
+      <Route path="/terms" element={<PolicyPage privacy={false} />} />
       <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/order-confirmation/:orderRef" element={<OrderConfirmationPage />} />
       <Route path="*" element={<NotFoundPage />} />
@@ -128,6 +146,7 @@ function StorefrontRoutes() {
 }
 
 function StorefrontChrome({ children }: { children: React.ReactNode }) {
+  const { quickViewSlug } = useUI();
   return (
     <>
       {/* skip link — real anchor to the first content region */}
@@ -151,7 +170,11 @@ function StorefrontChrome({ children }: { children: React.ReactNode }) {
       <SearchOverlay />
       <AccountPanel />
       <MobileMenu />
-      <QuickView />
+      {quickViewSlug && (
+        <Suspense fallback={null}>
+          <QuickView />
+        </Suspense>
+      )}
     </>
   );
 }

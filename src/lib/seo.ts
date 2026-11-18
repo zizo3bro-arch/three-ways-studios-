@@ -22,26 +22,24 @@ interface Meta {
   /** path used for the canonical url, or null to omit it */
   canonical: string | null;
   noindex?: boolean;
+  image?: string;
 }
 
 const DEFAULT: Meta = {
-  title: `${BRAND} — Fashion Beyond Limits | Wide-Flare & Super-Flare Denim`,
+  title: `${BRAND} — Fashion Beyond Limits | Cairo Streetwear`,
   description:
-    'Wide-flare and super-flare denim cut in Cairo. Small runs, selvedge cloth, cash on delivery across Egypt. Fashion beyond limits.',
+    'Independent streetwear from Cairo. Explore the Three Ways Studios collection. Cash on delivery across Egypt.',
   canonical: '/',
 };
 
 const RULES: Array<[RegExp, (path: string) => Meta]> = [
-  [
-    /^\/$/,
-    () => DEFAULT,
-  ],
+  [/^\/$/, () => DEFAULT],
   [
     /^\/shop/,
     () => ({
       title: `The Shop — ${BRAND}`,
       description:
-        'Every piece in the current run: wide-flare and super-flare denim in selvedge and washed cotton, cut in Cairo and finished by hand.',
+        'Shop the current Three Ways Studios collection. Browse available sizes and colors, with cash on delivery across Egypt.',
       canonical: '/shop',
     }),
   ],
@@ -85,8 +83,7 @@ const RULES: Array<[RegExp, (path: string) => Meta]> = [
     /^\/journal\/[^/]+/,
     () => ({
       title: `Journal — ${BRAND}`,
-      description:
-        'Notes from the studio: cloth, cut and the city the pieces are made in.',
+      description: 'Notes from the studio: cloth, cut and the city the pieces are made in.',
       canonical: null,
     }),
   ],
@@ -97,6 +94,23 @@ const RULES: Array<[RegExp, (path: string) => Meta]> = [
       description:
         'Notes from the atelier on cloth, cut and Cairo — the long-form companion to each Three Ways Studios release.',
       canonical: '/journal',
+    }),
+  ],
+  [
+    /^\/cart$/,
+    () => ({
+      title: `Your cart — ${BRAND}`,
+      description: 'Review your selections.',
+      canonical: null,
+      noindex: true,
+    }),
+  ],
+  [
+    /^\/(terms|privacy)$/,
+    (path) => ({
+      title: `${path === '/terms' ? 'Terms & conditions' : 'Privacy policy'} — ${BRAND}`,
+      description: 'Three Ways Studios policies and contact details.',
+      canonical: path,
     }),
   ],
   [
@@ -141,11 +155,7 @@ export function metaForPath(pathname: string): Meta {
 }
 
 /** Write a tag, creating it once if the static shell does not already have it. */
-function setTag(
-  selector: string,
-  attrs: Record<string, string>,
-  create: () => HTMLElement,
-) {
+function setTag(selector: string, attrs: Record<string, string>, create: () => HTMLElement) {
   let node = document.head.querySelector<HTMLElement>(selector);
   if (!node) {
     node = create();
@@ -179,11 +189,16 @@ export function applyMeta(pathname: string, override?: Partial<Meta>) {
 
   document.title = meta.title;
 
-  if (meta.description) {
-    setMetaName('description', meta.description);
-    setMetaProperty('og:description', meta.description);
-    setMetaName('twitter:description', meta.description);
-  }
+  setMetaName('description', meta.description);
+  setMetaProperty('og:description', meta.description);
+  setMetaName('twitter:description', meta.description);
+  const image =
+    meta.image && /^(https:\/\/|\/(?!\/))/.test(meta.image)
+      ? meta.image
+      : '/assets/three-ways-studios-logo-full.jpeg';
+  const imageUrl = image.startsWith('/') ? SITE + image : image;
+  setMetaProperty('og:image', imageUrl);
+  setMetaName('twitter:image', imageUrl);
 
   setMetaProperty('og:title', meta.title);
   setMetaName('twitter:title', meta.title);

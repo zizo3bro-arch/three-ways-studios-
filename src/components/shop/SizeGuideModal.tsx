@@ -1,121 +1,67 @@
-import { Ruler, X } from 'lucide-react';
-import { HOUSE_SIZE_GUIDE } from '../../data/catalog';
-import { useBodyScrollLock, useEscapeKey } from '../../lib/scrollLock';
+import { Link } from 'react-router-dom';
+import { Overlay } from '../ui/Overlay';
 import type { Product } from '../../types/database';
-
-interface SizeGuideModalProps {
-  open: boolean;
-  product: Product;
-  onClose: () => void;
-  onOpenFitCalculator: () => void;
-}
 
 export function SizeGuideModal({
   open,
   product,
   onClose,
   onOpenFitCalculator,
-}: SizeGuideModalProps) {
-  useBodyScrollLock(open);
-  useEscapeKey(open, onClose);
-
-  if (!open) return null;
-
-  const dbCharts = product.size_charts ?? [];
-
+}: {
+  open: boolean;
+  product: Product;
+  onClose: () => void;
+  onOpenFitCalculator: () => void;
+}) {
+  const rows = product.size_charts ?? [];
+  const measurements = ['waist_cm', 'hip_cm', 'thigh_cm', 'inseam_cm', 'length_cm'] as const;
+  const columns = measurements.filter((k) => rows.some((r) => r[k]));
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="tws-size-guide-title"
-    >
-      <button
-        type="button"
-        aria-label="Close size guide"
-        onClick={onClose}
-        className="tws-fade-in absolute inset-0 cursor-default bg-[#120e0b]/50 backdrop-blur-[3px]"
-      />
-
-      <div className="tws-sheet-in relative z-10 max-h-[90svh] w-full overflow-y-auto border border-ink/18 bg-[#f3efe7] p-6 text-ink shadow-[0_30px_90px_rgba(12,10,8,0.34)] sm:max-w-2xl sm:p-8">
-        <div className="flex items-start justify-between gap-4 border-b border-ink/16 pb-4">
-          <div>
-            <p className="tws-eyebrow flex items-center gap-2 text-crimson">
-              <Ruler className="h-3.5 w-3.5" strokeWidth={2} />
-              Size Guide
-            </p>
-            <h3 id="tws-size-guide-title" className="mt-1.5 font-display text-2xl uppercase leading-none text-ink">
-              {product.name} — Measurements
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close size guide"
-            className="flex h-9 w-9 shrink-0 items-center justify-center border border-ink/25 text-ink transition-colors hover:border-crimson hover:text-crimson"
-          >
-            <X className="h-4 w-4" strokeWidth={2} />
-          </button>
-        </div>
-
-        <p className="mt-4 text-xs leading-relaxed text-ink-soft">
-          {product.fit_info || 'High-rise fitted hip with an architectural wide-flare leg. True to size, cut long in the leg.'}
-        </p>
-
-        <div className="mt-5 overflow-x-auto border border-ink/18">
-          <table className="w-full min-w-[480px] border-collapse text-left text-xs">
-            <thead>
-              <tr className="border-b border-ink/18 text-[10px] font-bold uppercase tracking-[0.16em] text-ink-faint">
-                <th scope="col" className="px-4 py-3">Size</th>
-                <th scope="col" className="px-4 py-3">Waist</th>
-                <th scope="col" className="px-4 py-3">Hip</th>
-                <th scope="col" className="px-4 py-3">Thigh</th>
-                <th scope="col" className="px-4 py-3">Inseam</th>
-                <th scope="col" className="px-4 py-3">Length</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-black/8">
-              {dbCharts.length > 0
-                ? dbCharts.map((row) => (
-                    <tr key={row.id} className="transition-colors hover:bg-[rgba(23,19,15,0.04)]">
-                      <th scope="row" className="px-4 py-3 font-bold text-ink">{row.size_name}</th>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.waist_cm} cm</td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.hip_cm} cm</td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.thigh_cm} cm</td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.inseam_cm} cm</td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.length_cm} cm</td>
-                    </tr>
-                  ))
-                : HOUSE_SIZE_GUIDE.map((row) => (
-                    <tr key={row.size} className="transition-colors hover:bg-[rgba(23,19,15,0.04)]">
-                      <th scope="row" className="px-4 py-3 font-bold text-ink">{row.size}</th>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.waist}</td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.hip}</td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.thigh}</td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.inseam}</td>
-                      <td className="px-4 py-3 tabular-nums text-ink-soft">{row.length}</td>
-                    </tr>
+    <Overlay open={open} onClose={onClose} label="Size guide" placement="sheet">
+      <div className="overflow-y-auto pb-4">
+        <h2 className="section-label">Size guide</h2>
+        <p className="my-3">{product.name}</p>
+        {rows.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="size-table">
+              <caption>Garment measurements in centimetres</caption>
+              <thead>
+                <tr>
+                  <th>Size</th>
+                  {columns.map((k) => (
+                    <th key={k}>{k.split('_')[0]}</th>
                   ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink/16 pt-4">
-          <p className="text-xs text-ink-faint">
-            Not sure which size to pick? Calculate from your weight and height.
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <th>{row.size_name}</th>
+                    {columns.map((k) => (
+                      <td key={k}>{row[k] || '—'}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="form-note">
+            No measurements have been published for this piece.{' '}
+            <Link onClick={onClose} className="text-action" to="/about#fit">
+              House fit guide
+            </Link>
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onOpenFitCalculator();
-            }}
-            className="tws-pill h-10 px-5 text-[10px]"
-          >
-            Find My Size
+        )}
+        {product.fit_info && <p className="my-4 text-sm">{product.fit_info}</p>}
+        {/pants|denim|flare|trouser/i.test(
+          [product.name, product.category, product.fit_info].join(' ')
+        ) && (
+          <button className="tws-pill mt-4" onClick={onOpenFitCalculator}>
+            Find my size
           </button>
-        </div>
+        )}
       </div>
-    </div>
+    </Overlay>
   );
 }

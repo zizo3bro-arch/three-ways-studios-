@@ -1,21 +1,18 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-
+export const studioUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+export const publicKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 export const isSupabaseConfigured = Boolean(
-  supabaseUrl &&
-    supabaseAnonKey &&
-    supabaseUrl.startsWith('http') &&
-    !supabaseUrl.includes('your-project-id')
+  studioUrl && /^https?:\/\//.test(studioUrl) && !studioUrl.includes('your-project-id') && publicKey
 );
-
-export const supabase: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(supabaseUrl!, supabaseAnonKey!, {
+// Storefront queries always use the public role, even when staff visit the shop in the same browser.
+export const supabase = isSupabaseConfigured
+  ? createClient(studioUrl!, publicKey!, {
       auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storageKey: 'tws-storefront',
       },
     })
   : null;

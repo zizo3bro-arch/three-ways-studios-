@@ -58,7 +58,6 @@ export function AboutPage() {
     <>
       <PageIntro
         eyebrow="The house — Cairo"
-        sprayText="ABOUT"
         title={
           <>
             Fashion
@@ -68,8 +67,8 @@ export function AboutPage() {
         meta="Est. Cairo 2024"
         description={
           <p>
-            Three Ways Studios is an independent house built around the leg. Wide, longer, heavier
-            — and cut by the same two hands from the first run to the last.
+            Three Ways Studios is an independent house built around the leg. Wide, longer, heavier — and
+            cut by the same two hands from the first run to the last.
           </p>
         }
         actions={
@@ -95,8 +94,8 @@ export function AboutPage() {
               <div className="mt-5 space-y-4 border-t border-ink/16 pt-5 text-[14px] leading-[1.75] text-ink-soft">
                 <p>
                   We refuse the tight leg, the seasonal print and the filler drop. What is left is a
-                  trouser that has to carry the whole idea on its own — so the cloth, the rise and
-                  the hem are all we argue about.
+                  trouser that has to carry the whole idea on its own — so the cloth, the rise and the
+                  hem are all we argue about.
                 </p>
                 <p>
                   The atelier sits in downtown Cairo, above a fabric merchant who has been cutting
@@ -163,16 +162,27 @@ export function AboutPage() {
                   <caption className="sr-only">Size guide in centimetres</caption>
                   <thead>
                     <tr className="border-b border-ink/16 text-[8.5px] uppercase tracking-[0.2em] text-ink-faint">
-                      <th scope="col" className="py-3 pr-4">Size</th>
-                      <th scope="col" className="py-3 pr-4">Waist (cm)</th>
-                      <th scope="col" className="py-3 pr-4">Height (cm)</th>
-                      <th scope="col" className="py-3">Inseam (cm)</th>
+                      <th scope="col" className="py-3 pr-4">
+                        Size
+                      </th>
+                      <th scope="col" className="py-3 pr-4">
+                        Waist (cm)
+                      </th>
+                      <th scope="col" className="py-3 pr-4">
+                        Height (cm)
+                      </th>
+                      <th scope="col" className="py-3">
+                        Inseam (cm)
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {FIT_ROWS.map(([size, waist, height, inseam]) => (
                       <tr key={size} className="border-b border-ink/12">
-                        <th scope="row" className="py-3 pr-4 font-display text-[1.05rem] uppercase text-ink">
+                        <th
+                          scope="row"
+                          className="py-3 pr-4 font-display text-[1.05rem] uppercase text-ink"
+                        >
                           {size}
                         </th>
                         <td className="py-3 pr-4 text-[12.5px] tabular-nums text-ink-soft">{waist}</td>
@@ -184,8 +194,8 @@ export function AboutPage() {
                 </table>
               </div>
               <p className="mt-3 text-[11.5px] leading-relaxed text-ink-faint">
-                The figures above are the house reference measurements for the 2026 flare blocks.
-                Use “Find my size” on any piece to get a recommendation from your weight and height.
+                The figures above are the house reference measurements for the 2026 flare blocks. Use
+                “Find my size” on any piece to get a recommendation from your weight and height.
               </p>
             </Reveal>
           </div>
@@ -238,8 +248,8 @@ export function AboutPage() {
                   The atelier — downtown Cairo
                 </p>
                 <p className="hidden max-w-[380px] text-right font-serif text-[12.5px] italic leading-snug text-[#f7f4ed]/85 sm:block">
-                  Patterns drafted on the body, corrected on the floor, closed only when the fitting
-                  log stops moving.
+                  Patterns drafted on the body, corrected on the floor, closed only when the fitting log
+                  stops moving.
                 </p>
               </figcaption>
             </figure>

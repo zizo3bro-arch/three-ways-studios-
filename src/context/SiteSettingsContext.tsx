@@ -9,10 +9,10 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   hero_tagline: 'FASHION BEYOND LIMITS.',
   hero_collection_label: 'NEW COLLECTION / 2026',
   hero_cta_label: 'SHOP NOW',
-  products_heading: 'Two patterns',
-  products_subheading: 'one obsession',
-  newsletter_text: 'Early access to the cut, the fitting notes, and 10% off your first pair.',
-  footer_tagline: 'A Cairo house cutting wide-flare denim in small runs. Fashion beyond limits — one silhouette at a time.',
+  products_heading: 'Our collections',
+  products_subheading: 'View all collections',
+  newsletter_text: 'Stay in the loop',
+  footer_tagline: 'Independent streetwear. Cairo, Egypt.',
   copyright_text: '© 2026 Three Ways Studios. All rights reserved.',
   nav_links: [
     { label: 'SHOP', path: '/shop' },
@@ -35,17 +35,20 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
 interface SiteSettingsContextValue {
   settings: SiteSettings;
   loading: boolean;
+  error: string | null;
   refreshSettings: () => Promise<void>;
 }
 
 const SiteSettingsContext = createContext<SiteSettingsContextValue>({
   settings: DEFAULT_SITE_SETTINGS,
   loading: false,
+  error: null,
   refreshSettings: async () => {},
 });
 
 export function SiteSettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(supabase));
 
   const fetchSettings = async () => {
@@ -53,6 +56,8 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
       setLoading(false);
       return;
     }
+    setError(null);
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('site_settings')
@@ -60,10 +65,33 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
         .eq('id', 'default')
         .maybeSingle();
 
-      if (!error && data) {
+      if (error) throw error;
+      if (data) {
         setSettings({
           ...DEFAULT_SITE_SETTINGS,
           ...data,
+          // Translate the original seed copy, not the merchant's custom text.
+          products_heading:
+            !data.products_heading || ['Products', 'Two patterns'].includes(data.products_heading)
+              ? DEFAULT_SITE_SETTINGS.products_heading
+              : data.products_heading,
+          products_subheading:
+            !data.products_subheading ||
+            ['EXPLORE OUR LATEST COLLECTION', 'one obsession'].includes(data.products_subheading)
+              ? DEFAULT_SITE_SETTINGS.products_subheading
+              : data.products_subheading,
+          newsletter_text:
+            !data.newsletter_text ||
+            [
+              'Subscribe to our newsletter and get exclusive offers.',
+              'Early access to the cut, the fitting notes, and 10% off your first pair.',
+            ].includes(data.newsletter_text)
+              ? DEFAULT_SITE_SETTINGS.newsletter_text
+              : data.newsletter_text,
+          footer_tagline:
+            !data.footer_tagline || data.footer_tagline === 'WEAR THE DIFFERENCE.'
+              ? DEFAULT_SITE_SETTINGS.footer_tagline
+              : data.footer_tagline,
           nav_links: Array.isArray(data.nav_links) ? data.nav_links : DEFAULT_SITE_SETTINGS.nav_links,
           footer_links: Array.isArray(data.footer_links)
             ? data.footer_links
@@ -71,8 +99,9 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
           social_links: data.social_links || DEFAULT_SITE_SETTINGS.social_links,
         });
       }
-    } catch {
-      // Keep default copy if table isn't initialized yet
+    } catch (error) {
+      console.error('Could not load studio settings:', error);
+      setError('Could not load the saved studio settings.');
     } finally {
       setLoading(false);
     }
@@ -83,7 +112,7 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
   }, []);
 
   return (
-    <SiteSettingsContext.Provider value={{ settings, loading, refreshSettings: fetchSettings }}>
+    <SiteSettingsContext.Provider value={{ settings, loading, error, refreshSettings: fetchSettings }}>
       {children}
     </SiteSettingsContext.Provider>
   );

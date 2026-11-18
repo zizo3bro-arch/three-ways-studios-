@@ -2,7 +2,6 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { JOURNAL_ENTRIES, formatDate, journalEntryBySlug } from '../data/journal';
 import { Reveal } from '../components/ui/Reveal';
-import { SprayType } from '../components/ui/SprayType';
 import { Parallax } from '../components/ui/Parallax';
 
 /* =========================================================
@@ -33,11 +32,6 @@ export function JournalEntryPage() {
   return (
     <article className="relative">
       <header className="relative isolate overflow-hidden px-4 pb-10 pt-[110px] sm:px-6 sm:pt-[150px] lg:px-10">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[52%] z-0 -translate-y-1/2 opacity-[0.45]">
-          <SprayType text={entry.title.split('\n')[0] || 'JOURNAL'} />
-        </div>
-        <div aria-hidden="true" className="tws-grain pointer-events-none absolute inset-0 z-[2]" />
-
         <div className="relative z-10 mx-auto w-full max-w-[1120px]">
           <Link
             to="/journal"
@@ -73,7 +67,6 @@ export function JournalEntryPage() {
               className="h-[clamp(240px,44vw,560px)] w-full object-cover"
             />
           </Parallax>
-          
         </span>
         <figcaption className="mt-3 text-[9px] font-bold uppercase tracking-[0.2em] text-ink-faint">
           {entry.imageAlt}
@@ -81,7 +74,6 @@ export function JournalEntryPage() {
       </figure>
 
       <div className="relative isolate border-t border-ink/16 py-14 sm:py-16">
-        
         <div className="relative z-10 mx-auto grid w-full max-w-[1120px] gap-10 px-4 sm:px-6 lg:grid-cols-12">
           <div className="lg:col-span-8">
             {entry.body.map((paragraph, paragraphIndex) => (
@@ -98,7 +90,7 @@ export function JournalEntryPage() {
             ))}
 
             <Reveal className="my-9 border-y border-ink/14 py-7" preset="soft">
-              <p className="tws-signature tws-signature--ink text-[clamp(1.7rem,4.6vw,2.8rem)] leading-[1.05]">
+              <p className="font-signature text-[clamp(1.7rem,4.6vw,2.8rem)] leading-[1.05]">
                 {entry.pullQuote}
               </p>
             </Reveal>

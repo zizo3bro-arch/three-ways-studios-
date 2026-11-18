@@ -17,7 +17,6 @@ interface UIContextValue {
   overlay: ShellOverlay | null;
   openOverlay: (name: ShellOverlay) => void;
   closeOverlay: () => void;
-  toggleOverlay: (name: ShellOverlay) => void;
   quickViewSlug: string;
   openQuickView: (slug: string) => void;
   closeQuickView: () => void;
@@ -32,11 +31,6 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
 
   const closeOverlay = useCallback(() => setOverlay(null), []);
   const openOverlay = useCallback((name: ShellOverlay) => setOverlay(name), []);
-  const toggleOverlay = useCallback(
-    (name: ShellOverlay) => setOverlay((current) => (current === name ? null : name)),
-    []
-  );
-
   const openQuickView = useCallback(
     (slug: string) => {
       setParams(
@@ -45,7 +39,7 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
           next.set('piece', slug);
           return next;
         },
-        { replace: true, preventScrollReset: true }
+        { preventScrollReset: true }
       );
     },
     [setParams]
@@ -72,12 +66,11 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
       overlay,
       openOverlay,
       closeOverlay,
-      toggleOverlay,
       quickViewSlug,
       openQuickView,
       closeQuickView,
     }),
-    [overlay, openOverlay, closeOverlay, toggleOverlay, quickViewSlug, openQuickView, closeQuickView]
+    [overlay, openOverlay, closeOverlay, quickViewSlug, openQuickView, closeQuickView]
   );
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>;

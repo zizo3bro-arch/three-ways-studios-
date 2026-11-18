@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Power, Trash2 } from 'lucide-react';
 import { formatEGP } from '../../lib/format';
-import { supabase } from '../../lib/supabase';
+import { adminClient as supabase } from '../../lib/adminClient';
 import type { DiscountRule } from '../../types/database';
 
 interface AdminDiscountsTabProps {
@@ -50,48 +50,67 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
 
   const handleToggleRule = async (rule: DiscountRule) => {
     if (!supabase) return;
-    await supabase
+    setError(null);
+    const { error } = await supabase
       .from('discount_rules')
       .update({ is_active: !rule.is_active })
-      .eq('id', rule.id);
+      .eq('id', rule.id)
+      .select('id')
+      .single();
+    if (error) {
+      setError(error.message);
+      return;
+    }
     await onRefresh();
   };
 
   const handleUpdateEmailPercent = async (rule: DiscountRule, newPercent: number) => {
     if (!supabase || !Number.isFinite(newPercent) || newPercent <= 0 || newPercent > 100) return;
-    await supabase
+    setError(null);
+    const { error } = await supabase
       .from('discount_rules')
       .update({ discount_percent: newPercent })
-      .eq('id', rule.id);
+      .eq('id', rule.id)
+      .select('id')
+      .single();
+    if (error) {
+      setError(error.message);
+      return;
+    }
     await onRefresh();
   };
 
   const handleDeleteRule = async (rule: DiscountRule) => {
     if (!supabase) return;
     if (rule.rule_type === 'email_auto') return;
-    await supabase.from('discount_rules').delete().eq('id', rule.id);
+    setError(null);
+    const { error } = await supabase
+      .from('discount_rules')
+      .delete()
+      .eq('id', rule.id)
+      .select('id')
+      .single();
+    if (error) {
+      setError(error.message);
+      return;
+    }
     await onRefresh();
   };
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-sm font-medium tracking-[0.2em] text-white uppercase">
+        <h2 className="text-sm font-medium tracking-[0.2em] text-ink uppercase">
           Discounts &amp; Email Checkout Rules
         </h2>
-        <p className="mt-1 text-xs text-[#9e9494]">
+        <p className="mt-1 text-xs text-ink-faint">
           All discount percentages are validated securely inside PostgreSQL during checkout.
         </p>
       </div>
 
       {/* Create New Promo Code */}
-      <form
-        onSubmit={handleCreatePromo}
-        className="border border-white/12 bg-white/[0.025] p-5 space-y-4"
-      >
-        <h3 className="text-xs font-medium tracking-[0.18em] text-white uppercase">
-          Create Promo Code
-        </h3>
+      <form onSubmit={handleCreatePromo} className="border border-ink/12 bg-transparent p-5 space-y-4">
+        <h3 className="text-xs font-medium tracking-[0.18em] text-ink uppercase">Create Promo Code</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
           <input
             type="text"
@@ -99,14 +118,14 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             placeholder="Code (e.g. PANTHER15)"
-            className="border border-white/15 bg-black/50 px-3 py-2 text-xs text-white uppercase"
+            className="border border-ink/15 bg-paper/50 px-3 py-2 text-xs text-ink uppercase"
           />
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Label"
-            className="border border-white/15 bg-black/50 px-3 py-2 text-xs text-white"
+            className="border border-ink/15 bg-paper/50 px-3 py-2 text-xs text-ink"
           />
           <input
             type="number"
@@ -116,7 +135,7 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
             value={percent}
             onChange={(e) => setPercent(e.target.value)}
             placeholder="% Off"
-            className="border border-white/15 bg-black/50 px-3 py-2 text-xs text-white"
+            className="border border-ink/15 bg-paper/50 px-3 py-2 text-xs text-ink"
           />
           <input
             type="number"
@@ -124,7 +143,7 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
             value={minOrder}
             onChange={(e) => setMinOrder(e.target.value)}
             placeholder="Min EGP (0)"
-            className="border border-white/15 bg-black/50 px-3 py-2 text-xs text-white"
+            className="border border-ink/15 bg-paper/50 px-3 py-2 text-xs text-ink"
           />
           <input
             type="number"
@@ -132,14 +151,14 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
             value={maxUses}
             onChange={(e) => setMaxUses(e.target.value)}
             placeholder="Max uses (optional)"
-            className="border border-white/15 bg-black/50 px-3 py-2 text-xs text-white"
+            className="border border-ink/15 bg-paper/50 px-3 py-2 text-xs text-ink"
           />
         </div>
-        {error && <p className="text-xs text-[#ff7575]">{error}</p>}
+        {error && <p className="text-xs text-crimson-deep">{error}</p>}
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center gap-2 rounded-full bg-[#b30e16] px-5 py-2 text-xs font-medium tracking-[0.16em] text-white uppercase hover:bg-[#d4121b]"
+          className="inline-flex items-center gap-2 rounded-full bg-crimson px-5 py-2 text-xs font-medium tracking-[0.16em] text-paper uppercase hover:bg-crimson-deep"
         >
           <Plus className="h-3.5 w-3.5" />
           {saving ? 'Creating...' : 'Create Promo Code'}
@@ -151,21 +170,18 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
         {discounts.map((rule) => (
           <div
             key={rule.id}
-            className="flex flex-wrap items-center justify-between gap-4 border border-white/12 bg-white/[0.025] p-4 text-xs"
+            className="flex flex-wrap items-center justify-between gap-4 border border-ink/12 bg-transparent p-4 text-xs"
           >
             <div>
               <div className="flex items-center gap-2.5">
-                <span className="font-mono font-semibold text-white">
-                  {rule.code || 'EMAIL_AUTO'}
-                </span>
-                <span className="border border-white/15 px-2 py-0.5 text-[10px] tracking-[0.12em] text-[#cfc6c6] uppercase">
+                <span className="font-mono font-semibold text-ink">{rule.code || 'EMAIL_AUTO'}</span>
+                <span className="border border-ink/15 px-2 py-0.5 text-[10px] tracking-[0.12em] text-ink-soft uppercase">
                   {rule.rule_type === 'email_auto' ? 'Auto Email Discount' : 'Promo Code'}
                 </span>
-                <span className="text-[#e87a80]">{rule.discount_percent}% OFF</span>
+                <span className="text-crimson-deep">{rule.discount_percent}% OFF</span>
               </div>
-              <p className="mt-1 text-[11px] text-[#9e9494]">
-                {rule.name} · Min order {formatEGP(rule.min_order_amount)} · Uses:{' '}
-                {rule.uses_count}
+              <p className="mt-1 text-[11px] text-ink-faint">
+                {rule.name} · Min order {formatEGP(rule.min_order_amount)} · Uses: {rule.uses_count}
                 {rule.max_uses ? ` / ${rule.max_uses}` : ''}
               </p>
             </div>
@@ -176,7 +192,7 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
                   value={rule.discount_percent}
                   onChange={(e) => handleUpdateEmailPercent(rule, Number(e.target.value))}
                   aria-label="Email discount percentage"
-                  className="border border-white/15 bg-[#0c0708] px-2 py-1 text-xs text-white"
+                  className="border border-ink/15 bg-paper px-2 py-1 text-xs text-ink"
                 >
                   {[5, 10, 15, 20].map((pct) => (
                     <option key={pct} value={pct}>
@@ -191,8 +207,8 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
                 onClick={() => handleToggleRule(rule)}
                 className={`inline-flex items-center gap-1.5 border px-3 py-1.5 text-[11px] uppercase ${
                   rule.is_active
-                    ? 'border-[#7bd389]/45 text-[#9ae6a6]'
-                    : 'border-white/20 text-[#9e9494]'
+                    ? 'border-[#7bd389]/45 text-emerald-800'
+                    : 'border-ink/20 text-ink-faint'
                 }`}
               >
                 <Power className="h-3 w-3" />
@@ -204,7 +220,7 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
                   type="button"
                   onClick={() => handleDeleteRule(rule)}
                   aria-label={`Delete ${rule.code}`}
-                  className="border border-white/15 p-1.5 text-[#9e9494] hover:text-[#ff6b6b]"
+                  className="border border-ink/15 p-1.5 text-ink-faint hover:text-crimson-deep"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
