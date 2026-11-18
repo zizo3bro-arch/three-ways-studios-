@@ -73,12 +73,18 @@ export async function quoteCodOrder(params: { items: Line[]; email: string; prom
       p_email: params.email.trim() || null,
       p_promo_code: params.promoCode?.trim() || null,
     });
+    if (error?.code === '55000' && error.message.includes('v_promo_rule'))
+      throw new Error('Checkout verification is temporarily unavailable. Please try again later.');
     if (error) throw error;
     if (
       !data ||
       typeof data.valid !== 'boolean' ||
       !Array.isArray(data.items) ||
-      !Number.isFinite(data.final_total)
+      !Array.isArray(data.stock_errors) ||
+      !Number.isFinite(data.subtotal) ||
+      !Number.isFinite(data.discount_total) ||
+      !Number.isFinite(data.final_total) ||
+      (data.valid && (!Number.isFinite(data.shipping_cost) || data.shipping_cost < 0))
     ) {
       throw new Error('The studio could not verify your total.');
     }
@@ -111,7 +117,8 @@ export async function createCodOrder(params: {
   promoCode?: string;
   paymentMethod: 'COD';
   items: Line[];
-}): Promise<{ order: OrderConfirmationData | null; error: string | null }> {
+  checkoutRequestId: string;
+}): Promise<{ order: OrderConfirmationData | null; error: string | null; refreshQuote?: boolean }> {
   const invalid = cartError(params.items);
   if (!supabase || invalid || params.paymentMethod !== 'COD')
     return { order: null, error: invalid || (!supabase ? OFFLINE : 'Select cash on delivery.') };
@@ -124,31 +131,34 @@ export async function createCodOrder(params: {
     p_address: params.address.trim(),
     p_notes: params.notes.trim(),
     p_promo_code: params.promoCode?.trim() || null,
-    // Legacy RPCs consume the JSON lines and enforce COD themselves. No price or stock travels from the client.
-    p_items: params.items.map(({ variant_id, quantity }) => ({
-      variant_id,
-      quantity,
-      payment_method: params.paymentMethod,
-    })),
+    // Send IDs and quantities, never prices or discounts from the client.
+    p_items: params.items.map(({ variant_id, quantity }) => ({ variant_id, quantity })),
+    p_payment_method: params.paymentMethod,
+    p_checkout_request_id: params.checkoutRequestId,
   };
   try {
-    let response = await supabase
-      .rpc('create_cod_order', { ...payload, p_payment_method: params.paymentMethod })
-      .retry(false);
-    // PGRST202 is a signature lookup failure *before* execution, not a failed transaction.
-    // Never retry an ambiguous network/write error: the first request may have committed.
+    // Never fall back to a signature without duplicate protection, or retry a
+    // write automatically. The customer can safely retry with the same request ID.
+    const response = await supabase.rpc('create_cod_order', payload).retry(false);
     if (response.error?.code === 'PGRST202')
-      response = await supabase.rpc('create_cod_order', payload).retry(false);
-    if (response.error) throw response.error;
+      return { order: null, error: 'Order confirmation is temporarily unavailable. Please try again later.' };
+    if (response.error) {
+      return {
+        order: null,
+        error: response.error.message,
+        // A rejected transaction didn't commit. Re-quote in case inventory or a promo has changed.
+        refreshQuote: ['P0001', '23514'].includes(response.error.code),
+      };
+    }
     if (!receipt(response.data))
       throw new Error(
-        'The studio did not return a saved order reference. Please contact the studio before trying again.'
+        'The studio did not return an order reference. Retry with the same bag and email.'
       );
     return { order: response.data, error: null };
   } catch (e) {
     return {
       order: null,
-      error: message(e, 'The order could not be confirmed. Please contact the studio before retrying.'),
+      error: message(e, 'The order could not be confirmed. Retry with the same bag and email.'),
     };
   }
 }

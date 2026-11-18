@@ -10,7 +10,7 @@ test.afterAll(async () => {
 });
 // Only HTTP routing is substituted. Each confirmed order and subscription
 // below can be read back independently from a fresh SQL query.
-async function transport(page) {
+async function transport(page, database = db) {
   const log = [];
   await page.route('https://studio-fixture.invalid/**', async (route) => {
     const req = route.request(),
@@ -25,7 +25,7 @@ async function transport(page) {
         body: json === undefined ? '' : JSON.stringify(json),
       });
     try {
-      const data = await anon(db, async (tx) => {
+      const data = await anon(database, async (tx) => {
         if (path === 'products') {
           expect(url.searchParams.get('is_published')).toBe('eq.true');
           const slug = url.searchParams.get('slug')?.slice(3);
@@ -51,6 +51,13 @@ async function transport(page) {
 }
 const routePiece = '/product/tws-signature-tee';
 const shot = (page, name) => page.screenshot({ path: `.verify/${name}.png`, fullPage: true });
+async function fillDelivery(page, email) {
+  await page.getByLabel('Full name').fill('Fixture Buyer');
+  await page.getByLabel('Phone number').fill('+20 101 234 5678');
+  await page.getByLabel('Email address', { exact: true }).fill(email);
+  await page.getByLabel('City / district').fill('Cairo');
+  await page.getByLabel('Complete address').fill('42 Test Street, floor 2');
+}
 
 // Synthesize actual Chromium single-finger and two-finger touch gestures.
 async function drag(page, x, y, dx, dy) {
@@ -339,17 +346,13 @@ test('cart, persisted COD order, failed writes, receipt, newsletter and customer
   await expect(radio).toBeChecked();
   await page.getByText('Pay the courier in cash when your order arrives.').click();
   await expect(radio).toBeFocused();
-  await page.getByLabel('Full name').fill('Fixture Buyer');
-  await page.getByLabel('Phone number').fill('+20 101 234 5678');
-  await page.getByLabel('Email address', { exact: true }).fill('buyer@example.test');
-  await page.getByLabel('City / district').fill('Cairo');
-  await page.getByLabel('Complete address').fill('42 Test Street, floor 2');
+  await fillDelivery(page, 'buyer@example.test');
   await expect(page.locator('.cart-total')).toContainText('2,280');
   const creation = '**/rpc/create_cod_order';
   await page.route(creation, (r) =>
     r.fulfill({ status: 500, json: { message: 'Transaction not confirmed' } })
   );
-  const confirm = page.getByRole('button', { name: 'Confirm COD order' });
+  const confirm = page.getByRole('button', { name: 'Confirm order', exact: true });
   await confirm.click();
   await expect(page.getByRole('alert')).toContainText('Transaction not confirmed');
   expect(page.url()).toContain('/checkout');
@@ -373,6 +376,103 @@ test('cart, persisted COD order, failed writes, receipt, newsletter and customer
   await account.getByRole('button', { name: 'Find my order' }).click();
   await expect(account.getByRole('link', { name: 'Open confirmation' })).toBeVisible();
 });
+test('checkout gates confirmation, retries verification, and safely recovers a committed promo order', async ({ page }) => {
+  await transport(page);
+  const buyer = 'promo-buyer@example.test';
+  const [{ id: variant, stock_quantity: stock }] = (
+    await db.query(`select v.id, v.stock_quantity from product_variants v join products p on p.id=v.product_id
+      where p.slug='tws-cross-tee' and v.size_name='L'`)
+  ).rows;
+  await db.exec(`insert into discount_rules (name, code, rule_type, discount_percent)
+    values ('Fixture 10%', 'FIXTURE10', 'promo_code', 10)`);
+
+  await page.goto('/product/tws-cross-tee');
+  await page.getByRole('button', { name: 'L', exact: true }).click();
+  await page.getByRole('button', { name: 'Add to bag', exact: true }).click();
+  await page.getByRole('link', { name: 'Proceed to checkout' }).click();
+  const confirm = page.getByRole('button', { name: 'Confirm order', exact: true });
+  const total = page.locator('.checkout-summary .cart-total dd');
+  const summary = page.locator('.checkout-summary .cart-totals');
+  await expect(total).toHaveText('EGP 2,525');
+  await expect(confirm).toBeDisabled(); // a server quote is not sufficient without delivery details
+  await fillDelivery(page, buyer);
+  await expect(confirm).toBeEnabled();
+  await page.getByLabel('Phone number').fill('123');
+  await expect(confirm).toBeDisabled();
+  await page.getByLabel('Phone number').fill('+20 101 234 5678');
+  await expect(confirm).toBeEnabled();
+
+  const applyCode = async (code) => {
+    await page.getByLabel('Promo code').fill(code);
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
+  };
+  await applyCode('DOES-NOT-EXIST');
+  await expect(page.getByRole('alert')).toContainText('Invalid or inactive promo code.');
+  await expect(confirm).toBeDisabled();
+  await expect(total).toHaveText('—');
+
+  const quote = '**/rpc/quote_cod_order';
+  await page.route(quote, (r) =>
+    r.fulfill({ status: 400, json: { message: 'Inventory unavailable' } })
+  );
+  await page.getByRole('button', { name: 'Remove code' }).click();
+  await expect(page.getByRole('alert')).toContainText('Could not verify this bag: Inventory unavailable');
+  await expect(confirm).toBeDisabled();
+  await page.unroute(quote);
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(total).toHaveText('EGP 2,280');
+  await expect(confirm).toBeEnabled();
+
+  // Verification is not a reservation. A real stock change must be rejected at write time.
+  await db.query('update product_variants set stock_quantity=0 where id=$1', [variant]);
+  await confirm.click();
+  await expect(page.getByText(/currently out of stock/)).toBeVisible();
+  await expect(confirm).toBeDisabled();
+  expect((await db.query('select id from orders where customer_email=$1', [buyer])).rows).toHaveLength(0);
+  await db.query('update product_variants set stock_quantity=$2 where id=$1', [variant, stock]);
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(confirm).toBeEnabled();
+
+  await applyCode(' fixture10 ');
+  await expect(total).toHaveText('EGP 2,059.50');
+  await expect(summary).toContainText('EGP 2,450');
+  await expect(summary).toContainText('EGP 75');
+  await expect(summary).toContainText('−EGP 245');
+  await expect(summary).toContainText('−EGP 220.50');
+  await expect(confirm).toBeEnabled();
+  const attempts = [];
+  page.on('request', (r) => {
+    if (r.url().endsWith('/rpc/create_cod_order')) attempts.push(r.postDataJSON());
+  });
+  await page.route('**/rpc/create_cod_order', async (route) => {
+    // Lose the response, not the transaction: the first RPC really commits.
+    await anon(db, (tx) => rpc(tx, 'create_cod_order', route.request().postDataJSON()));
+    await route.fulfill({ status: 502, json: { message: 'Confirmation response interrupted' } });
+  }, { times: 1 });
+  await page.locator('form.checkout-spread').evaluate((form) => {
+    form.requestSubmit();
+    form.requestSubmit();
+  });
+  await expect(page.getByRole('alert')).toContainText('Confirmation response interrupted');
+  expect(attempts).toHaveLength(1);
+  const [saved] = (await db.query('select * from orders where customer_email=$1', [buyer])).rows;
+  expect(saved.checkout_request_id).toBe(attempts[0].p_checkout_request_id);
+
+  await page.reload();
+  await fillDelivery(page, buyer);
+  await applyCode('FIXTURE10');
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  await expect(page.getByRole('heading', { name: /Thank you/ })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`${saved.order_reference}$`));
+  await expect(page.locator('dl').getByText('EGP 2,059.50', { exact: true })).toBeVisible();
+  expect(attempts.map((a) => a.p_checkout_request_id)).toEqual([saved.checkout_request_id, saved.checkout_request_id]);
+  expect((await db.query('select id from orders where customer_email=$1', [buyer])).rows).toEqual([{ id: saved.id }]);
+  expect(Number(saved.total_amount)).toBe(2059.50);
+  expect(saved.payment_method).toBe('COD');
+  expect((await db.query('select stock_quantity from product_variants where id=$1', [variant])).rows[0].stock_quantity).toBe(stock - 1);
+});
+
 test('errors never replace catalog or quote with invented items, stock or receipts', async ({
   page,
 }) => {
@@ -384,7 +484,7 @@ test('errors never replace catalog or quote with invented items, stock or receip
   );
   await page.getByRole('link', { name: 'Proceed to checkout' }).click();
   await expect(page.getByRole('alert')).toContainText('Inventory unavailable');
-  await expect(page.getByRole('button', { name: 'Confirm COD order' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Confirm order', exact: true })).toBeDisabled();
   await page.getByRole('link', { name: 'Edit cart', exact: true }).first().click();
   await page.getByRole('button', { name: 'Remove TWS Signature Tee', exact: true }).click();
   await expect(page.getByText('Your bag is empty.')).toBeVisible();
@@ -406,7 +506,7 @@ test('all routes, account boundary, responsive grid and no horizontal document o
   await transport(page);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  for (const width of [320, 360, 375, 390, 430, 724, 768, 1024, 1440, 1920]) {
+  for (const width of [320, 360, 375, 390, 430, 724, 768, 919, 920, 1024, 1440, 1920]) {
     await page.setViewportSize({ width, height: width < 900 ? 844 : 1000 });
     for (const path of ['/', routePiece, '/cart', '/checkout']) {
       await page.goto(path);
@@ -429,10 +529,27 @@ test('all routes, account boundary, responsive grid and no horizontal document o
           .locator('.product-grid')
           .evaluate((e) => getComputedStyle(e).gridTemplateColumns.split(' ').length);
         expect(cols).toBe(width >= 1024 ? 4 : 2);
+        const art = await page.locator('.campaign-paint').boundingBox();
+        const previousHeight = width < 920
+          ? Math.min(560, Math.max(160, width * 0.435))
+          : Math.min(560, Math.max(340, width * 0.33));
+        expect(art.height - previousHeight, `hero height added at ${width}px`).toBeGreaterThan(10);
+        expect(art.height - previousHeight, `hero height added at ${width}px`).toBeLessThan(48);
+        await expect(page.locator('.campaign').getByRole('link', { name: 'Shop now' })).toBeInViewport();
       }
       if ([390, 724, 1440].includes(width) && [routePiece, '/'].includes(path))
         await shot(page, `${width}-${path === '/' ? 'home' : 'product'}`);
     }
+  }
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+    const hero = page.locator('.campaign');
+    await hero.getByRole('link', { name: 'Scroll down' }).click();
+    await expect(page).toHaveURL(/#products$/);
+    await expect(page.locator('#products h2')).toBeInViewport();
+    await hero.getByRole('link', { name: 'Shop now' }).click();
+    await expect(page).toHaveURL(/\/shop$/);
   }
   for (const path of [
     '/shop',
@@ -472,6 +589,70 @@ test('all routes, account boundary, responsive grid and no horizontal document o
   expect(errors).toEqual([]);
 });
 
+test('product recommendations use the published, in-stock catalog below purchase options', async ({ page }) => {
+  const catalogDb = await studioDb();
+  try {
+    await transport(page, catalogDb);
+    const recommendations = page.getByRole('region', { name: 'YOU MAY ALSO LIKE' });
+    const links = recommendations.locator('a.product-plate');
+    for (const width of [1440, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(routePiece);
+      await expect(links).toHaveCount(3);
+      expect(await links.evaluateAll((cards) => cards.map((card) => card.getAttribute('href')))).toEqual([
+        '/product/tws-cross-tee',
+        '/product/tws-hoodie',
+        '/product/tws-wide-leg-pants',
+      ]); // Same collection and category rank above same collection only.
+      const main = await page.locator('.piece-spread').boundingBox();
+      const rail = await recommendations.boundingBox();
+      expect(rail.y).toBeGreaterThanOrEqual(main.y + main.height - 1);
+      expect(rail.x).toBeGreaterThanOrEqual(0);
+      expect(rail.x + rail.width).toBeLessThanOrEqual(width + 1);
+      const columns = await recommendations.locator('.product-grid').evaluate(
+        (grid) => getComputedStyle(grid).gridTemplateColumns.split(' ').length
+      );
+      expect(columns).toBe(width >= 1024 ? 4 : 2);
+      await expect(links.first().locator('h3')).toHaveText('TWS Cross Tee');
+      await expect(links.first().locator('p')).toHaveText('EGP 2,450');
+      const image = links.first().getByRole('img', { name: 'TWS Cross Tee, view 1' });
+      await expect(image).toHaveAttribute('src', '/media/campaign/cross-tee.webp');
+      await links.first().scrollIntoViewIfNeeded();
+      await expect.poll(() => image.evaluate((img) => img.naturalWidth)).toBeGreaterThan(0);
+      if (width === 1440 || width === 390) await shot(page, `${width}-recommendations`);
+    }
+
+    await links.first().click();
+    await expect(page).toHaveURL(/\/product\/tws-cross-tee$/);
+    await expect(page.getByRole('heading', { name: 'TWS Cross Tee', level: 1 })).toBeVisible();
+    await expect(recommendations.locator('a[href="/product/tws-cross-tee"]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'M', exact: true }).click();
+    await page.getByRole('button', { name: 'Add to bag', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Shopping bag' })).toContainText('Size: M · Ivory');
+
+    await catalogDb.exec(`
+      update products set is_published=false where slug='tws-wide-leg-pants';
+      update product_variants set is_active=false where product_id=(select id from products where slug='tws-hoodie');
+      update products set price=2399.50 where slug='tws-cross-tee';
+    `);
+    await page.goto(routePiece);
+    await expect(links).toHaveCount(1);
+    await expect(links.first().locator('p')).toHaveText('EGP 2,399.50');
+    await catalogDb.exec(`update product_variants set stock_quantity=0
+      where product_id=(select id from products where slug='tws-cross-tee')`);
+    const listing = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return url.pathname === '/rest/v1/products' && !url.searchParams.has('slug');
+    });
+    await page.reload();
+    await (await listing).finished();
+    await expect(page.getByRole('button', { name: 'Add to bag', exact: true })).toBeEnabled();
+    await expect(recommendations).toHaveCount(0);
+  } finally {
+    await catalogDb.close();
+  }
+});
+
 test('populated cart, drawer and checkout at small, tablet and large breakpoints', async ({ page }) => {
   await transport(page);
   await page.goto(routePiece);
@@ -499,6 +680,7 @@ test('populated cart, drawer and checkout at small, tablet and large breakpoints
     await bag.getByRole('link', { name: 'Proceed to checkout' }).click();
     await expect(page.locator('.checkout-summary li')).toHaveCount(2);
     await expect(page.locator('.checkout-summary .cart-total')).toContainText('4,900');
+    await expect(page.locator('.checkout-summary .cart-totals')).toContainText('Included');
     for (const control of await page.locator('form :is(input,select,textarea,button)').all()) {
       const b = await control.boundingBox();
       if (b) expect(b.x >= -1 && b.x + b.width <= width + 1, `checkout control at ${width}`).toBe(true);
