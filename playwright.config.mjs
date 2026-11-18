@@ -24,7 +24,9 @@ export default defineConfig({
     reuseExistingServer: false,
     timeout: 90_000,
     env: {
-      VITE_SUPABASE_URL: 'https://studio-fixture.invalid',
+      // Match a Data API URL copied from a project dashboard. Both the SDK's
+      // auth requests and its REST requests must still resolve from the project base.
+      VITE_SUPABASE_URL: 'https://studio-fixture.invalid/rest/v1/',
       VITE_SUPABASE_ANON_KEY: 'test-public-key',
     },
   },

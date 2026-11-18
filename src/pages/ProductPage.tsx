@@ -5,14 +5,14 @@ import { PurchaseOptions } from '../components/shop/PurchaseOptions';
 import { useProduct } from '../hooks/useCatalog';
 import { campaignPlates } from '../data/campaign';
 import { galleryImagesFor } from '../data/catalog';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { showCampaignPreview } from '../lib/supabase';
 import { formatEGP } from '../lib/format';
 import { applyMeta } from '../lib/seo';
 
 export function ProductPage() {
   const { slug } = useParams();
   const { product, loading, error, retry } = useProduct(slug);
-  const plate = !isSupabaseConfigured ? campaignPlates.find((p) => p.slug === slug) : undefined;
+  const plate = showCampaignPreview ? campaignPlates.find((p) => p.slug === slug) : undefined;
   const [chosenImage, setImage] = useState<string>();
   const frames = useMemo(
     () => (product ? galleryImagesFor(product) : (plate?.frames ?? [])),

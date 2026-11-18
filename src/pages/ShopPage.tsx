@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { PageIntro } from '../components/layout/PageIntro';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { showCampaignPreview } from '../lib/supabase';
 import { CampaignPreview, ProductPlate } from '../components/shop/ProductPlate';
 import { useCatalog } from '../hooks/useCatalog';
 
@@ -79,7 +79,7 @@ export function ShopPage() {
 
       <section aria-label="Product catalogue" className="pb-16 sm:pb-20">
         <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
-          {!isSupabaseConfigured ? (
+          {showCampaignPreview ? (
             <CampaignPreview />
           ) : (
             <>

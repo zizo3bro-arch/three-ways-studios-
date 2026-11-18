@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { CampaignPreview } from '../components/shop/ProductPlate';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { showCampaignPreview } from '../lib/supabase';
 import { PageIntro } from '../components/layout/PageIntro';
 import { useCatalog } from '../hooks/useCatalog';
 import { imagesOf } from '../data/catalog';
@@ -79,7 +79,7 @@ export function CollectionsPage() {
 
       <section className="pb-16 sm:pb-20">
         <div className="mx-auto w-full max-w-[1800px] px-4 sm:px-6 lg:px-10">
-          {!isSupabaseConfigured ? (
+          {showCampaignPreview ? (
             <CampaignPreview />
           ) : error ? (
             <p role="alert" className="catalog-notice">
