@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Gift } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { createCodOrder, isVariantId, quoteCodOrder, subscribeNewsletter } from '../lib/api';
@@ -36,7 +36,6 @@ export function CheckoutPage() {
 
   const [promo, setPromo] = useState('');
   const [applied, setApplied] = useState('');
-  const [redeemFreeReward, setRedeemFreeReward] = useState(false);
   const [emailDiscountPending, setEmailDiscountPending] = useState(false);
   const [emailDiscountNote, setEmailDiscountNote] = useState<{ ok: boolean; text: string } | null>(
     null
@@ -55,7 +54,6 @@ export function CheckoutPage() {
     items: items.map(({ variant_id, quantity }) => ({ variant_id, quantity })),
     email: email.trim(),
     promoCode: applied,
-    redeemFreeReward,
   });
   // Include customer?.id and attempt so signing in/out or retrying refreshes the server quote.
   const input = useMemo<QuoteInput>(() => JSON.parse(key), [key, attempt, customer?.id]);
@@ -69,16 +67,13 @@ export function CheckoutPage() {
       setChecked({ input, ...result });
       if (result.quote) {
         syncItemStock(result.quote.items);
-        if (redeemFreeReward && !result.quote.free_reward_available) {
-          setRedeemFreeReward(false);
-        }
       }
     }, 220);
     return () => {
       current = false;
       window.clearTimeout(timer);
     };
-  }, [input, empty, redeemFreeReward, syncItemStock]);
+  }, [input, empty, syncItemStock]);
 
   const currentCheck = checked?.input === input ? checked : undefined;
   const quote = currentCheck?.quote;
@@ -139,7 +134,6 @@ export function CheckoutPage() {
     // including a refresh after an interrupted response.
     const bag = JSON.stringify({
       items: input.items,
-      redeemFreeReward: Boolean(redeemFreeReward && verifiedQuote?.free_reward_available),
       customer: customer?.id ?? 'guest',
     });
     if (checkoutAttempt.current?.bag !== bag) {
@@ -180,7 +174,6 @@ export function CheckoutPage() {
       items: input.items,
       promoCode: input.promoCode,
       checkoutRequestId: checkoutAttempt.current.id,
-      redeemFreeReward: Boolean(redeemFreeReward && verifiedQuote?.free_reward_available),
     });
     if (!order || error) {
       writing.current = false;
@@ -343,41 +336,57 @@ export function CheckoutPage() {
             ))}
           </ul>
 
-          {/* Free Product Loyalty Reward (5/5 completed purchases) */}
+          {/* Free pair of pants reward — applied automatically to this order (5th milestone). */}
           {quote?.free_reward_available ? (
             <div
               className="mb-5 border border-crimson/40 bg-[rgba(165,18,27,0.04)] p-3.5"
               data-testid="checkout-free-reward-box"
             >
-              <label className="flex cursor-pointer items-start gap-3">
-                <input
-                  type="checkbox"
-                  checked={redeemFreeReward}
-                  disabled={submitting}
-                  onChange={(e) => setRedeemFreeReward(e.target.checked)}
-                  className="mt-1 h-4 w-4 accent-[#a5121b]"
-                />
+              <div className="flex items-start gap-3">
+                <Gift aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-crimson" strokeWidth={2} />
                 <span>
                   <strong className="block text-xs uppercase tracking-[0.12em] text-crimson">
-                    Redeem free product reward (5/5 purchases)
+                    Order 5 reward: one free pair of pants
                   </strong>
                   <small>
-                    Deduct 1 piece for free from this order using your unlocked loyalty reward.
+                    {quote.free_reward_product_name
+                      ? `One ${quote.free_reward_product_name} is free on this order.`
+                      : 'Exactly one eligible pair of pants in this order becomes free.'}{' '}
+                    Only one pair is free; every other item is charged normally.
                   </small>
                 </span>
-              </label>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Milestone 5 unlocked, but no pants in this bag: the order proceeds at
+              normal prices and the reward stays unlocked for a future order. */}
+          {quote?.loyalty_reward_type === 'free_pants' && !quote.free_reward_available ? (
+            <div
+              className="mb-5 border border-ink/20 p-3.5"
+              data-testid="checkout-free-reward-kept"
+            >
+              <strong className="block text-xs uppercase tracking-[0.12em] text-ink">
+                Your free pair of pants stays unlocked
+              </strong>
+              <small className="mt-1 block">
+                This bag has no eligible pants, so this order is charged normally and your reward
+                is kept. Add pants whenever you like — it never expires.
+              </small>
             </div>
           ) : null}
 
           {/* Member Loyalty & Email Discount Eligibility (Non-Stacking 10%) */}
           <div className="mb-5 border-y border-ink/16 py-3.5" data-testid="checkout-discount-box">
-            <p className="option-label">10% Member &amp; Email Discount</p>
+            <p className="option-label">Member rewards &amp; Email Discount</p>
             {verifiedQuote?.loyalty_discount_applied ? (
               <p className="mt-1.5 text-[0.88rem] leading-relaxed text-ink-soft">
-                <strong className="text-crimson">10% Purchase Loyalty Discount applied</strong>
+                <strong className="text-crimson">
+                  {verifiedQuote.loyalty_discount_percent ?? 10}% loyalty reward applied to this order
+                </strong>
                 {verifiedQuote.both_discounts_eligible
-                  ? ' — maximum 10% applies (loyalty and email discounts do not stack).'
-                  : ' from your completed account purchases.'}
+                  ? ' — your loyalty reward and the email discount do not stack.'
+                  : ` — it belongs to order ${verifiedQuote.loyalty_order_seq ?? ''} of your rewards card.`}
               </p>
             ) : verifiedQuote?.email_discount_applied ? (
               <p className="mt-1.5 text-[0.88rem] leading-relaxed text-ink-soft">
@@ -388,14 +397,16 @@ export function CheckoutPage() {
               <p className="mt-1.5 text-[0.88rem] leading-relaxed text-ink-soft">
                 The one-time 10% Email Discount has already been used for this email address.
                 {customer
-                  ? ' Complete 3 delivered purchases on your account to unlock 10% Loyalty Discount.'
+                  ? ' Your rewards card still discounts order 3 by 10% and order 4 by 20%.'
                   : ''}
               </p>
             ) : (
               <div className="mt-1.5">
                 <p className="text-[0.86rem] leading-relaxed text-ink-soft">
-                  Submit your email address for a one-time 10% discount, or sign in after 3
-                  completed purchases for 10% loyalty pricing (discounts do not stack).
+                  Submit your email address for a one-time 10% discount, or sign in: order 3 of
+                  your rewards card saves 10% on that same order, order 4 saves 20%, and order 5
+                  makes one pair of pants free on that same order — never a later one (discounts
+                  do not stack).
                 </p>
                 <button
                   type="button"
@@ -486,7 +497,7 @@ export function CheckoutPage() {
             )}
             {Boolean(verifiedQuote?.free_reward_applied && verifiedQuote.free_reward_amount) && (
               <div>
-                <dt>Free product reward (5/5)</dt>
+                <dt>Free pair of pants reward (5/5)</dt>
                 <dd>−{formatEGP(verifiedQuote!.free_reward_amount!)}</dd>
               </div>
             )}

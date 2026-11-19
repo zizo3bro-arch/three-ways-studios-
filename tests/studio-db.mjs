@@ -39,6 +39,7 @@ export async function studioDb({ upgrade = false, legacyCheckout = false } = {})
   if (!legacyCheckout) {
     await run('migrations/009_checkout_idempotency.sql');
     await run('migrations/010_account_loyalty_discounts.sql');
+    await run('migrations/011_loyalty_rewards_v2.sql');
   }
   const catalog = [
     [

@@ -131,7 +131,11 @@ export interface Order {
   shipping_cost?: number;
   email_discount_amount: number;
   loyalty_discount_amount?: number;
+  loyalty_discount_percent?: number;
   loyalty_free_reward_amount?: number;
+  loyalty_free_reward_product_name?: string | null;
+  loyalty_reward_type?: LoyaltyRewardType | null;
+  loyalty_order_seq?: number | null;
   promo_discount_amount: number;
   discount_total: number;
   applied_promo_code: string | null;
@@ -232,10 +236,18 @@ export interface QuoteResponse {
   loyalty_discount_applied?: boolean;
   loyalty_discount_percent?: number;
   loyalty_discount_amount?: number;
+  loyalty_reward_type?: LoyaltyRewardType | null;
+  loyalty_order_seq?: number | null;
   both_discounts_eligible?: boolean;
   free_reward_available?: boolean;
   free_reward_applied?: boolean;
   free_reward_amount?: number;
+  free_reward_product_name?: string | null;
+  free_reward_variant_id?: string | null;
+  free_reward_seq?: number | null;
+  free_reward_source?: 'milestone' | null;
+  /** Always 0 under the strict same-order model; kept for wire compatibility. */
+  free_rewards_available?: number;
   promo_code_applied: string | null;
   promo_discount_percent: number;
   promo_discount_amount: number;
@@ -259,7 +271,11 @@ export interface OrderConfirmationData {
   shipping_cost?: number;
   email_discount_amount: number;
   loyalty_discount_amount?: number;
+  loyalty_discount_percent?: number;
   loyalty_free_reward_amount?: number;
+  loyalty_free_reward_product_name?: string | null;
+  loyalty_reward_type?: LoyaltyRewardType | null;
+  loyalty_order_seq?: number | null;
   promo_discount_amount: number;
   discount_total: number;
   applied_promo_code: string | null;
@@ -280,7 +296,11 @@ export interface TrackedOrderData {
   shipping_cost?: number;
   email_discount_amount: number;
   loyalty_discount_amount?: number;
+  loyalty_discount_percent?: number;
   loyalty_free_reward_amount?: number;
+  loyalty_free_reward_product_name?: string | null;
+  loyalty_reward_type?: LoyaltyRewardType | null;
+  loyalty_order_seq?: number | null;
   promo_discount_amount: number;
   discount_total: number;
   applied_promo_code: string | null;
@@ -296,6 +316,66 @@ export interface CustomerOrderHistoryItem extends TrackedOrderData {
   order_id: string;
   is_completed: boolean;
   is_cancelled: boolean;
+}
+
+export type LoyaltyRewardType = 'percent_10' | 'percent_20' | 'free_pants';
+export type LoyaltyRewardStatus = 'earned' | 'reserved' | 'redeemed' | 'void';
+
+/** A reward attached to (or waiting for) one of this customer's own orders. */
+export interface LoyaltyReward {
+  id: string;
+  reward_type: LoyaltyRewardType;
+  label: string | null;
+  status: 'available' | 'reserved' | 'redeemed';
+  milestone_seq: number;
+  cycle_number: number;
+  milestone_order_in_cycle: number;
+  order_reference: string | null;
+  order_status: OrderStatus | null;
+  discount_amount: number;
+  free_product_name: string | null;
+  applied_at: string;
+}
+
+export interface LoyaltyRedemption {
+  id: string;
+  reward_type: LoyaltyRewardType;
+  label: string | null;
+  milestone_seq: number;
+  order_reference: string | null;
+  redeemed_at: string;
+  discount_amount: number;
+  free_product_name: string | null;
+}
+
+/** The milestone the next checkout will take ("applied to that same order"). */
+export interface LoyaltyNextReward {
+  reward_type: LoyaltyRewardType | null;
+  label: string | null;
+  /** Position inside the current 1-5 card. */
+  target_order: number;
+  /** Absolute milestone sequence, kept for cross-referencing. */
+  target_seq?: number;
+  orders_remaining: number;
+}
+
+export type LoyaltyMilestoneState =
+  | 'upcoming'
+  | 'next'
+  | 'completed'
+  | 'applied'
+  | 'rewarded'
+  | 'available';
+
+export interface LoyaltyMilestone {
+  seq: number;
+  order_in_cycle: number;
+  reward_type: LoyaltyRewardType | null;
+  label: string | null;
+  state: LoyaltyMilestoneState;
+  order_reference: string | null;
+  discount_amount: number;
+  free_product_name: string | null;
 }
 
 export interface CustomerAccountOverview {
@@ -320,14 +400,26 @@ export interface CustomerAccountOverview {
     purchases_remaining: number;
     earned_rewards: number;
     redeemed_rewards: number;
+    /** Free pairs of pants available to redeem (one reward = exactly one pair). */
     available_rewards: number;
+    available_free_pants: number;
+    available_percent_rewards: number;
     free_product_unlocked: boolean;
+    /** Always null: the fifth-order reward never expires. */
+    free_reward_expires_at?: string | null;
+    in_flight_purchases: number;
+    next_order_seq: number | null;
+    next_order_in_cycle: number | null;
+    next_reward: LoyaltyNextReward | null;
+    milestones: LoyaltyMilestone[];
+    rewards: LoyaltyReward[];
+    redemption_history: LoyaltyRedemption[];
   };
   discounts: {
     loyalty_target_purchases: number;
     loyalty_discount_percent: number;
     loyalty_discount_eligible: boolean;
-    purchases_until_loyalty_discount: number;
+    purchases_until_loyalty_discount: number | null;
     email_discount_percent: number;
     email_submitted: boolean;
     email_discount_used: boolean;
