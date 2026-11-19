@@ -13,8 +13,14 @@ export function PiecesSection() {
   const { products, loading, error, retry } = useCatalog();
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const visibleProducts = products.slice(0, visibleCount);
-  const hasMore = products.length > visibleCount;
+  // The homepage rail is CMS-controlled: the whole published catalog (default)
+  // or only the pieces flagged "featured", capped by the configured limit.
+  const mode = settings.home_collection_mode === 'featured' ? 'featured' : 'catalog';
+  const source = mode === 'featured' ? products.filter((product) => product.is_featured) : products;
+  const limit = Math.max(1, Math.min(48, Number(settings.home_collection_limit) || PAGE_SIZE));
+  const rail = source.slice(0, Math.max(limit, 1));
+  const visibleProducts = rail.slice(0, visibleCount);
+  const hasMore = rail.length > visibleCount;
 
   return (
     <section id="products" className="page-width collection-rail" aria-labelledby="pieces-title">
@@ -29,7 +35,7 @@ export function PiecesSection() {
       </div>
       {showCampaignPreview ? (
         <CampaignPreview />
-      ) : products.length ? (
+      ) : rail.length ? (
         <>
           <div className="product-grid">
             {visibleProducts.map((p, i) => (
@@ -43,7 +49,7 @@ export function PiecesSection() {
                 onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
                 className="tws-pill tws-pill--outline"
               >
-                Load more pieces ({products.length - visibleCount} remaining)
+                Load more pieces ({rail.length - visibleCount} remaining)
               </button>
             </div>
           ) : null}
@@ -59,6 +65,8 @@ export function PiecesSection() {
                 Retry
               </button>
             </>
+          ) : mode === 'featured' ? (
+            'No featured pieces selected yet.'
           ) : (
             'No pieces published yet.'
           )}

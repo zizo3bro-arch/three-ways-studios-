@@ -4,11 +4,11 @@ import {
   ArrowRight,
   Award,
   CheckCircle2,
+  ChevronDown,
   Eye,
   EyeOff,
   Gift,
   Heart,
-  History,
   LogOut,
   PackageSearch,
   Percent,
@@ -19,13 +19,14 @@ import { useCart } from '../../context/CartContext';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useCatalog } from '../../hooks/useCatalog';
-import {
-  fetchCustomerAccountOverview,
-  subscribeNewsletter,
-  trackOrder,
-} from '../../lib/api';
+import { useContentBlock } from '../../context/SiteSettingsContext';
+import { fetchCustomerAccountOverview, subscribeNewsletter, trackOrder } from '../../lib/api';
 import { formatEGP } from '../../lib/format';
-import type { CustomerAccountOverview, TrackedOrderData } from '../../types/database';
+import type {
+  CustomerAccountOverview,
+  LoyaltyRewardType,
+  TrackedOrderData,
+} from '../../types/database';
 import { OrderTrackingResult } from './OrderTrackingResult';
 import { LoyaltyCard } from './LoyaltyCard';
 import { AccountOrderCard } from './AccountOrderCard';
@@ -38,18 +39,28 @@ type LookupState =
 
 type AuthMode = 'register' | 'signin';
 
-
-/** Plain-language milestone copy for the signed-out card preview. */
-const MILESTONES = [
-  { stage: 'Regular' },
-  { stage: 'Regular' },
-  { stage: '10% off' },
-  { stage: '20% off' },
-  { stage: 'Free pants' },
+/** The merchant's fixed five-order ladder, used for plain-language copy. */
+const LADDER: Array<{ order: number; label: string; reward: string }> = [
+  { order: 1, label: 'Order 1', reward: 'Regular price' },
+  { order: 2, label: 'Order 2', reward: 'Regular price' },
+  { order: 3, label: 'Order 3', reward: '10% off' },
+  { order: 4, label: 'Order 4', reward: '20% off' },
+  { order: 5, label: 'Order 5', reward: 'One pair free' },
 ];
 
-const ACCOUNT_TABS = ['Overview', 'My Orders', 'Loyalty Card', 'Details'] as const;
-type AccountTab = (typeof ACCOUNT_TABS)[number];
+/** What the *next* order earns, given the delivered count of the open cycle. */
+function unlockedFromProgress(progress: number): LoyaltyRewardType | null {
+  if (progress === 2) return 'percent_10';
+  if (progress === 3) return 'percent_20';
+  if (progress === 4) return 'free_pants';
+  return null;
+}
+
+const REWARD_COPY: Record<LoyaltyRewardType, string> = {
+  percent_10: '10% off',
+  percent_20: '20% off',
+  free_pants: 'one pair of pants free',
+};
 
 interface CustomerAccountBodyProps {
   mode: 'panel' | 'page';
@@ -62,6 +73,11 @@ export function CustomerAccountBody({
   active = true,
   onNavigate,
 }: CustomerAccountBodyProps) {
+  const loyaltyNote = useContentBlock(
+    'account.loyalty_note',
+    'Every delivered order stamps a circle. Rewards unlock on the next order.'
+  );
+  const noOrdersCopy = useContentBlock('account.orders_empty', 'No orders yet.');
   const { subtotal, itemCount, openDrawer } = useCart();
   const {
     customer,
@@ -86,7 +102,6 @@ export function CustomerAccountBody({
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [overviewEmpty, setOverviewEmpty] = useState(false);
-  const [tab, setTab] = useState<AccountTab>('Overview');
   const overviewRequest = useRef(0);
 
   const [discountEmail, setDiscountEmail] = useState('');
@@ -144,8 +159,30 @@ export function CustomerAccountBody({
     }
   }, [active, customer, loadOverview]);
 
+  // Loyalty progress is stamped by staff on delivery, which can happen while the
+  // customer is looking at this page. Refresh on return-to-tab, on window focus
+  // and on a slow poll so an open card updates without a manual reload.
+  useEffect(() => {
+    if (!active || !customer) return;
+    const refresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      void loadOverview();
+    };
+    const timer = window.setInterval(refresh, 25_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [active, customer, loadOverview]);
+
   // Hard safety net: a request that never settles must not strand the section
-  // on "Loading your rewards card…" forever.
+  // on "Checking your orders…" forever.
   useEffect(() => {
     if (!customer || !overviewLoading) return;
     const timer = window.setTimeout(() => {
@@ -232,14 +269,12 @@ export function CustomerAccountBody({
       setDiscountNotice({ ok: false, text: res.message });
       return;
     }
-    if (customer) {
-      await loadOverview();
-    }
+    if (customer) await loadOverview();
     setDiscountNotice({
       ok: true,
       text: res.alreadySubscribed
-        ? 'Email verified on the studio list. If unused, your 10% discount will apply automatically at checkout.'
-        : '10% Email Discount unlocked. Use this email at checkout to apply 10% off your order.',
+        ? 'Email verified on the studio list. If unused, your 10% discount applies automatically at checkout.'
+        : '10% email discount unlocked. Use this email at checkout to apply it.',
     });
   };
 
@@ -270,497 +305,435 @@ export function CustomerAccountBody({
   const loyalty = overview?.loyalty;
   const discounts = overview?.discounts;
   const completedCount = overview?.purchase_summary.completed_purchases ?? 0;
-  // Only the server's reward ledger can say the free pair is claimable. A
-  // milestone in state 'next' merely means "the next slot to fill", which is
-  // already true one order BEFORE the reward exists, so it must not be used.
-  const freeUnlocked = Boolean(loyalty?.available_free_pants || loyalty?.free_product_unlocked);
-  // The server reports progress as MOD(qualifying, 5): finishing the 5th order
-  // wraps the count back to 0. While the earned pair is still unredeemed the
-  // card is genuinely full, so present five stamps rather than an empty cycle.
-  const progressCount = freeUnlocked ? 5 : (loyalty?.progress_in_cycle ?? 0);
-  const remainingCount = loyalty?.purchases_remaining ?? 5;
-  return (
-    <div className={mode === 'page' ? 'space-y-10' : 'space-y-0'}>
-      {/* ——— 1. Personal Account / Sign-in ——— */}
-      <div
-        className={
-          mode === 'page' && customer && tab !== 'Overview' && tab !== 'Details' ? 'hidden' : ''
-        }
-      >
-      <section
-        className={mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-6'}
-        aria-label="Account profile"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
-            <UserRound className="h-4 w-4 text-crimson" strokeWidth={2} />
-            {customer ? 'Personal account' : 'Member access'}
-          </h3>
-          {mode === 'panel' ? (
-            <Link
-              to="/account"
-              onClick={onNavigate}
-              className="text-[11px] font-semibold uppercase tracking-[0.16em] text-crimson underline-offset-4 hover:underline"
-            >
-              Full account view
-            </Link>
-          ) : null}
-        </div>
+  const orders = overview?.orders ?? [];
+  const memberSince = overview?.profile.created_at || customer?.createdAt || null;
 
-        {!authAvailable ? (
-          <p className="mt-3 text-[13.5px] leading-relaxed text-ink-soft">
-            Account sign-in is unavailable while the studio connection is offline.
-          </p>
-        ) : authLoading ? (
-          <p className="mt-3 text-[13.5px] text-ink-soft">Checking your account…</p>
-        ) : customer ? (
-          <div className="mt-3.5 space-y-3.5 border border-ink/16 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[15px] font-semibold text-ink">
-                  {displayName || 'Three Ways Studios Member'}
-                </p>
-                <p className="mt-0.5 break-all text-[13px] text-ink-soft">{customer.email}</p>
-                {(overview?.profile.city || overview?.profile.governorate) ? (
-                  <p className="mt-1 text-[12px] text-ink-soft">
-                    {[overview?.profile.city, overview?.profile.governorate]
-                      .filter(Boolean)
-                      .join(', ')}
-                    {overview?.profile.phone ? ` · ${overview.profile.phone}` : ''}
-                  </p>
-                ) : null}
-                {(overview?.profile.created_at || customer.createdAt) ? (
-                  <p className="mt-1.5 text-[11px] uppercase tracking-[0.12em] text-ink-faint">
-                    Member since{' '}
-                    {new Date(
-                      overview?.profile.created_at || customer.createdAt!
-                    ).toLocaleDateString('en-GB', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </p>
-                ) : null}
+  // Progress is the count of DELIVERED qualifying orders in the open cycle.
+  // The server wraps it to 0 when the fifth delivered order closes the card and
+  // starts a new cycle, so this is never a local counter.
+  const progress = loyalty?.progress_in_cycle ?? 0;
+  // The reward waiting for the next order. `available: false` means it is
+  // already attached to an order that has not been delivered yet.
+  const nextRewardType = loyalty?.next_reward?.reward_type ?? null;
+  const nextRewardAvailable = loyalty?.next_reward?.available !== false;
+  const unlocked = (progress >= 2 && nextRewardAvailable ? nextRewardType : null) as
+    | LoyaltyRewardType
+    | null;
+  const effectiveUnlocked = unlocked ?? unlockedFromProgress(progress);
+  const freePantsReady = effectiveUnlocked === 'free_pants';
+  const ordersToNext = loyalty?.purchases_remaining ?? 5 - progress;
+  const remainingCopy = freePantsReady
+    ? 'Your free pair is unlocked — add pants to your next order.'
+    : ordersToNext === 1
+      ? `1 more delivered order unlocks ${effectiveUnlocked ? REWARD_COPY[effectiveUnlocked] : 'your next reward'}.`
+      : `${ordersToNext} more delivered orders until your next reward.`;
+
+  return (
+    <div className={mode === 'page' ? 'acct-body' : 'acct-body acct-body--panel'}>
+      {/* ——— Signed out: member access ——— */}
+      {!customer ? (
+        <section className="acct-auth" aria-label="Member access">
+          <div className="acct-auth-head">
+            <p className="tws-eyebrow flex items-center gap-2 text-ink-soft">
+              <UserRound className="h-4 w-4 text-crimson" strokeWidth={2} />
+              {authLoading ? 'Checking your account…' : 'Member access'}
+            </p>
+            <h2 className="acct-title">
+              Sign in to see your rewards card.
+            </h2>
+            <p className="acct-lede">
+              Five delivered orders complete a card. Order 3 takes 10% off, order 4 takes 20% off,
+              and order 5 makes exactly one pair of pants free.
+            </p>
+          </div>
+
+          {!authAvailable ? (
+            <p className="acct-note">Account sign-in is unavailable while the studio connection is offline.</p>
+          ) : (
+            <div className="acct-auth-form">
+              <div className="acct-switch" role="group" aria-label="Account mode">
+                <button
+                  type="button"
+                  aria-pressed={authMode === 'register'}
+                  onClick={() => {
+                    setAuthMode('register');
+                    setAuthFeedback(null);
+                  }}
+                >
+                  Create account
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={authMode === 'signin'}
+                  onClick={() => {
+                    setAuthMode('signin');
+                    setAuthFeedback(null);
+                  }}
+                >
+                  Sign in
+                </button>
               </div>
 
-              <span
-                className="hidden font-display text-lg font-bold tabular-nums leading-none text-ink sm:block"
-                data-testid="account-completed-count"
-              >
-                {completedCount}
-                <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                  delivered
-                </span>
-              </span>
+              <form onSubmit={handleAuthSubmit} className="acct-form">
+                {authMode === 'register' ? (
+                  <label className="acct-field">
+                    <span>Full name</span>
+                    <input
+                      type="text"
+                      required
+                      minLength={2}
+                      maxLength={120}
+                      autoComplete="name"
+                      value={fullName}
+                      onChange={(event) => setFullName(event.target.value)}
+                      placeholder="Your full name"
+                      className="tws-field"
+                    />
+                  </label>
+                ) : null}
+
+                <label className="acct-field">
+                  <span>Account email</span>
+                  <input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={accountEmail}
+                    onChange={(event) => setAccountEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    className="tws-field"
+                  />
+                </label>
+
+                <label className="acct-field">
+                  <span>Password</span>
+                  <span className="relative block">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      minLength={authMode === 'register' ? 8 : 1}
+                      autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder={authMode === 'register' ? 'At least 8 characters' : 'Your password'}
+                      className="tws-field pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-ink-faint hover:text-crimson"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" strokeWidth={1.8} />
+                      ) : (
+                        <Eye className="h-4 w-4" strokeWidth={1.8} />
+                      )}
+                    </button>
+                  </span>
+                </label>
+
+                {authFeedback ? (
+                  <p
+                    role={authFeedback.ok ? 'status' : 'alert'}
+                    className={[
+                      'acct-feedback',
+                      authFeedback.ok ? 'is-ok' : 'is-error',
+                    ].join(' ')}
+                  >
+                    {authFeedback.text}
+                  </p>
+                ) : null}
+
+                <button type="submit" disabled={authPending} className="tws-pill h-12 w-full justify-center">
+                  {authPending
+                    ? authMode === 'register'
+                      ? 'Creating account…'
+                      : 'Signing in…'
+                    : authMode === 'register'
+                      ? 'Create account'
+                      : 'Sign in'}
+                  <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                </button>
+              </form>
+            </div>
+          )}
+
+          <ol className="acct-ladder acct-ladder--signout" aria-label="Loyalty milestones">
+            {LADDER.map((step) => (
+              <li key={step.order}>
+                <span className="acct-ladder-num">{step.order}</span>
+                <span className="acct-ladder-reward">{step.reward}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : (
+        <>
+          {/* ——— 1. Account overview ——— */}
+          <header className="acct-hero" data-testid="account-overview">
+            <div className="min-w-0">
+              <p className="tws-eyebrow text-crimson">
+                {displayName ? 'Welcome back' : 'Your account'}
+              </p>
+              <h2 className="acct-title" data-testid="account-greeting">
+                {displayName ? `Hello, ${displayName.split(' ')[0]}.` : 'Hello there.'}
+              </h2>
+              <p className="acct-meta">
+                <span className="break-all">{customer.email}</span>
+                {memberSince ? (
+                  <>
+                    <em>·</em>
+                    <span>
+                      Member since{' '}
+                      {new Date(memberSince).toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+            </div>
+            <div className="acct-hero-actions">
+              <Link to="/shop" onClick={onNavigate} className="tws-pill tws-pill--outline h-10">
+                Shop
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+              {mode === 'panel' ? (
+                <Link to="/account" onClick={onNavigate} className="tws-pill h-10">
+                  Full account view
+                </Link>
+              ) : null}
+            </div>
+          </header>
+
+          {authFeedback ? (
+            <p
+              role={authFeedback.ok ? 'status' : 'alert'}
+              className={['acct-feedback', authFeedback.ok ? 'is-ok' : 'is-error'].join(' ')}
+            >
+              {authFeedback.text}
+            </p>
+          ) : null}
+
+          {/* ——— 2. Loyalty card — the page's centrepiece ——— */}
+          <section className="acct-loyalty" aria-label="Loyalty card" data-testid="loyalty-card">
+            <div className="acct-loyalty-head">
+              <p className="lw-hero-eyebrow">
+                <Award className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={2.1} />
+                Your rewards card
+              </p>
+              <h3 className="lw-hero-title">
+                {freePantsReady
+                  ? 'Your free pair is unlocked'
+                  : progress === 0
+                    ? 'Your card is ready'
+                    : `${ordersToNext} ${ordersToNext === 1 ? 'order' : 'orders'} to your next reward`}
+              </h3>
             </div>
 
-            {authFeedback ? (
+            <LoyaltyCard
+              key={customer.id}
+              memberName={displayName}
+              email={customer.email}
+              progress={progress}
+              unlocked={freePantsReady ? 'free_pants' : null}
+              unlockedPercent={
+                effectiveUnlocked === 'percent_10'
+                  ? 10
+                  : effectiveUnlocked === 'percent_20'
+                    ? 20
+                    : null
+              }
+              pending={overviewLoading && !overview}
+            />
+
+            {/* The count and the next reward, in one line each. */}
+            <p className="acct-note text-center" data-testid="loyalty-how-it-works">
+              {loyaltyNote}
+            </p>
+
+            <div className="acct-loyalty-readout">
+              <p className="acct-progress-line" data-testid="loyalty-progress-line">
+                <strong>
+                  {progress}/5
+                </strong>
+                <span>delivered orders on this card</span>
+              </p>
+              <p className="acct-next-line" data-testid="loyalty-remaining-copy">
+                {overviewLoading && !overview ? (
+                  'Checking your orders…'
+                ) : effectiveUnlocked ? (
+                  <>
+                    <Gift className="inline h-3.5 w-3.5 align-[-2px] text-crimson" strokeWidth={1.8} />{' '}
+                    <strong>{REWARD_COPY[effectiveUnlocked]}</strong>{' '}
+                    {freePantsReady ? 'is unlocked for your next order' : 'is unlocked for your next order'}
+                  </>
+                ) : (
+                  remainingCopy
+                )}
+              </p>
+            </div>
+
+            {!overview && !overviewLoading ? (
               <p
-                role={authFeedback.ok ? 'status' : 'alert'}
-                className="flex items-start gap-2 text-[12.5px] leading-relaxed text-ink-soft"
+                className="acct-note text-center"
+                role={overviewError ? 'alert' : 'status'}
+                data-testid="loyalty-card-status"
               >
-                {authFeedback.ok ? (
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-crimson" />
+                {overviewError
+                  ? `${overviewError} `
+                  : overviewEmpty
+                    ? 'Your card is ready — delivered orders will appear here.'
+                    : 'Loyalty progress is temporarily unavailable.'}
+                {overviewError ? (
+                  <button type="button" onClick={() => void loadOverview()} className="text-action">
+                    Retry
+                  </button>
                 ) : null}
-                <span>{authFeedback.text}</span>
               </p>
             ) : null}
 
-          </div>
-        ) : (
-          <div className="mt-3.5">
-            <div
-              className="grid grid-cols-2 border border-ink/18 p-1"
-              role="group"
-              aria-label="Account mode"
-            >
-              <button
-                type="button"
-                aria-pressed={authMode === 'register'}
-                onClick={() => {
-                  setAuthMode('register');
-                  setAuthFeedback(null);
-                }}
-                className={[
-                  'py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-colors',
-                  authMode === 'register'
-                    ? 'bg-crimson text-paper'
-                    : 'text-ink-soft hover:text-crimson',
-                ].join(' ')}
-              >
-                Create account
-              </button>
-              <button
-                type="button"
-                aria-pressed={authMode === 'signin'}
-                onClick={() => {
-                  setAuthMode('signin');
-                  setAuthFeedback(null);
-                }}
-                className={[
-                  'py-2 text-[11px] font-semibold uppercase tracking-[0.15em] transition-colors',
-                  authMode === 'signin'
-                    ? 'bg-crimson text-paper'
-                    : 'text-ink-soft hover:text-crimson',
-                ].join(' ')}
-              >
-                Sign in
-              </button>
-            </div>
-
-            <form onSubmit={handleAuthSubmit} className="mt-4 space-y-3.5">
-              {authMode === 'register' ? (
-                <div>
-                  <label
-                    htmlFor={`tws-account-name-${mode}`}
-                    className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-faint"
-                  >
-                    Full name
-                  </label>
-                  <input
-                    id={`tws-account-name-${mode}`}
-                    type="text"
-                    required
-                    minLength={2}
-                    maxLength={120}
-                    autoComplete="name"
-                    value={fullName}
-                    onChange={(event) => setFullName(event.target.value)}
-                    placeholder="Your full name"
-                    className="tws-field"
-                  />
-                </div>
-              ) : null}
-
-              <div>
-                <label
-                  htmlFor={`tws-account-email-${mode}`}
-                  className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-faint"
-                >
-                  Account email
-                </label>
-                <input
-                  id={`tws-account-email-${mode}`}
-                  type="email"
-                  required
-                  autoComplete="email"
-                  value={accountEmail}
-                  onChange={(event) => setAccountEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  className="tws-field"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor={`tws-account-password-${mode}`}
-                  className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-faint"
-                >
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    id={`tws-account-password-${mode}`}
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    minLength={authMode === 'register' ? 8 : 1}
-                    autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder={authMode === 'register' ? 'At least 8 characters' : 'Your password'}
-                    className="tws-field pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-ink-faint hover:text-crimson"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" strokeWidth={1.8} />
-                    ) : (
-                      <Eye className="h-4 w-4" strokeWidth={1.8} />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {authFeedback ? (
-                <p
-                  role={authFeedback.ok ? 'status' : 'alert'}
-                  className={[
-                    'border-l-2 px-3.5 py-2.5 text-[12.5px] leading-relaxed',
-                    authFeedback.ok
-                      ? 'border-ink/40 bg-ink/[0.04] text-ink'
-                      : 'border-crimson bg-[rgba(165,18,27,0.06)] text-crimson-deep',
-                  ].join(' ')}
-                >
-                  {authFeedback.text}
+            {freePantsReady ? (
+              <div className="lw-unlocked" data-testid="loyalty-unlocked-banner">
+                <p>
+                  <strong>Unlocked · never expires</strong>
+                  One pair of pants is free on your next order. Orders without pants are charged
+                  normally and never use it up.
                 </p>
-              ) : null}
+                <Link to={itemCount > 0 ? '/checkout' : '/shop'} onClick={onNavigate}>
+                  {itemCount > 0 ? 'Use it at checkout' : 'Choose your pants'}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            ) : null}
 
-              <button
-                type="submit"
-                disabled={authPending}
-                className="tws-pill h-12 w-full justify-center"
-              >
-                {authPending
-                  ? authMode === 'register'
-                    ? 'Creating account…'
-                    : 'Signing in…'
-                  : authMode === 'register'
-                    ? 'Create account'
-                    : 'Sign in'}
-                <ArrowRight className="h-4 w-4" strokeWidth={2} />
-              </button>
-            </form>
-          </div>
-        )}
-      </section>
-
-      </div>
-
-      {/* Section navigation — signed-in page view only. Keeps the long account
-          record readable without deleting anything the customer may need. */}
-      {mode === 'page' && customer ? (
-        <nav className="acct-nav" aria-label="Account sections">
-          {ACCOUNT_TABS.map((label) => (
-            <button
-              key={label}
-              type="button"
-              aria-current={tab === label}
-              data-testid={`account-tab-${label.toLowerCase().replace(/\s+/g, '-')}`}
-              onClick={() => setTab(label)}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
-      ) : null}
-
-      {/* Overview: three numbers, each one a jump into its section. */}
-      {mode === 'page' && customer && tab === 'Overview' ? (
-        <section className="acct-panel" aria-label="Account at a glance" data-testid="account-overview">
-          <div className="acct-tiles">
-            <button type="button" onClick={() => setTab('Loyalty Card')}>
-              <span>Loyalty progress</span>
-              <strong>
-                {progressCount}<span className="text-[0.55em] font-normal"> / 5</span>
-              </strong>
-              <em>
-                {freeUnlocked
-                  ? 'Free pair ready'
-                  : `${remainingCount} ${remainingCount === 1 ? 'order' : 'orders'} to go`}
-              </em>
-            </button>
-            <button type="button" onClick={() => setTab('My Orders')}>
-              <span>Orders</span>
-              <strong>{overview ? overview.orders.length : '—'}</strong>
-              <em>{completedCount} delivered</em>
-            </button>
-            <button type="button" onClick={() => setTab('Loyalty Card')}>
-              <span>Next reward</span>
-              <strong className="!text-[clamp(0.86rem,1.9vw,1.05rem)]">
-                {freeUnlocked
-                  ? 'Free pants'
-                  : loyalty?.next_reward?.reward_type
-                    ? loyalty.next_reward.label
-                    : 'A stamp'}
-              </strong>
-              <em>
-                {freeUnlocked
-                  ? 'Unlocked'
-                  : loyalty?.next_order_seq
-                    ? `On order ${loyalty.next_order_seq}`
-                    : 'Keep going'}
-              </em>
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Loyalty panel: centrepiece on its own tab, summary on Overview. */}
-      <div
-        className={
-          mode === 'page' && customer && tab !== 'Overview' && tab !== 'Loyalty Card'
-            ? 'hidden'
-            : ''
-        }
-      >
-      {/* ——— 2. Loyalty — the page's centrepiece ——— */}
-      <section
-        className={mode === 'page' ? '' : 'mt-5 border-b border-ink/14 pb-6'}
-        aria-label="Loyalty card"
-        data-testid="loyalty-card"
-      >
-        <div className="lw-hero">
-          <div className="lw-hero-head">
-            <div>
-              <p className="lw-hero-eyebrow">
-                <Award className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={2.1} />
-                {customer ? 'Your rewards card' : 'The rewards card'}
-              </p>
-              <h3 className="lw-hero-title">
-                {customer
-                  ? freeUnlocked
-                    ? 'Free pair unlocked'
-                    : progressCount === 0
-                      ? 'Your card is ready'
-                      : `${5 - progressCount} ${5 - progressCount === 1 ? 'order' : 'orders'} to your free pants`
-                  : 'Five orders. One pair on us.'}
-              </h3>
-              <p className="lw-hero-note">
-                {customer
-                  ? 'Every delivered order stamps a circle. The 3rd takes 10% off, the 4th takes 20% off, and the 5th makes one pair of pants free on that same order.'
-                  : 'Create an account to track your card. Order 3 takes 10% off itself, order 4 takes 20% off, and order 5 makes exactly one pair of pants free.'}
-              </p>
-            </div>
-
-            {/* Next reward appears once, in the milestone ladder under the
-                card; repeating it here would state the same fact twice. */}
-          </div>
-
-          {customer ? (
-            <>
-              {/* Artwork is a static asset: it renders immediately and is never
-                  gated behind the loyalty request. Only the stamps wait. */}
-              <LoyaltyCard
-                key={customer.id}
-                memberName={displayName}
-                email={customer.email}
-                progress={progressCount}
-                pending={overviewLoading && !overview}
-              />
-
-              {!overview && !overviewLoading ? (
-                <p
-                  className="text-center text-[12.5px] text-ink-soft"
-                  role={overviewError ? 'alert' : 'status'}
-                  data-testid="loyalty-card-status"
-                >
-                  {overviewError
-                    ? `${overviewError} `
-                    : overviewEmpty
-                      ? 'Your card is ready — delivered orders will appear here.'
-                      : 'Loyalty progress is temporarily unavailable.'}
-                  {overviewError ? (
-                    <button
-                      type="button"
-                      onClick={() => void loadOverview()}
-                      className="text-action"
-                    >
-                      Retry
-                    </button>
-                  ) : null}
-                </p>
-              ) : null}
-
-              {freeUnlocked ? (
-                <div className="lw-unlocked" data-testid="loyalty-unlocked-banner">
-                  <p>
-                    <strong>Unlocked · never expires</strong>
-                    Add a pair of pants to any order and exactly one pair is free. Orders without
-                    pants are charged normally and never use it up.
-                  </p>
-                  <Link
-                    to={itemCount > 0 ? '/checkout' : '/shop'}
-                    onClick={onNavigate}
-                  >
-                    {itemCount > 0 ? 'Use it at checkout' : 'Choose your pants'}
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </div>
-              ) : null}
-            </>
-          ) : (
-            <div className="mt-1 border-y border-ink/16 py-5">
-              <ol className="grid grid-cols-5 gap-2" aria-label="Loyalty milestones">
-                {MILESTONES.map((milestone, index) => (
+            <ol className="acct-ladder" aria-label="Loyalty milestones">
+              {LADDER.map((step) => {
+                const done = step.order <= progress;
+                const isNext = step.order === progress + 1;
+                const unlockedHere =
+                  isNext &&
+                  effectiveUnlocked !== null &&
+                  step.order ===
+                    (effectiveUnlocked === 'percent_10'
+                      ? 3
+                      : effectiveUnlocked === 'percent_20'
+                        ? 4
+                        : 5);
+                return (
                   <li
-                    key={milestone.stage}
-                    className="flex flex-col items-center gap-1.5 text-center"
-                    data-testid={`loyalty-milestone-signout-${index + 1}`}
+                    key={step.order}
+                    className={done ? 'is-done' : unlockedHere ? 'is-unlocked' : isNext ? 'is-next' : ''}
+                    data-testid={`loyalty-step-${step.order}`}
+                    data-state={done ? 'complete' : unlockedHere ? 'unlocked' : isNext ? 'next' : 'upcoming'}
                   >
-                    <span className="grid h-8 w-8 place-items-center rounded-full border border-crimson/45 font-display text-[11px] font-bold tabular-nums text-crimson">
-                      {index + 1}
+                    <span className="acct-ladder-num">
+                      {done ? <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2.4} /> : step.order}
                     </span>
-                    <span className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-ink-soft">
-                      {milestone.stage}
-                    </span>
+                    <span className="acct-ladder-reward">{step.reward}</span>
                   </li>
-                ))}
-              </ol>
-            </div>
-          )}
-        </div>
-      </section>
+                );
+              })}
+            </ol>
+          </section>
 
-
-      </div>
-
-      {/* Discounts belong with the loyalty story. */}
-      <div
-        className={
-          mode === 'page' && customer && tab !== 'Overview' && tab !== 'Loyalty Card'
-            ? 'hidden'
-            : ''
-        }
-      >
-      {/* ——— 3. Discount Eligibility (Option 1 + Option 2, Non-Stacking) ——— */}
-      <section
-        className={mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-6'}
-        aria-label="Discount eligibility"
-        data-testid="discount-eligibility"
-      >
-        <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
-          <Percent className="h-4 w-4 text-crimson" strokeWidth={2} />
-          Member &amp; email discounts
-        </h3>
-
-        <div className="mt-3.5 space-y-3">
-          {/* Loyalty milestones are shown once, in the card section above. This
-              section is now purely the email discount, so nothing is repeated. */}
-
-          {/* Email Discount */}
-          <div className="border border-ink/16 p-3.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-ink">
-                10% Email Discount
-              </p>
-              <span
-                className={[
-                  'text-[10.5px] font-bold uppercase tracking-[0.14em]',
-                  discounts?.email_discount_eligible
-                    ? 'text-crimson'
-                    : discounts?.email_discount_used
-                      ? 'text-ink-faint'
-                      : 'text-ink-soft',
-                ].join(' ')}
-              >
-                {customer && discounts
-                  ? discounts.email_discount_eligible
-                    ? 'Eligible · 10% OFF'
-                    : discounts.email_discount_used
-                      ? 'Redeemed'
-                      : 'Submit email'
-                  : 'One-time 10% OFF'}
+          {/* ——— 3. My orders ——— */}
+          <section className="acct-orders" aria-label="My orders">
+            <div className="acct-section-head">
+              <h3 className="tws-eyebrow text-ink-soft">My orders</h3>
+              <span className="acct-count">
+                {orders.length} {orders.length === 1 ? 'order' : 'orders'} · {completedCount}{' '}
+                delivered
               </span>
             </div>
 
-            {customer && discounts?.email_discount_eligible ? (
-              <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-soft">
-                Your email is registered — 10% off will be applied automatically at checkout.
-              </p>
-            ) : customer && discounts?.email_discount_used ? (
-              <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-soft">
-                Your one-time 10% email discount has already been used on a previous order.
-              </p>
+            {overviewLoading && !overview ? (
+              <p className="acct-note">Loading your orders…</p>
+            ) : orders.length === 0 ? (
+              <div className="acct-empty">
+                <p>{noOrdersCopy}</p>
+                <Link to="/shop" onClick={onNavigate} className="text-action">
+                  Browse the collection
+                </Link>
+              </div>
             ) : (
-              <>
-                <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-soft">
-                  Submit your email address to unlock a one-time 10% discount at checkout.
+              <ul className="ord-cards">
+                {orders.map((order) => (
+                  <AccountOrderCard
+                    key={order.order_id}
+                    order={order}
+                    email={customer.email}
+                    onNavigate={onNavigate}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+
+          {/* ——— 4. Account details ——— */}
+          <section className="acct-details" aria-label="Account details" data-testid="account-details-panel">
+            <div className="acct-section-head">
+              <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
+                <UserRound className="h-4 w-4 text-crimson" strokeWidth={2} />
+                Account details
+              </h3>
+              <button
+                type="button"
+                onClick={() => void handleSignOut()}
+                className="acct-signout"
+              >
+                <LogOut className="h-3.5 w-3.5" strokeWidth={1.8} />
+                Sign out
+              </button>
+            </div>
+
+            <dl className="acct-rows">
+              <div>
+                <dt>Name</dt>
+                <dd>{displayName || 'Not provided yet'}</dd>
+              </div>
+              <div>
+                <dt>Email</dt>
+                <dd className="break-all">{customer.email}</dd>
+              </div>
+              <div>
+                <dt>Phone</dt>
+                <dd>{overview?.profile.phone || 'Not provided yet'}</dd>
+              </div>
+              <div>
+                <dt>Delivery city</dt>
+                <dd>
+                  {[overview?.profile.city, overview?.profile.governorate]
+                    .filter(Boolean)
+                    .join(', ') || 'Not provided yet'}
+                </dd>
+              </div>
+            </dl>
+
+            {/* The one-time email discount, kept as a single row. */}
+            <div className="acct-email-discount">
+              <div>
+                <p className="acct-email-title">
+                  <Percent className="inline h-3.5 w-3.5 align-[-2px] text-crimson" strokeWidth={2} />{' '}
+                  10% email discount
                 </p>
-                <form onSubmit={handleEmailDiscountSubmit} className="mt-3 flex flex-wrap gap-2.5">
+                <p className="acct-email-copy">
+                  {discounts?.email_discount_eligible
+                    ? 'Ready — applied automatically at checkout.'
+                    : discounts?.email_discount_used
+                      ? 'Already used on a previous order.'
+                      : 'Submit your email to unlock a one-time 10% off. It does not stack with a loyalty reward.'}
+                </p>
+              </div>
+              {discounts?.email_discount_eligible || discounts?.email_discount_used ? (
+                <span className="acct-email-state">
+                  {discounts?.email_discount_eligible ? 'Eligible' : 'Redeemed'}
+                </span>
+              ) : (
+                <form onSubmit={handleEmailDiscountSubmit} className="acct-email-form">
                   <label htmlFor={`tws-discount-email-${mode}`} className="sr-only">
                     Email for 10% discount
                   </label>
@@ -768,449 +741,163 @@ export function CustomerAccountBody({
                     id={`tws-discount-email-${mode}`}
                     type="email"
                     required
-                    value={customer ? customer.email : discountEmail}
-                    readOnly={Boolean(customer)}
-                    onChange={(e) => {
-                      setDiscountEmail(e.target.value);
-                      setDiscountNotice(null);
-                    }}
-                    placeholder="Enter your email"
+                    value={customer.email}
+                    readOnly
                     className="tws-field flex-1 min-w-[170px] text-[13.5px]"
                   />
-                  <button
-                    type="submit"
-                    disabled={discountPending}
-                    className="tws-pill compact-pill"
-                  >
-                    {discountPending ? 'Applying…' : 'Unlock 10% off'}
+                  <button type="submit" disabled={discountPending} className="tws-pill compact-pill">
+                    {discountPending ? 'Applying…' : 'Unlock'}
                   </button>
                 </form>
-                {discountNotice ? (
-                  <p
-                    role={discountNotice.ok ? 'status' : 'alert'}
-                    className="mt-2 text-[12px] leading-relaxed text-ink-soft"
-                  >
-                    {discountNotice.text}
-                  </p>
-                ) : null}
-              </>
-            )}
-          </div>
+              )}
+              {discountNotice ? (
+                <p role={discountNotice.ok ? 'status' : 'alert'} className="acct-note">
+                  {discountNotice.text}
+                </p>
+              ) : null}
+            </div>
+          </section>
 
-          <p className="text-[11.5px] leading-relaxed text-ink-faint">
-            One loyalty reward per order — rewards and the email discount do not stack.
-          </p>
-        </div>
-      </section>
-
-      </div>
-
-      {/* Purchase history: full list on My Orders, latest three on Overview. */}
-      <div
-        className={
-          mode === 'page' && customer && tab !== 'Overview' && tab !== 'My Orders'
-            ? 'hidden'
-            : ''
-        }
-      >
-      {/* ——— 4. Purchase History (Signed-in Customers) ——— */}
-      {customer ? (
-        <section
-          className={
-            mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-6'
-          }
-          aria-label="Purchase history"
-          data-testid="purchase-history"
-        >
-          <div className="flex items-baseline justify-between gap-3">
-            <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
-              <History className="h-4 w-4 text-crimson" strokeWidth={2} />
-              Purchase history
-            </h3>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint tabular-nums">
-              {completedCount} completed
-            </span>
-          </div>
-
-          {overviewError ? (
-            <p role="alert" className="mt-3 text-[12.5px] text-crimson-deep">
-              {overviewError}{' '}
-              <button type="button" onClick={() => void loadOverview()} className="text-action">
-                Retry
-              </button>
-            </p>
-          ) : overviewLoading && !overview ? (
-            <p className="mt-3 text-[13px] text-ink-soft">Loading your orders…</p>
-          ) : !overview || overview.orders.length === 0 ? (
-            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-              No orders on this account yet. Completed purchases will appear here automatically.
-            </p>
-          ) : (
-            <>
-              <ul className="mt-3.5 space-y-3">
-                {(tab === 'Overview' ? overview.orders.slice(0, 3) : overview.orders).map((ord) => (
-                  <AccountOrderCard
-                    key={ord.order_id}
-                    order={ord}
-                    email={customer.email}
-                    onNavigate={onNavigate}
+          {/* ——— 5. Secondary: tracking + saved pieces (collapsed) ——— */}
+          <details className="acct-more">
+            <summary>
+              Track an order
+              <ChevronDown className="h-4 w-4" />
+            </summary>
+            <div className="acct-more-body">
+              <p className="acct-note">
+                Enter your order number and the email used at checkout to check live status.
+              </p>
+              <form onSubmit={runLookup} className="acct-form acct-form--inline">
+                <label className="acct-field">
+                  <span>Order number (Reference)</span>
+                  <input
+                    type="text"
+                    value={reference}
+                    onChange={(event) => setReference(event.target.value.toUpperCase())}
+                    placeholder="TWS-2026-000000"
+                    className="tws-field tracking-[0.08em]"
                   />
-                ))}
-              </ul>
-              {tab === 'Overview' && overview.orders.length > 3 ? (
-              <button
-                type="button"
-                onClick={() => setTab('My Orders')}
-                className="mt-4 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.15em] text-crimson hover:text-crimson-deep"
-              >
-                All {overview.orders.length} orders
+                </label>
+                <label className="acct-field">
+                  <span>Email on the order</span>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    className="tws-field"
+                  />
+                </label>
+                <button type="submit" disabled={lookup.status === 'loading'} className="tws-pill h-11">
+                  {lookup.status === 'loading' ? 'Checking…' : 'Find my order'}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </button>
+              </form>
+
+              {lookup.status === 'missing' ? (
+                <p role="status" className="acct-feedback is-error">
+                  {lookup.message}
+                </p>
               ) : null}
-            </>
-          )}
-        </section>
-      ) : null}
+              {lookup.status === 'found' ? (
+                <OrderTrackingResult
+                  order={lookup.order}
+                  lookupEmail={lookup.email}
+                  onNavigate={onNavigate}
+                />
+              ) : null}
+            </div>
+          </details>
 
-      </div>
+          <details className="acct-more">
+            <summary>
+              Saved pieces · {String(saved.length).padStart(2, '0')}
+              <ChevronDown className="h-4 w-4" />
+            </summary>
+            <div className="acct-more-body">
+              {saved.length === 0 ? (
+                <p className="acct-note">
+                  Tap the heart on any piece to keep it here for your next order.
+                </p>
+              ) : (
+                <ul className="acct-saved">
+                  {saved.map((product) => (
+                    <li key={product.id}>
+                      <span className="acct-saved-photo">
+                        {product.images?.[0]?.url ? (
+                          <img
+                            src={product.images[0].url}
+                            alt={product.images[0].alt_text ?? product.name}
+                            loading="lazy"
+                          />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <Link
+                          to={`/product/${product.slug}`}
+                          onClick={onNavigate}
+                          className="block truncate text-[14px] font-semibold text-ink hover:text-crimson"
+                        >
+                          {product.name}
+                        </Link>
+                        <span className="mt-0.5 block text-[12.5px] text-ink-faint">
+                          {formatEGP(product.price)}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleWishlist(product.id)}
+                        aria-label={`Remove ${product.name} from saved pieces`}
+                        className="acct-saved-remove"
+                      >
+                        <Trash2 className="h-4 w-4" strokeWidth={1.7} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </details>
 
-      {/* Reward ledger lives with the card. */}
-      <div
-        className={
-          mode === 'page' && customer && tab !== 'Loyalty Card'
-            ? 'hidden'
-            : ''
-        }
-      >
-      {/* ——— 4b. Earned rewards & redemption history (own account only) ——— */}
-      {customer && overview ? (
-        <section
-          className={
-            mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-6'
-          }
-          aria-label="Rewards and redemption history"
-          data-testid="loyalty-ledger"
-        >
-          <div className="flex items-baseline justify-between gap-3">
-            <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
-              <Gift className="h-4 w-4 text-crimson" strokeWidth={2} />
-              Rewards applied to orders
-            </h3>
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint tabular-nums">
-              {loyalty?.rewards.length ?? 0} applied
-            </span>
-          </div>
-
-          {!loyalty || loyalty.rewards.length === 0 ? (
-            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
-              No rewards applied yet. Your 10% reward is applied to order 3 itself, 20% to order 4,
-              and order 5 makes exactly one pair of pants free.
-            </p>
-          ) : (
-            <ul className="mt-3.5 space-y-2.5">
-              {loyalty.rewards.map((reward) => {
-                const statusLabel =
-                  reward.status === 'redeemed'
-                    ? 'Applied · order delivered'
-                    : reward.status === 'reserved'
-                      ? 'Applied · awaiting delivery'
-                      : 'Applied to that order';
-                return (
-                  <li
-                    key={reward.id}
-                    className="flex flex-wrap items-baseline justify-between gap-2 border border-ink/16 p-3"
-                    data-testid="loyalty-reward-item"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[12.5px] font-semibold text-ink">
-                        {reward.label}
-                        {reward.discount_amount > 0 ? ` · ${formatEGP(reward.discount_amount)}` : ''}
-                      </p>
-                      <p className="mt-0.5 text-[11.5px] text-ink-faint">
-                        Cycle {reward.cycle_number} · milestone order{' '}
-                        {reward.milestone_order_in_cycle} of 5
-                        {reward.order_reference ? ` · ${reward.order_reference}` : ''}
-                        {reward.free_product_name ? ` · ${reward.free_product_name}` : ''}
-                      </p>
-                    </div>
-                    <span
-                      className={[
-                        'border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]',
-                        reward.status === 'redeemed' || reward.status === 'reserved'
-                          ? 'border-crimson/40 text-crimson'
-                          : 'border-ink/20 text-ink-faint',
-                      ].join(' ')}
-                    >
-                      {statusLabel}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-
-          {loyalty && loyalty.redemption_history.length > 0 ? (
-            <>
-              <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.14em] text-ink-faint">
-                Redemption history
+          <details className="acct-more">
+            <summary>
+              <Heart className="h-3.5 w-3.5 text-crimson" strokeWidth={2} />
+              Your bag
+              <ChevronDown className="h-4 w-4" />
+            </summary>
+            <div className="acct-more-body">
+              <p className="acct-note">
+                {itemCount === 0
+                  ? 'Your bag is empty.'
+                  : `${itemCount} ${itemCount === 1 ? 'piece' : 'pieces'} · ${formatEGP(subtotal)}`}
               </p>
-              <ul className="mt-2 space-y-1.5">
-                {loyalty.redemption_history.map((entry) => (
-                  <li
-                    key={entry.id}
-                    className="flex flex-wrap items-baseline justify-between gap-2 text-[12px] text-ink-soft"
-                    data-testid="loyalty-redemption-item"
-                  >
-                    <span>
-                      {entry.label}
-                      {entry.order_reference ? ` · order ${entry.order_reference}` : ''}
-                    </span>
-                    <span className="tabular-nums text-ink">
-                      −{formatEGP(entry.discount_amount)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-        </section>
-      ) : null}
-
-      </div>
-
-      {/* Bag, saved pieces and the order lookup live under Details only, so the
-          Overview stays a genuine summary rather than a second full page. */}
-      <div className={mode === 'page' && customer && tab !== 'Details' ? 'hidden' : ''}>
-      {/* ——— 5. Bag & Saved Pieces ——— */}
-      <section
-        className={mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-5'}
-      >
-        <div className="flex items-baseline justify-between gap-4">
-          <h3 className="tws-eyebrow text-ink-soft">Your bag</h3>
-          {mode === 'panel' ? (
-            <button
-              type="button"
-              onClick={() => {
-                onNavigate?.();
-                openDrawer();
-              }}
-              className="text-[11px] font-semibold uppercase tracking-[0.18em] text-crimson underline-offset-4 hover:underline"
-            >
-              Open bag
-            </button>
-          ) : (
-            <Link
-              to="/cart"
-              className="text-[11px] font-semibold uppercase tracking-[0.18em] text-crimson underline-offset-4 hover:underline"
-            >
-              Open bag
-            </Link>
-          )}
-        </div>
-        <p className="mt-2.5 font-serif text-[16px] leading-snug text-ink">
-          {itemCount === 0
-            ? 'Your bag is empty.'
-            : `${itemCount} ${itemCount === 1 ? 'piece' : 'pieces'} · ${formatEGP(subtotal)}`}
-        </p>
-      </section>
-
-      <section
-        className={mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-5'}
-      >
-        <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
-          <Heart className="h-4 w-4 text-crimson" strokeWidth={2} />
-          Saved pieces · {String(saved.length).padStart(2, '0')}
-        </h3>
-
-        {saved.length === 0 ? (
-          <p className="mt-3 text-[13.5px] leading-relaxed text-ink-soft">
-            Tap the heart on any piece to keep it here for your next order.
-          </p>
-        ) : (
-          <ul className="mt-3.5 space-y-3.5">
-            {saved.map((product) => (
-              <li key={product.id} className="flex items-center gap-3.5">
-                <span className="flex h-[74px] w-14 shrink-0 items-end justify-center overflow-hidden">
-                  {product.images?.[0]?.url ? (
-                    <img
-                      src={product.images[0].url}
-                      alt={product.images[0].alt_text ?? product.name}
-                      loading="lazy"
-                      className="h-full w-auto object-contain object-bottom mix-blend-multiply"
-                    />
-                  ) : null}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <Link
-                    to={`/product/${product.slug}`}
-                    onClick={onNavigate}
-                    className="block truncate text-[14px] font-semibold text-ink transition-colors hover:text-crimson"
-                  >
-                    {product.name}
-                  </Link>
-                  <span className="mt-0.5 block text-[12.5px] tracking-wide text-ink-faint">
-                    {formatEGP(product.price)}
-                  </span>
-                  <small className="block text-[12px] text-ink-soft">
-                    {product.variants?.[0]?.color_name ?? 'Studio colour'}
-                  </small>
-                </span>
+              {mode === 'panel' ? (
                 <button
                   type="button"
-                  onClick={() => toggleWishlist(product.id)}
-                  aria-label={`Remove ${product.name} from saved pieces`}
-                  className="flex h-10 w-10 items-center justify-center border border-ink/20 text-ink-faint transition-colors hover:border-crimson hover:text-crimson"
+                  onClick={() => {
+                    onNavigate?.();
+                    openDrawer();
+                  }}
+                  className="text-action"
                 >
-                  <Trash2 className="h-4 w-4" strokeWidth={1.7} />
+                  Open bag
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              ) : (
+                <Link to="/cart" className="text-action">
+                  Open bag
+                </Link>
+              )}
+            </div>
+          </details>
 
-      {/* ——— 6. Order Tracking (Order Number + Email) ——— */}
-      <section className={mode === 'page' ? '' : 'mt-5'} aria-label="Order tracking">
-        <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
-          <PackageSearch className="h-4 w-4 text-crimson" strokeWidth={2} />
-          Track an order
-        </h3>
-        <p className="mt-2 text-[12.5px] leading-relaxed text-ink-soft">
-          Enter your order number and the email address used at checkout to check live status.
-        </p>
-        <form onSubmit={runLookup} className="mt-3.5 space-y-4">
-          <div>
-            <label
-              htmlFor={`tws-lookup-ref-${mode}`}
-              className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-faint"
-            >
-              Order number (Reference)
-            </label>
-            <input
-              id={`tws-lookup-ref-${mode}`}
-              type="text"
-              value={reference}
-              onChange={(event) => setReference(event.target.value.toUpperCase())}
-              placeholder="TWS-2026-000000"
-              className="tws-field tracking-[0.08em]"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor={`tws-lookup-email-${mode}`}
-              className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-faint"
-            >
-              Email on the order
-            </label>
-            <input
-              id={`tws-lookup-email-${mode}`}
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-              className="tws-field"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={lookup.status === 'loading'}
-            className="tws-pill h-12 w-full justify-center"
-          >
-            {lookup.status === 'loading' ? 'Checking status…' : 'Find my order'}
-            <ArrowRight className="h-4 w-4" strokeWidth={2} />
-          </button>
-        </form>
-
-        {lookup.status === 'missing' ? (
-          <p
-            role="status"
-            className="mt-3 border-l-2 border-crimson bg-[rgba(165,18,27,0.06)] px-3.5 py-2.5 text-[13px] leading-relaxed text-crimson-deep"
-          >
-            {lookup.message}
+          <p className="acct-foot">
+            <PackageSearch className="inline h-3.5 w-3.5 align-[-2px] text-crimson" strokeWidth={1.8} />{' '}
+            Cash on delivery across Egypt. Guest checkout is always available.
           </p>
-        ) : null}
-
-        {lookup.status === 'found' ? (
-          <OrderTrackingResult
-            order={lookup.order}
-            lookupEmail={lookup.email}
-            onNavigate={onNavigate}
-          />
-        ) : null}
-      </section>
-
-      </div>
-
-      {mode === 'page' && customer && tab === 'Details' ? (
-        <section
-          className="acct-panel border-b border-ink/16 pb-8"
-          aria-label="Account details"
-          data-testid="account-details-panel"
-        >
-          <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
-            <UserRound className="h-4 w-4 text-crimson" strokeWidth={2} />
-            Account details
-          </h3>
-          <dl className="acct-rows mt-3.5">
-            <div>
-              <dt>Name</dt>
-              <dd>{displayName || 'Not provided yet'}</dd>
-            </div>
-            <div>
-              <dt>Email</dt>
-              <dd>{customer.email}</dd>
-            </div>
-            <div>
-              <dt>Phone</dt>
-              <dd>{overview?.profile.phone || 'Not provided yet'}</dd>
-            </div>
-            <div>
-              <dt>City</dt>
-              <dd>
-                {[overview?.profile.city, overview?.profile.governorate]
-                  .filter(Boolean)
-                  .join(', ') || 'Not provided yet'}
-              </dd>
-            </div>
-            <div>
-              <dt>Member since</dt>
-              <dd>
-                {new Date(overview?.profile.created_at || customer.createdAt || Date.now())
-                  .toLocaleDateString('en-GB', {
-                    day: '2-digit',
-                    month: 'long',
-                    year: 'numeric',
-                  })}
-              </dd>
-            </div>
-          </dl>
-
-          {authFeedback ? (
-            <p
-              role={authFeedback.ok ? 'status' : 'alert'}
-              className="mt-4 border-l-2 border-ink/25 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-ink-soft"
-            >
-              {authFeedback.text}
-            </p>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={() => void handleSignOut()}
-            className="tws-pill tws-pill--outline mt-5 w-full justify-center sm:w-auto"
-          >
-            <LogOut className="h-4 w-4" strokeWidth={1.8} />
-            Sign out
-          </button>
-        </section>
-      ) : null}
-
-      <p className="mt-7 border-t border-ink/14 pt-5 text-[11.5px] leading-relaxed text-ink-faint">
-        Cash on delivery across Egypt. Create an account to track purchases and rewards, or check
-        out as a guest any time.
-      </p>
+        </>
+      )}
     </div>
   );
 }

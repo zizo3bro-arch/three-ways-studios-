@@ -30,6 +30,29 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     youtube: 'https://www.youtube.com/@threewaysstudios',
     x: 'https://www.twitter.com/threewaysstudio',
   },
+  // 013 — website control. These are the values a fresh installation starts
+  // with; every one of them is editable in the Studio Console.
+  hero_cta_href: '/shop',
+  hero_image_url: '',
+  newsletter_description:
+    'Submit your email address for early release notes and a one-time 10% discount at checkout.',
+  newsletter_cta_label: 'Subscribe',
+  contact_email: '',
+  contact_phone: '',
+  whatsapp_url: '',
+  announcement_text: '',
+  announcement_enabled: false,
+  social_channels: [
+    { key: 'instagram', label: 'Instagram', url: 'https://www.instagram.com/threewaysstudios', enabled: true },
+    { key: 'tiktok', label: 'TikTok', url: 'https://www.tiktok.com/@threewaysstudios', enabled: true },
+    { key: 'youtube', label: 'YouTube', url: 'https://www.youtube.com/@threewaysstudios', enabled: true },
+    { key: 'x', label: 'X / Twitter', url: 'https://www.twitter.com/threewaysstudio', enabled: true },
+    { key: 'facebook', label: 'Facebook', url: '', enabled: false },
+    { key: 'whatsapp', label: 'WhatsApp', url: '', enabled: false },
+  ],
+  content_blocks: {},
+  home_collection_mode: 'catalog',
+  home_collection_limit: 24,
 };
 
 interface SiteSettingsContextValue {
@@ -97,6 +120,30 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
             ? data.footer_links
             : DEFAULT_SITE_SETTINGS.footer_links,
           social_links: data.social_links || DEFAULT_SITE_SETTINGS.social_links,
+          social_channels:
+            Array.isArray(data.social_channels) && data.social_channels.length
+              ? (data.social_channels as SiteSettings['social_channels'])
+              : DEFAULT_SITE_SETTINGS.social_channels,
+          content_blocks:
+            data.content_blocks && typeof data.content_blocks === 'object'
+              ? (data.content_blocks as Record<string, string>)
+              : {},
+          home_collection_mode:
+            data.home_collection_mode === 'featured' ? 'featured' : 'catalog',
+          home_collection_limit: Number.isFinite(Number(data.home_collection_limit))
+            ? Number(data.home_collection_limit)
+            : DEFAULT_SITE_SETTINGS.home_collection_limit,
+          hero_cta_href: data.hero_cta_href || DEFAULT_SITE_SETTINGS.hero_cta_href,
+          hero_image_url: data.hero_image_url ?? '',
+          newsletter_description:
+            data.newsletter_description || DEFAULT_SITE_SETTINGS.newsletter_description,
+          newsletter_cta_label:
+            data.newsletter_cta_label || DEFAULT_SITE_SETTINGS.newsletter_cta_label,
+          contact_email: data.contact_email ?? '',
+          contact_phone: data.contact_phone ?? '',
+          whatsapp_url: data.whatsapp_url ?? '',
+          announcement_text: data.announcement_text ?? '',
+          announcement_enabled: Boolean(data.announcement_enabled),
         });
       }
     } catch (error) {
@@ -120,4 +167,14 @@ export function SiteSettingsProvider({ children }: { children: React.ReactNode }
 
 export function useSiteSettings() {
   return useContext(SiteSettingsContext);
+}
+
+/**
+ * Reads one editable storefront string. The default is always the studio's own
+ * published copy, so a missing or empty field can never render a blank label.
+ */
+export function useContentBlock(key: string, fallback: string) {
+  const { settings } = useSiteSettings();
+  const value = settings.content_blocks?.[key];
+  return typeof value === 'string' && value.trim() ? value : fallback;
 }

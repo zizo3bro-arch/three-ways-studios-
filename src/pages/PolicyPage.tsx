@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
 import { socialUrl } from '../components/layout/SocialLinks';
-import { useSiteSettings } from '../context/SiteSettingsContext';
+import { useContentBlock, useSiteSettings } from '../context/SiteSettingsContext';
 
 export function PolicyPage({ privacy }: { privacy: boolean }) {
   const { settings } = useSiteSettings();
+  const contactLine = useContentBlock('policy.contact', 'Three Ways Studios, Cairo, Egypt.');
   return (
     <article className="policy-page page-width">
       <h1>{privacy ? 'Privacy policy' : 'Terms & conditions'}</h1>
@@ -46,7 +47,15 @@ export function PolicyPage({ privacy }: { privacy: boolean }) {
       )}
       <h2>Contact</h2>
       <p>
-        Three Ways Studios, Cairo, Egypt.{' '}
+        {contactLine}{' '}
+        {settings.contact_email?.trim() ? (
+          <>
+            <a href={`mailto:${settings.contact_email.trim()}`} className="text-action">
+              {settings.contact_email.trim()}
+            </a>
+            .{' '}
+          </>
+        ) : null}
         <a
           href={socialUrl('instagram', settings.social_links)}
           target="_blank"

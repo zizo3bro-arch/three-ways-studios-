@@ -567,34 +567,36 @@ test('same-order ladder: the unlocked pair survives a multi-year gap and orders 
   void p2;
 });
 
-test('same-order ladder: pending orders hold the slot, cancellation releases it', async (t) => {
+test('delivered-only ladder: an undelivered order never advances the card and claims its slot once', async (t) => {
   const env = await fixtures();
   const { db, pants, quote, place, overview, setStatus } = env;
   t.after(() => db.close());
 
-  // Two completed orders -> the next checkout is order 3 with 10%.
+  // Two DELIVERED orders -> the next checkout takes order 3 with 10%.
   for (let i = 0; i < 2; i++) {
     const done = await place(MEMBER_A);
     await setStatus(done.order_id, 'delivered');
   }
 
   const third = await place(MEMBER_A);
+  assert.equal(third.loyalty_discount_percent, 10);
   assert.equal(third.loyalty_discount_amount, 245);
 
-  // While order 3 is in flight it occupies milestone 3, so a parallel checkout
-  // cannot claim the 10% again; it becomes order 4.
+  // While order 3 is in flight the card has still only received two orders, so
+  // a parallel checkout is an ordinary order: the 10% cannot be claimed twice.
   const inFlightQuote = await quote(MEMBER_A);
-  assert.equal(inFlightQuote.loyalty_order_seq, 4);
-  assert.equal(inFlightQuote.loyalty_discount_percent, 20);
+  assert.equal(inFlightQuote.loyalty_order_seq, null);
+  assert.equal(inFlightQuote.loyalty_discount_applied, false);
+  assert.equal(inFlightQuote.loyalty_discount_percent, 0);
+  assert.equal(inFlightQuote.final_total, 2525);
 
   const overviewInFlight = await overview(MEMBER_A);
   assert.equal(overviewInFlight.loyalty.qualifying_purchases, 2);
   assert.equal(overviewInFlight.loyalty.in_flight_purchases, 1);
-
-  // Pending orders never count as progress, even with a reward attached.
   assert.equal(overviewInFlight.loyalty.progress_in_cycle, 2);
   assert.equal(overviewInFlight.loyalty.milestones[2].state, 'applied');
   assert.equal(overviewInFlight.loyalty.milestones[2].order_reference, third.order_reference);
+  assert.equal(overviewInFlight.loyalty.next_reward.available, false);
 
   // Cancelling releases the reservation and reopens the milestone.
   await setStatus(third.order_id, 'cancelled');
@@ -602,6 +604,7 @@ test('same-order ladder: pending orders hold the slot, cancellation releases it'
   assert.equal(released.loyalty.in_flight_purchases, 0);
   assert.equal(released.loyalty.rewards.length, 0);
   assert.equal(released.loyalty.milestones[2].state, 'next');
+  assert.equal(released.loyalty.next_reward.available, true);
   assert.deepEqual(
     (await db.query('select status from loyalty_rewards')).rows,
     [{ status: 'released' }]
@@ -638,7 +641,7 @@ test('same-order ladder: pending orders hold the slot, cancellation releases it'
   assert.equal(fifthQuote.loyalty_order_seq, 5);
 });
 
-test('same-order ladder: no duplicate discounts, no reuse, no cross-customer leakage', async (t) => {
+test('delivered-only ladder: no duplicate discounts, no reuse, no cross-customer leakage', async (t) => {
   const env = await fixtures();
   const { db, tee, pants, quote, place, overview, setStatus, asGuest, asUser } = env;
   t.after(() => db.close());
@@ -648,23 +651,20 @@ test('same-order ladder: no duplicate discounts, no reuse, no cross-customer lea
     await setStatus(done.order_id, 'delivered');
   }
 
-  // Two identical checkouts at the same sequence cannot both keep the reward:
-  // the first reserves milestone 3, the second becomes order 4 (20%).
+  // Two identical checkouts at the same card position: the first reserves the
+  // 10%, the second is a regular purchase. Exactly one reward row exists.
   const first = await place(MEMBER_A);
   const second = await place(MEMBER_A);
   assert.equal(first.loyalty_discount_percent, 10);
-  assert.equal(second.loyalty_discount_percent, 20);
-  assert.notEqual(first.loyalty_discount_amount, second.loyalty_discount_amount);
+  assert.equal(second.loyalty_discount_percent, 0);
+  assert.equal(second.loyalty_discount_amount, 0);
   assert.deepEqual(
     (await db.query('select milestone_seq, reward_type from loyalty_rewards order by milestone_seq')).rows,
-    [
-      { milestone_seq: 3, reward_type: 'percent_10' },
-      { milestone_seq: 4, reward_type: 'percent_20' },
-    ]
+    [{ milestone_seq: 3, reward_type: 'percent_10' }]
   );
 
-  // Third parallel checkout is order 5: no pants in the bag -> no percentage
-  // reward is handed to it and no free pair is discounted.
+  // A third parallel checkout is regular too: the card has not received
+  // another delivered order, so the free-pair milestone is not reachable yet.
   const third = await place(MEMBER_A);
   assert.equal(third.loyalty_discount_amount, 0);
   assert.equal(third.loyalty_free_reward_amount, 0);
@@ -689,7 +689,6 @@ test('same-order ladder: no duplicate discounts, no reuse, no cross-customer lea
   const guestOrder = await asGuest('create_cod_order', env.order(MEMBER_A));
   assert.equal(guestOrder.loyalty_discount_amount, 0);
   assert.equal(guestOrder.loyalty_free_reward_amount, 0);
-  const ordersAfterGuest = (await db.query('select count(*) n from orders')).rows[0].n;
 
   // A signed-in customer using a different email gets no loyalty benefit.
   const wrongEmail = await asUser(MEMBER_B, 'quote_cod_order', {
@@ -708,7 +707,6 @@ test('same-order ladder: no duplicate discounts, no reuse, no cross-customer lea
   let bView = await overview(MEMBER_B);
   assert.equal(bView.loyalty.qualifying_purchases, 0);
   assert.equal(bView.loyalty.rewards.length, 0);
-  // Member B's own order is the only one visible to B.
   assert.equal(bView.orders.length, 1);
   assert.equal(bView.orders[0].loyalty_discount_amount, 0);
   assert.equal((await quote(MEMBER_B, [{ variant_id: pants, quantity: 1 }])).free_reward_available, false);
@@ -753,19 +751,15 @@ test('same-order ladder: no duplicate discounts, no reuse, no cross-customer lea
   // A needs no extra rows from the others' attempts.
   const aView = await overview(MEMBER_A);
   assert.equal(aView.loyalty.qualifying_purchases, 2);
-  // 10% and 20% are reserved on orders 3/4. Order 5 had no pants, so no reward
-  // row was created and the milestone stays claimable.
   assert.deepEqual(
     aView.loyalty.rewards.map((r) => [r.milestone_seq, r.reward_type, r.status]),
-    [
-      [4, 'percent_20', 'reserved'],
-      [3, 'percent_10', 'reserved'],
-    ]
+    [[3, 'percent_10', 'reserved']]
   );
-  // Two delivered + three live = milestone 5 is claimable on the next checkout.
-  assert.equal(aView.loyalty.next_order_seq, 5);
-  assert.equal(aView.loyalty.next_reward.reward_type, 'free_pants');
-  // Nothing from another customer's attempts leaked into A's ledger.
+  // Two delivered + the live 10% claim = the next checkout is still order 3,
+  // but its reward is already spoken for, so it is flagged unavailable.
+  assert.equal(aView.loyalty.next_order_seq, 3);
+  assert.equal(aView.loyalty.next_reward.reward_type, 'percent_10');
+  assert.equal(aView.loyalty.next_reward.available, false);
   assert.equal(
     (await db.query('select count(*)::int n from loyalty_rewards where auth_user_id <> $1', [
       MEMBER_A.id,

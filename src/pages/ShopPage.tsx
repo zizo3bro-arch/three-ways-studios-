@@ -5,6 +5,7 @@ import { PageIntro } from '../components/layout/PageIntro';
 import { showCampaignPreview } from '../lib/supabase';
 import { CampaignPreview, ProductPlate } from '../components/shop/ProductPlate';
 import { useCatalog } from '../hooks/useCatalog';
+import { useContentBlock } from '../context/SiteSettingsContext';
 
 /* =========================================================
    /shop — the whole catalogue, honestly. Filter chips read from the
@@ -29,6 +30,7 @@ const SORTS: Array<{ id: Sort; label: string }> = [
 
 export function ShopPage() {
   const { products, loading, error, retry } = useCatalog();
+  const emptyCatalogue = useContentBlock('shop.empty', 'No pieces published yet.');
   const [filter, setFilter] = useState<Filter>('all');
   const [sort, setSort] = useState<Sort>('curated');
 
@@ -142,7 +144,7 @@ export function ShopPage() {
                     {loading
                       ? 'Opening the collection…'
                       : !products.length
-                        ? 'No pieces published yet.'
+                        ? emptyCatalogue
                         : 'Nothing in this filter'}
                   </p>
                   {products.length > 0 && (

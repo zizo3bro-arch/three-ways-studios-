@@ -1,7 +1,53 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, History, Search, UserCheck, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  Copy,
+  Gift,
+  History,
+  Search,
+  ShieldCheck,
+  UserCheck,
+  X,
+} from 'lucide-react';
 import { formatEGP } from '../../lib/format';
+import { rpc } from '../../lib/rpc';
 import type { Customer, Order } from '../../types/database';
+
+interface CustomerLoyalty {
+  qualifying_purchases: number;
+  progress_in_cycle: number;
+  cycle_number: number;
+  next_reward_type: string | null;
+  next_reward_available: boolean;
+  free_pants_unlocked: boolean;
+  rewards: Array<{
+    milestone_seq: number;
+    reward_type: string;
+    status: string;
+    created_at: string;
+    redeemed_order_reference?: string | null;
+  }>;
+}
+
+interface CustomerProfileSnapshot {
+  profile: { full_name: string | null; email: string | null; phone: string | null; joined_at: string | null };
+  metrics: {
+    total_orders: number;
+    delivered_orders: number;
+    total_spend: number;
+    average_order_value: number;
+    last_order_at: string | null;
+  };
+  loyalty: CustomerLoyalty;
+  orders: Array<{ order_reference: string; status: string; total_amount: number; created_at: string }>;
+}
+
+const REWARD_NAMES: Record<string, string> = {
+  percent_10: '10% off',
+  percent_20: '20% off',
+  free_pants: 'One free pair of pants',
+};
 
 interface AdminCustomersTabProps {
   customers: Customer[];
@@ -62,12 +108,44 @@ export function AdminCustomersTab({
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<CustomerFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [snapshot, setSnapshot] = useState<CustomerProfileSnapshot | null>(null);
+  const [snapshotState, setSnapshotState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [snapshotError, setSnapshotError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const selectedCustomer = useMemo(
     () => (selectedId ? customers.find((item) => item.id === selectedId) ?? null : null),
     [customers, selectedId]
   );
+
+  // The console reads loyalty and spend from the same server function the
+  // customer's own page uses, so the two views can never disagree.
+  useEffect(() => {
+    const authUserId = selectedCustomer?.auth_user_id;
+    if (!authUserId) {
+      setSnapshot(null);
+      setSnapshotState('idle');
+      return;
+    }
+    let cancelled = false;
+    setSnapshotState('loading');
+    setSnapshotError(null);
+    rpc<CustomerProfileSnapshot>('admin_customer_profile', { p_auth_user_id: authUserId })
+      .then((data) => {
+        if (cancelled) return;
+        setSnapshot(data);
+        setSnapshotState('idle');
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setSnapshot(null);
+        setSnapshotState('error');
+        setSnapshotError(error instanceof Error ? error.message : 'Could not load the loyalty record.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomer]);
 
   useEffect(() => {
     if (!selectedCustomer) return;
@@ -554,6 +632,131 @@ export function AdminCustomersTab({
                 </dd>
               </div>
             </dl>
+
+            {/* ——— loyalty, at parity with the customer's own card ——— */}
+            <section className="mt-4 border border-ink/12 p-4" data-testid="admin-customer-loyalty">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-[10.5px] font-semibold tracking-[0.18em] text-ink-faint uppercase">
+                  <Gift className="h-3.5 w-3.5 text-crimson" /> Rewards card
+                </p>
+                {snapshot ? (
+                  <p className="text-[10px] text-ink-faint">
+                    Card {snapshot.loyalty.cycle_number} ·{' '}
+                    {snapshot.loyalty.qualifying_purchases} delivered all-time
+                  </p>
+                ) : null}
+              </div>
+
+              {!selectedCustomer.auth_user_id ? (
+                <p className="mt-2 text-[12px] text-ink-faint">
+                  This is a cash-on-delivery checkout record — there is no account, so no rewards
+                  card. It becomes a registered customer when they create an account with this email.
+                </p>
+              ) : snapshotState === 'loading' && !snapshot ? (
+                <p className="mt-2 text-[12px] text-ink-faint">Reading the card…</p>
+              ) : snapshotState === 'error' ? (
+                <p role="alert" className="mt-2 text-[12px] text-crimson-deep">
+                  {snapshotError}
+                </p>
+              ) : snapshot ? (
+                <>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <div className="flex gap-1.5" aria-label="Card progress">
+                      {[1, 2, 3, 4, 5].map((slot) => (
+                        <span
+                          key={slot}
+                          className={`grid h-7 w-7 place-items-center rounded-full border text-[10px] font-semibold ${
+                            slot <= snapshot.loyalty.progress_in_cycle
+                              ? 'border-crimson bg-crimson text-paper'
+                              : 'border-ink/25 text-ink-faint'
+                          }`}
+                        >
+                          {slot}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[12.5px] text-ink">
+                      <strong className="font-semibold">{snapshot.loyalty.progress_in_cycle}/5</strong>{' '}
+                      <span className="text-ink-soft">stamped</span>
+                    </p>
+                  </div>
+
+                  <p className="mt-2 text-[12px] text-ink-soft">
+                    {snapshot.loyalty.free_pants_unlocked ? (
+                      <span className="inline-flex items-center gap-1 font-semibold text-crimson-deep">
+                        <Gift className="h-3.5 w-3.5" /> One free pair of pants is unlocked and waiting.
+                      </span>
+                    ) : snapshot.loyalty.next_reward_available && snapshot.loyalty.next_reward_type ? (
+                      <>
+                        <strong className="text-ink">
+                          {REWARD_NAMES[snapshot.loyalty.next_reward_type] ?? snapshot.loyalty.next_reward_type}
+                        </strong>{' '}
+                        is unlocked for their next order.
+                      </>
+                    ) : (
+                      'No reward waiting. The next delivered order starts the climb to 10%.'
+                    )}
+                  </p>
+
+                  <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-ink/10 pt-3 text-[11.5px] sm:grid-cols-4">
+                    <div>
+                      <dt className="text-[9.5px] tracking-[0.14em] text-ink-faint uppercase">Orders</dt>
+                      <dd className="mt-0.5 text-ink">{snapshot.metrics.total_orders}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[9.5px] tracking-[0.14em] text-ink-faint uppercase">
+                        Delivered
+                      </dt>
+                      <dd className="mt-0.5 text-ink">{snapshot.metrics.delivered_orders}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[9.5px] tracking-[0.14em] text-ink-faint uppercase">
+                        Lifetime value
+                      </dt>
+                      <dd className="mt-0.5 text-ink">{formatEGP(Number(snapshot.metrics.total_spend))}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[9.5px] tracking-[0.14em] text-ink-faint uppercase">
+                        Average order
+                      </dt>
+                      <dd className="mt-0.5 text-ink">
+                        {formatEGP(Number(snapshot.metrics.average_order_value))}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {snapshot.loyalty.rewards.length ? (
+                    <ul className="mt-3 space-y-1 border-t border-ink/10 pt-3 text-[11.5px]">
+                      {snapshot.loyalty.rewards.map((reward) => (
+                        <li key={`${reward.milestone_seq}-${reward.created_at}`} className="flex flex-wrap justify-between gap-2">
+                          <span className="text-ink-soft">
+                            {REWARD_NAMES[reward.reward_type] ?? reward.reward_type} · stamp{' '}
+                            {reward.milestone_seq}
+                          </span>
+                          <span className="text-[10px] tracking-[0.1em] text-ink-faint uppercase">
+                            {reward.status}
+                            {reward.redeemed_order_reference
+                              ? ` · ${reward.redeemed_order_reference}`
+                              : ''}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+
+                  <p className="mt-3 flex items-start gap-1.5 border-t border-ink/10 pt-3 text-[10.5px] leading-relaxed text-ink-faint">
+                    <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    Read only. Progress is earned by delivered orders and can only be corrected by an
+                    authorised adjustment with a written reason — never edited here.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 flex items-start gap-1.5 text-[12px] text-ink-faint">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  No rewards record for this account yet.
+                </p>
+              )}
+            </section>
 
             <div className="mt-4 space-y-3">
               <p className="text-[10.5px] font-semibold tracking-[0.18em] text-ink-faint uppercase">

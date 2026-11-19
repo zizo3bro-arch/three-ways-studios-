@@ -3,6 +3,7 @@ import { Plus, Power, Trash2 } from 'lucide-react';
 import { formatEGP } from '../../lib/format';
 import { adminClient as supabase } from '../../lib/adminClient';
 import type { DiscountRule } from '../../types/database';
+import { AdminLoyaltyProgrammePanel } from './AdminLoyaltyProgrammePanel';
 
 interface AdminDiscountsTabProps {
   discounts: DiscountRule[];
@@ -99,6 +100,8 @@ export function AdminDiscountsTab({ discounts, onRefresh }: AdminDiscountsTabPro
 
   return (
     <div className="space-y-8">
+      <AdminLoyaltyProgrammePanel onSaved={() => void onRefresh()} />
+
       <div>
         <h2 className="text-sm font-medium tracking-[0.2em] text-ink uppercase">
           Discounts &amp; Email Checkout Rules
