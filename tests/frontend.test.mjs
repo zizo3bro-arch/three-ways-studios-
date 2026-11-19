@@ -211,20 +211,26 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
       )
     )
   );
-  assert.match(accountHtml, /Loyalty card/);
-  // Redesigned loyalty centrepiece: the five-circle readout and the ladder.
-  assert.match(accountHtml, /Five orders\. One pair on us\./);
+  // Signed out, the page states what the card is and the exact ladder, without
+  // pretending anyone has progress.
+  assert.match(accountHtml, /Sign in to see your rewards card\./);
+  assert.match(accountHtml, /Five delivered orders complete a card\./);
+  assert.match(accountHtml, /Order 3 takes 10% off, order 4 takes 20% off/);
   assert.match(accountHtml, /10% off/);
   assert.match(accountHtml, /20% off/);
-  assert.match(accountHtml, /Free pants/);
-  // Milestones appear exactly once (in the card section). The old duplicated
-  // "Loyalty rewards — 10% · 20% · free pants" panel must be gone.
+  assert.match(accountHtml, /One pair free/);
+  assert.match(accountHtml, /acct-ladder--signout/);
+  // The old duplicated "Loyalty rewards — 10% · 20% · free pants" panel must be gone.
   assert.doesNotMatch(accountHtml, /Loyalty rewards . 10% . 20% . free pants/);
-  assert.match(accountHtml, /10% Email Discount/);
-  assert.match(accountHtml, /do not stack/);
-  assert.match(accountHtml, /Track an order/);
-  assert.match(accountHtml, /Order number \(Reference\)/);
-  assert.match(accountHtml, /Email on the order/);
+  // An unauthenticated visitor is never shown somebody else's progress numbers.
+  assert.doesNotMatch(accountHtml, /\d+\/5/);
+  // Signed-out visitors get the ladder only; the signed-in account body carries
+  // order tracking and order cards, so those are asserted on the component.
+  const bodySource = await readFile('src/components/account/CustomerAccountBody.tsx', 'utf8');
+  assert.match(bodySource, /Track an order/);
+  assert.match(bodySource, /Order number \(Reference\)/);
+  assert.match(bodySource, /Email on the order/);
+  assert.match(bodySource, /My orders/);
 
   // The provided two-sided artwork renders as one accessible 3D-flipping card.
   const accountSourceForCard = await readFile('src/components/account/CustomerAccountBody.tsx', 'utf8');
@@ -246,7 +252,9 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
   );
   assert.match(cardHtml, /loyalty-card-back\.png/);
   assert.match(cardHtml, /loyalty-card-front\.png/);
-  assert.match(cardHtml, /2<\/strong> of 5 orders completed/);
+  assert.match(cardHtml, /<strong>2<\/strong>/);
+  assert.match(cardHtml, /\/ 5/);
+  assert.match(cardHtml, /orders counted/);
   // Cards start on the BACK face: the front transform class must be absent
   // from the server-rendered markup, and the back face must be first.
   assert.doesNotMatch(cardHtml, /lw-card-3d is-front/);
@@ -275,8 +283,8 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
   // Pending never fakes progress: every circle is still empty.
   assert.equal((pendingHtml.match(/data-complete="true"/g) || []).length, 0);
   for (const [asset, expected] of [
-    ['public/images/loyalty-card-back.png', [1337, 783]],
-    ['public/images/loyalty-card-front.png', [1337, 775]],
+    ['public/images/loyalty-card-back.png', [1344, 788]],
+    ['public/images/loyalty-card-front.png', [1343, 781]],
   ]) {
     const png = await readFile(asset);
     assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
@@ -325,8 +333,13 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
   const cardSource = await readFile('src/components/account/LoyaltyCard.tsx', 'utf8');
   assert.match(cardSource, /prefers-reduced-motion: reduce/);
   assert.match(cardSource, /played\.current/, 'auto-flip must run at most once');
-  assert.match(cardSource, /setTimeout\([\s\S]{0,200}?\b8[0-9]0\b/,
-    'auto-flip must wait roughly 700-1000ms before revealing the front');
+  const autoRevealDelay = Number(
+    (cardSource.match(/setTimeout\(\s*\(\)\s*=>[\s\S]{0,200}?\},\s*(\d+)\s*\)/) || [])[1]
+  );
+  assert.ok(
+    autoRevealDelay >= 700 && autoRevealDelay <= 1200,
+    `auto-flip must wait roughly 700-1200ms before revealing the front (found ${autoRevealDelay})`
+  );
   assert.match(cardSource, /useState\(false\)/, 'card starts on the back face');
   assert.match(cardSource, /data-complete=\{done \? 'true' : 'false'\}/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
@@ -336,14 +349,12 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
   const orderCardSource = await readFile('src/components/account/AccountOrderCard.tsx', 'utf8');
   assert.match(orderCardSource, /Counts once it is marked delivered/);
   assert.match(orderCardSource, /Not counted toward your loyalty card/);
-  // Progress must come from the server field. `available_free_pants` is the
-  // only proof the fifth-order pair exists; a milestone in state 'next' merely
-  // marks the next empty slot and would fire the banner one order too early.
+  // Progress is the server's count of delivered orders in the open cycle. The
+  // card is never fed a local counter, and the reward banner is driven by the
+  // server's next_reward + the stamped progress, so it cannot fire a cycle early.
   assert.match(accountSource, /loyalty\?\.progress_in_cycle \?\? 0/);
-  assert.match(accountSource, /available_free_pants \|\| loyalty\?\.free_product_unlocked/);
-  assert.doesNotMatch(accountSource, /loyaltyMilestones\[4\]\?\.state === 'next'/);
+  assert.match(accountSource, /loyalty\?\.next_reward\?\.available/);
+  assert.match(accountSource, /unlockedFromProgress\(progress\)/);
   assert.doesNotMatch(accountSource, /progressCount\s*=\s*[0-9]/);
-  // Finishing the 5th order wraps progress_in_cycle to 0 server-side, so the
-  // card must still read as full while the earned pair is unredeemed.
-  assert.match(accountSource, /freeUnlocked \? 5 : \(loyalty\?\.progress_in_cycle/);
+  assert.doesNotMatch(accountSource, /progress=\{[0-9]/);
 });

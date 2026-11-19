@@ -1,3 +1,5 @@
+export type ProductStatus = 'draft' | 'active' | 'archived';
+
 export interface Product {
   id: string;
   name: string;
@@ -15,6 +17,9 @@ export interface Product {
   is_trending: boolean;
   is_featured: boolean;
   is_published: boolean;
+  /** 013 — explicit console status, kept in sync with is_published. */
+  product_status?: ProductStatus;
+  tags?: string[];
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -173,6 +178,16 @@ export interface SocialLinks {
   tiktok?: string;
   youtube?: string;
   x?: string;
+  facebook?: string;
+  whatsapp?: string;
+}
+
+/** One ordered, individually switchable social destination shown on the site. */
+export interface SocialChannel {
+  key: keyof SocialLinks;
+  label: string;
+  url: string;
+  enabled: boolean;
 }
 
 export interface SiteSettings {
@@ -190,6 +205,20 @@ export interface SiteSettings {
   nav_links: NavLinkItem[];
   footer_links: NavLinkItem[];
   social_links: SocialLinks;
+  /** 013 — website control without code. */
+  hero_cta_href: string;
+  hero_image_url: string;
+  newsletter_description: string;
+  newsletter_cta_label: string;
+  contact_email: string;
+  contact_phone: string;
+  whatsapp_url: string;
+  announcement_text: string;
+  announcement_enabled: boolean;
+  social_channels: SocialChannel[];
+  content_blocks: Record<string, string>;
+  home_collection_mode: 'catalog' | 'featured';
+  home_collection_limit: number;
   updated_at?: string;
 }
 
@@ -348,7 +377,7 @@ export interface LoyaltyRedemption {
   free_product_name: string | null;
 }
 
-/** The milestone the next checkout will take ("applied to that same order"). */
+/** The reward waiting for the customer's next order ("unlocked by delivery"). */
 export interface LoyaltyNextReward {
   reward_type: LoyaltyRewardType | null;
   label: string | null;
@@ -357,6 +386,35 @@ export interface LoyaltyNextReward {
   /** Absolute milestone sequence, kept for cross-referencing. */
   target_seq?: number;
   orders_remaining: number;
+  /**
+   * True when this reward is unlocked and still unspent. False means an
+   * undelivered order already holds it, so the next checkout is regular.
+   */
+  available?: boolean;
+  /** Percentage configured for this milestone (10 by default). */
+  percent?: number | null;
+}
+
+/** One row of the configured five-order programme. */
+export interface LoyaltyProgramMilestone {
+  slot: number;
+  reward_type: LoyaltyRewardType | null;
+  label: string;
+  percent: number;
+}
+
+export interface LoyaltyProgram {
+  cycle_length: number;
+  milestones: LoyaltyProgramMilestone[];
+  milestone_3_percent: number;
+  milestone_4_percent: number;
+  milestone_5_reward_type: 'free_pants';
+  effective_from: string | null;
+  pending_change: {
+    milestone_3_percent: number;
+    milestone_4_percent: number;
+    effective_from: string;
+  } | null;
 }
 
 export type LoyaltyMilestoneState =

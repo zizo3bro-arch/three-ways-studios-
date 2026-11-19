@@ -24,7 +24,7 @@ export function StudioListSection() {
         {settings.newsletter_text}
       </h2>
       <p className="mt-2 max-w-[46ch] text-[13.5px] leading-relaxed text-ink-soft">
-        Submit your email address for early release notes and a one-time 10% discount at checkout.
+        {settings.newsletter_description}
       </p>
       <form onSubmit={subscribe}>
         <label className="sr-only" htmlFor="studio-email">
@@ -43,7 +43,7 @@ export function StudioListSection() {
           }}
         />
         <button className="tws-pill compact-pill" disabled={pending}>
-          {pending ? 'Subscribing…' : 'Subscribe'} <ArrowRight />
+          {pending ? 'Subscribing…' : settings.newsletter_cta_label || 'Subscribe'} <ArrowRight />
         </button>
       </form>
       {notice && (

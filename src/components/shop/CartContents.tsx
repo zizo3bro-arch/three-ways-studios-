@@ -1,12 +1,14 @@
 import { ArrowRight, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
+import { useContentBlock } from '../../context/SiteSettingsContext';
 import { formatEGP } from '../../lib/format';
 import { QuantityControl } from './QuantityControl';
 
 /** The bag drawer and the addressable /cart spread share one cart and all its actions. */
 export function CartContents({ drawer = false }: { drawer?: boolean }) {
   const { items, updateQuantity, removeItem, subtotal, closeDrawer } = useCart();
+  const emptyBag = useContentBlock('cart.empty', 'Your bag is empty.');
   const Title = drawer ? 'h2' : 'h1';
   return (
     <div className="cart-content">
@@ -18,7 +20,7 @@ export function CartContents({ drawer = false }: { drawer?: boolean }) {
       </div>
       {!items.length ? (
         <div className="cart-empty">
-          <p>Your bag is empty.</p>
+          <p>{emptyBag}</p>
           <Link className="tws-pill" to="/shop" onClick={closeDrawer}>
             Continue shopping <ArrowRight />
           </Link>

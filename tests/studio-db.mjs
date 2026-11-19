@@ -40,6 +40,8 @@ export async function studioDb({ upgrade = false, legacyCheckout = false } = {})
     await run('migrations/009_checkout_idempotency.sql');
     await run('migrations/010_account_loyalty_discounts.sql');
     await run('migrations/011_loyalty_rewards_v2.sql');
+    await run('migrations/012_loyalty_delivery_unlock.sql');
+    await run('migrations/013_console_operations.sql');
   }
   const catalog = [
     [
@@ -113,8 +115,31 @@ export async function rpc(tx, name, body = {}) {
       ? [...quoteArgs, ...('p_redeem_free_reward' in body ? ['p_redeem_free_reward'] : [])]
       : name === 'get_order_confirmation' || name === 'track_order'
         ? ['p_order_reference', 'p_email']
-        : name === 'get_customer_account_overview'
+        : name === 'get_customer_account_overview' || name === 'loyalty_program_preview'
           ? []
+          : name === 'admin_customer_profile'
+            ? ['p_auth_user_id']
+            : name === 'admin_adjust_stock'
+              ? ['p_variant_id', 'p_delta', 'p_reason', ...('p_note' in body ? ['p_note'] : [])]
+              : name === 'admin_add_order_note'
+                ? ['p_order_id', 'p_body']
+                : name === 'admin_record_refund'
+                  ? ['p_order_id', 'p_amount', 'p_reason']
+                  : name === 'admin_order_activity'
+                  ? ['p_order_id']
+                  : name === 'admin_list_stock_movements'
+                    ? [...('p_limit' in body ? ['p_limit'] : [])]
+                    : name === 'admin_update_order_status'
+                      ? ['p_order_id', 'p_new_status']
+                      : name === 'admin_loyalty_program_history'
+            ? ['p_limit']
+            : name === 'admin_update_loyalty_program'
+              ? [
+                  'p_milestone_3_percent',
+                  'p_milestone_4_percent',
+                  'p_effective_from',
+                  'p_reason',
+                ]
           : name === 'create_cod_order'
             ? [
                 ...orderArgs,
@@ -133,6 +158,16 @@ export async function rpc(tx, name, body = {}) {
     p_items: 'jsonb',
     p_checkout_request_id: 'uuid',
     p_redeem_free_reward: 'boolean',
+    p_milestone_3_percent: 'numeric',
+    p_milestone_4_percent: 'numeric',
+    p_effective_from: 'timestamptz',
+    p_limit: 'integer',
+    p_auth_user_id: 'uuid',
+    p_variant_id: 'uuid',
+    p_delta: 'integer',
+    p_allow_negative: 'boolean',
+    p_order_id: 'uuid',
+    p_amount: 'numeric',
   };
   const params = keys.map((k, i) => `${k} => $${i + 1}::${types[k] || 'text'}`).join(',');
   const result = await tx.query(

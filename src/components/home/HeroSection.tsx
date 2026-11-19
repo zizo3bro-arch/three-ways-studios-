@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useSiteSettings } from '../../context/SiteSettingsContext';
+import { isExternal, safeDestination } from '../../lib/links';
 
 /** The pigment is live type, not a photograph of a page. Two scales of noise
  * break the edge of the ink; the fine grain is confined to the overspray. */
@@ -72,12 +73,25 @@ function PaintedType({ text }: { text: string }) {
 export function HeroSection() {
   const { settings } = useSiteSettings();
   const signature = settings.hero_script_text.trim();
+  const ctaHref = safeDestination(settings.hero_cta_href, '/shop');
+  const ctaLabel = settings.hero_cta_label || 'Shop now';
+  const heroImage = (settings.hero_image_url || '').trim();
   return (
     <section id="top" className="campaign" aria-labelledby="campaign-title">
       <h1 id="campaign-title" className="sr-only">
         Three Ways Studios — {settings.hero_tagline}
       </h1>
       <div className="campaign-art">
+        {heroImage ? (
+          <img
+            className="campaign-hero-image"
+            src={heroImage}
+            alt=""
+            aria-hidden="true"
+            loading="eager"
+            decoding="async"
+          />
+        ) : null}
         <PaintedType text={settings.hero_bg_text || 'THREE WAYS'} />
         {/^three\s*ways\s*studios[®™.\s]*$/i.test(signature) || !signature ? (
           <img
@@ -118,9 +132,21 @@ export function HeroSection() {
                 <span key={i}>{word}</span>
               ))}
           </p>
-          <Link className="tws-pill compact-pill" to="/shop">
-            {settings.hero_cta_label || 'Shop now'} <ArrowRight />
-          </Link>
+          {isExternal(ctaHref) ? (
+            <a
+              className="tws-pill compact-pill"
+              href={ctaHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="hero-cta"
+            >
+              {ctaLabel} <ArrowRight />
+            </a>
+          ) : (
+            <Link className="tws-pill compact-pill" to={ctaHref} data-testid="hero-cta">
+              {ctaLabel} <ArrowRight />
+            </Link>
+          )}
         </div>
       </div>
     </section>

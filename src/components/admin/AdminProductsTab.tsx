@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Edit3, Eye, EyeOff, ImagePlus, Plus, Ruler, Save, Trash2, X } from 'lucide-react';
+import { Check, Edit3, ImagePlus, Plus, Ruler, Save, Trash2, X } from 'lucide-react';
 import { formatEGP, slugify } from '../../lib/format';
 import { adminClient as supabase } from '../../lib/adminClient';
 import type { Product, ProductImage, ProductVariant, SizeChartRow } from '../../types/database';
@@ -63,7 +63,8 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
   const [isBestSeller, setIsBestSeller] = useState(false);
   const [isTrending, setIsTrending] = useState(false);
   const [isFeatured, setIsFeatured] = useState(true);
-  const [isPublished, setIsPublished] = useState(true);
+  const [productStatus, setProductStatus] = useState<'draft' | 'active' | 'archived'>('active');
+  const [tags, setTags] = useState('');
 
   const [images, setImages] = useState<ImageDraft[]>([]);
   const [imageUrlInput, setImageUrlInput] = useState('');
@@ -91,7 +92,8 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
     setIsBestSeller(false);
     setIsTrending(false);
     setIsFeatured(true);
-    setIsPublished(true);
+    setProductStatus('active');
+    setTags('');
     setImages([]);
     setVariants([
       {
@@ -183,7 +185,8 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
     setIsBestSeller(p.is_best_seller);
     setIsTrending(p.is_trending);
     setIsFeatured(p.is_featured);
-    setIsPublished(p.is_published);
+    setProductStatus(p.product_status ?? (p.is_published ? 'active' : 'draft'));
+    setTags((p.tags ?? []).join(', '));
 
     setImages(
       (p.images ?? []).map((img: ProductImage) => ({
@@ -323,7 +326,15 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
         is_best_seller: isBestSeller,
         is_trending: isTrending,
         is_featured: isFeatured,
-        is_published: isPublished,
+        // Status and visibility travel together; the database keeps them in
+        // lockstep with a trigger so neither can drift.
+        is_published: productStatus === 'active',
+        product_status: productStatus,
+        tags: tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+          .slice(0, 12),
       };
 
       if (productId) {
@@ -466,11 +477,17 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
     await onRefresh();
   };
 
-  const handleTogglePublished = async (product: Product) => {
+  const handleStatusChange = async (product: Product, status: string) => {
     if (!supabase) return;
+    if (status === 'archived' && product.is_published) {
+      const confirmed = window.confirm(
+        `Archive “${product.name}”? It disappears from the storefront immediately. Existing orders and stock stay exactly as they are.`
+      );
+      if (!confirmed) return;
+    }
     const { error } = await supabase
       .from('products')
-      .update({ is_published: !product.is_published })
+      .update({ product_status: status, is_published: status === 'active' })
       .eq('id', product.id)
       .select('id')
       .single();
@@ -581,25 +598,25 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
                       </div>
                     </td>
                     <td className="p-4">
-                      <button
-                        type="button"
-                        onClick={() => handleTogglePublished(p)}
-                        className={`inline-flex items-center gap-1.5 border px-2.5 py-1 text-[10px] tracking-[0.14em] uppercase ${
-                          p.is_published
-                            ? 'border-[#7bd389]/40 bg-[#7bd389]/10 text-emerald-800'
-                            : 'border-ink/20 text-ink-faint'
-                        }`}
-                      >
-                        {p.is_published ? (
-                          <>
-                            <Eye className="h-3 w-3" /> Published
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="h-3 w-3" /> Draft
-                          </>
-                        )}
-                      </button>
+                      <div className="flex flex-col items-start gap-1">
+                        <select
+                          value={p.product_status ?? (p.is_published ? 'active' : 'draft')}
+                          onChange={(event) => void handleStatusChange(p, event.target.value)}
+                          aria-label={`Availability of ${p.name}`}
+                          className={`border px-2 py-1 text-[10px] tracking-[0.14em] uppercase ${
+                            (p.product_status ?? (p.is_published ? 'active' : 'draft')) === 'active'
+                              ? 'border-[#7bd389]/40 bg-[#7bd389]/10 text-emerald-800'
+                              : 'border-ink/20 text-ink-faint'
+                          }`}
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="active">Active</option>
+                          <option value="archived">Archived</option>
+                        </select>
+                        {p.tags?.length ? (
+                          <p className="text-[10px] text-ink-faint">{p.tags.join(' · ')}</p>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="p-4 text-right">
                       <div className="inline-flex items-center gap-2">
@@ -730,15 +747,46 @@ export function AdminProductsTab({ products, onRefresh }: AdminProductsTabProps)
                     className="w-full border border-ink/15 bg-paper/50 px-3 py-2 text-xs text-ink"
                   />
                 </div>
-                <div className="flex flex-wrap items-center gap-4 pt-4 text-xs text-ink-soft">
-                  <label className="flex items-center gap-1.5">
-                    <input
-                      type="checkbox"
-                      checked={isPublished}
-                      onChange={(e) => setIsPublished(e.target.checked)}
-                    />
-                    Published
+                <div>
+                  <label
+                    htmlFor="piece-status"
+                    className="mb-1 block text-[10px] tracking-[0.16em] text-ink-faint uppercase"
+                  >
+                    Availability
                   </label>
+                  <select
+                    id="piece-status"
+                    value={productStatus}
+                    onChange={(e) => {
+                      const next = e.target.value as 'draft' | 'active' | 'archived';
+                      setProductStatus(next);
+                    }}
+                    className="w-full border border-ink/15 bg-paper/50 px-3 py-2 text-xs text-ink"
+                  >
+                    <option value="draft">Draft — hidden from the storefront</option>
+                    <option value="active">Active — on sale</option>
+                    <option value="archived">Archived — retired, kept for order history</option>
+                  </select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="piece-tags"
+                    className="mb-1 block text-[10px] tracking-[0.16em] text-ink-faint uppercase"
+                  >
+                    Tags
+                  </label>
+                  <input
+                    id="piece-tags"
+                    value={tags}
+                    onChange={(e) => setTags(e.target.value)}
+                    placeholder="linen, wide leg, summer (comma separated)"
+                    className="w-full border border-ink/15 bg-paper/50 px-3 py-2 text-xs text-ink"
+                  />
+                  <p className="mt-1 text-[10px] text-ink-faint">
+                    Tags power storefront search and filters. They never change the price or stock.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-4 pt-4 text-xs text-ink-soft">
                   <label className="flex items-center gap-1.5">
                     <input
                       type="checkbox"
