@@ -25,14 +25,10 @@ import {
   trackOrder,
 } from '../../lib/api';
 import { formatEGP } from '../../lib/format';
-import { resolveTrackingStage } from '../../lib/orderTracking';
-import type {
-  CustomerAccountOverview,
-  LoyaltyMilestone,
-  TrackedOrderData,
-} from '../../types/database';
+import type { CustomerAccountOverview, TrackedOrderData } from '../../types/database';
 import { OrderTrackingResult } from './OrderTrackingResult';
 import { LoyaltyCard } from './LoyaltyCard';
+import { AccountOrderCard } from './AccountOrderCard';
 
 type LookupState =
   | { status: 'idle' }
@@ -42,27 +38,18 @@ type LookupState =
 
 type AuthMode = 'register' | 'signin';
 
-/** The reward ladder enforced server-side by 011 (same-order model).
- * Used only as a fallback while the authenticated overview is loading. */
-const LOYALTY_LADDER: LoyaltyMilestone[] = [
-  { seq: 1, order_in_cycle: 1, reward_type: null, label: null, state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
-  { seq: 2, order_in_cycle: 2, reward_type: null, label: null, state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
-  { seq: 3, order_in_cycle: 3, reward_type: 'percent_10', label: '10% off this order', state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
-  { seq: 4, order_in_cycle: 4, reward_type: 'percent_20', label: '20% off this order', state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
-  { seq: 5, order_in_cycle: 5, reward_type: 'free_pants', label: 'One free pair of pants', state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
+
+/** Plain-language milestone copy for the signed-out card preview. */
+const MILESTONES = [
+  { stage: 'Regular' },
+  { stage: 'Regular' },
+  { stage: '10% off' },
+  { stage: '20% off' },
+  { stage: 'Free pants' },
 ];
 
-function milestoneShort(milestone: LoyaltyMilestone) {
-  if (milestone.reward_type === 'percent_10') return '10% OFF';
-  if (milestone.reward_type === 'percent_20') return '20% OFF';
-  if (milestone.reward_type === 'free_pants') return 'Free pants';
-  return 'Regular';
-}
-
-function milestoneLabel(milestone: LoyaltyMilestone) {
-  if (milestone.label) return milestone.label;
-  return milestone.reward_type ? milestoneShort(milestone) : 'Regular price';
-}
+const ACCOUNT_TABS = ['Overview', 'My Orders', 'Loyalty Card', 'Details'] as const;
+type AccountTab = (typeof ACCOUNT_TABS)[number];
 
 interface CustomerAccountBodyProps {
   mode: 'panel' | 'page';
@@ -99,6 +86,7 @@ export function CustomerAccountBody({
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [overviewEmpty, setOverviewEmpty] = useState(false);
+  const [tab, setTab] = useState<AccountTab>('Overview');
   const overviewRequest = useRef(0);
 
   const [discountEmail, setDiscountEmail] = useState('');
@@ -282,17 +270,23 @@ export function CustomerAccountBody({
   const loyalty = overview?.loyalty;
   const discounts = overview?.discounts;
   const completedCount = overview?.purchase_summary.completed_purchases ?? 0;
-  const progressCount = loyalty?.progress_in_cycle ?? 0;
-  const loyaltyMilestones =
-    loyalty?.milestones && loyalty.milestones.length === 5 ? loyalty.milestones : LOYALTY_LADDER;
+  // Only the server's reward ledger can say the free pair is claimable. A
+  // milestone in state 'next' merely means "the next slot to fill", which is
+  // already true one order BEFORE the reward exists, so it must not be used.
+  const freeUnlocked = Boolean(loyalty?.available_free_pants || loyalty?.free_product_unlocked);
+  // The server reports progress as MOD(qualifying, 5): finishing the 5th order
+  // wraps the count back to 0. While the earned pair is still unredeemed the
+  // card is genuinely full, so present five stamps rather than an empty cycle.
+  const progressCount = freeUnlocked ? 5 : (loyalty?.progress_in_cycle ?? 0);
   const remainingCount = loyalty?.purchases_remaining ?? 5;
-  // Unlocked at milestone 5 and kept until a qualifying order redeems it.
-  const freeUnlocked =
-    loyaltyMilestones[4]?.state === 'next' || Boolean(loyalty?.free_product_unlocked);
-
   return (
     <div className={mode === 'page' ? 'space-y-10' : 'space-y-0'}>
       {/* ——— 1. Personal Account / Sign-in ——— */}
+      <div
+        className={
+          mode === 'page' && customer && tab !== 'Overview' && tab !== 'Details' ? 'hidden' : ''
+        }
+      >
       <section
         className={mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-6'}
         aria-label="Account profile"
@@ -349,17 +343,15 @@ export function CustomerAccountBody({
                 ) : null}
               </div>
 
-              <div className="border border-ink/16 px-3 py-2 text-right">
-                <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                  Completed
+              <span
+                className="hidden font-display text-lg font-bold tabular-nums leading-none text-ink sm:block"
+                data-testid="account-completed-count"
+              >
+                {completedCount}
+                <span className="ml-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
+                  delivered
                 </span>
-                <span
-                  className="mt-0.5 block font-display text-lg font-bold tabular-nums leading-none text-ink"
-                  data-testid="account-completed-count"
-                >
-                  {completedCount} {completedCount === 1 ? 'purchase' : 'purchases'}
-                </span>
-              </div>
+              </span>
             </div>
 
             {authFeedback ? (
@@ -374,14 +366,6 @@ export function CustomerAccountBody({
               </p>
             ) : null}
 
-            <button
-              type="button"
-              onClick={() => void handleSignOut()}
-              className="tws-pill tws-pill--outline w-full justify-center"
-            >
-              <LogOut className="h-4 w-4" strokeWidth={1.8} />
-              Sign out
-            </button>
           </div>
         ) : (
           <div className="mt-3.5">
@@ -534,162 +518,194 @@ export function CustomerAccountBody({
         )}
       </section>
 
-      {/* ——— 2. Loyalty Card — Free Product After 5 Purchases ——— */}
+      </div>
+
+      {/* Section navigation — signed-in page view only. Keeps the long account
+          record readable without deleting anything the customer may need. */}
+      {mode === 'page' && customer ? (
+        <nav className="acct-nav" aria-label="Account sections">
+          {ACCOUNT_TABS.map((label) => (
+            <button
+              key={label}
+              type="button"
+              aria-current={tab === label}
+              data-testid={`account-tab-${label.toLowerCase().replace(/\s+/g, '-')}`}
+              onClick={() => setTab(label)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
+
+      {/* Overview: three numbers, each one a jump into its section. */}
+      {mode === 'page' && customer && tab === 'Overview' ? (
+        <section className="acct-panel" aria-label="Account at a glance" data-testid="account-overview">
+          <div className="acct-tiles">
+            <button type="button" onClick={() => setTab('Loyalty Card')}>
+              <span>Loyalty progress</span>
+              <strong>
+                {progressCount}<span className="text-[0.55em] font-normal"> / 5</span>
+              </strong>
+              <em>
+                {freeUnlocked
+                  ? 'Free pair ready'
+                  : `${remainingCount} ${remainingCount === 1 ? 'order' : 'orders'} to go`}
+              </em>
+            </button>
+            <button type="button" onClick={() => setTab('My Orders')}>
+              <span>Orders</span>
+              <strong>{overview ? overview.orders.length : '—'}</strong>
+              <em>{completedCount} delivered</em>
+            </button>
+            <button type="button" onClick={() => setTab('Loyalty Card')}>
+              <span>Next reward</span>
+              <strong className="!text-[clamp(0.86rem,1.9vw,1.05rem)]">
+                {freeUnlocked
+                  ? 'Free pants'
+                  : loyalty?.next_reward?.reward_type
+                    ? loyalty.next_reward.label
+                    : 'A stamp'}
+              </strong>
+              <em>
+                {freeUnlocked
+                  ? 'Unlocked'
+                  : loyalty?.next_order_seq
+                    ? `On order ${loyalty.next_order_seq}`
+                    : 'Keep going'}
+              </em>
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {/* Loyalty panel: centrepiece on its own tab, summary on Overview. */}
+      <div
+        className={
+          mode === 'page' && customer && tab !== 'Overview' && tab !== 'Loyalty Card'
+            ? 'hidden'
+            : ''
+        }
+      >
+      {/* ——— 2. Loyalty — the page's centrepiece ——— */}
       <section
-        className={mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-6'}
+        className={mode === 'page' ? '' : 'mt-5 border-b border-ink/14 pb-6'}
         aria-label="Loyalty card"
         data-testid="loyalty-card"
       >
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
-            <Award className="h-4 w-4 text-crimson" strokeWidth={2} />
-            Loyalty card
-          </h3>
-          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-crimson tabular-nums">
-            {customer ? `${progressCount}/5 purchases` : '10% · 20% · free pants'}
-          </span>
-        </div>
-
-        {customer ? (
-          <>
-            {/* The artwork is a static asset: render it immediately and never
-                gate it behind the network request. Only the stamp values wait. */}
-            <LoyaltyCard
-              key={customer.id}
-              memberName={displayName}
-              email={customer.email}
-              progress={loyalty?.progress_in_cycle ?? 0}
-              pending={overviewLoading && !overview}
-            />
-            {!overview && !overviewLoading ? (
-              <p
-                className="mt-3 text-center text-[12.5px] text-ink-soft"
-                role={overviewError ? 'alert' : 'status'}
-                data-testid="loyalty-card-status"
-              >
-                {overviewError
-                  ? overviewError
-                  : overviewEmpty
-                    ? 'Your rewards card is ready — completed orders will appear here.'
-                    : 'Loyalty progress is temporarily unavailable.'}
+        <div className="lw-hero">
+          <div className="lw-hero-head">
+            <div>
+              <p className="lw-hero-eyebrow">
+                <Award className="mr-1.5 inline h-3.5 w-3.5 align-[-2px]" strokeWidth={2.1} />
+                {customer ? 'Your rewards card' : 'The rewards card'}
               </p>
-            ) : null}
-          </>
-        ) : null}
-
-        <div className="mt-3.5 border border-ink/18 p-4">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="font-display text-[1rem] uppercase tracking-[0.06em] text-ink">
-              Rewards across 5 completed orders
-            </p>
-            {customer ? (
-              <span
-                className="font-mono text-[13px] font-semibold tabular-nums text-ink"
-                data-testid="loyalty-progress-fraction"
-              >
-                {progressCount}/5
-              </span>
-            ) : null}
-          </div>
-
-          {/* Server-reported state per milestone: completed vs reward applied. */}
-          <div
-            className="mt-3 grid grid-cols-5 gap-2"
-            aria-label={`Loyalty stamps: ${progressCount} of 5 completed`}
-          >
-            {loyaltyMilestones.map((milestone) => {
-              const rewarded = milestone.state === 'rewarded';
-              const applied = milestone.state === 'applied';
-              const available = milestone.state === 'available';
-              const completed = milestone.state === 'completed';
-              const next = milestone.state === 'next';
-              return (
-                <div
-                  key={milestone.seq}
-                  data-testid={`loyalty-milestone-${milestone.order_in_cycle}`}
-                  data-state={milestone.state}
-                  className={[
-                    'flex flex-col items-center justify-center gap-0.5 border px-1 py-1.5 text-center text-[9.5px] font-bold uppercase leading-tight tracking-[0.04em] transition-colors',
-                    rewarded || applied
-                      ? 'border-crimson bg-crimson text-paper'
-                      : available
-                        ? 'border-crimson text-crimson'
-                        : completed
-                          ? 'border-ink/40 bg-ink/5 text-ink'
-                          : next
-                            ? 'border-ink/50 text-ink'
-                            : 'border-ink/20 text-ink-faint',
-                  ].join(' ')}
-                  title={`Order ${milestone.order_in_cycle}: ${milestoneLabel(milestone)}`}
-                >
-                  {milestone.reward_type === 'free_pants' ? (
-                    <Gift className="h-3.5 w-3.5" strokeWidth={1.9} />
-                  ) : (
-                    <span className="tabular-nums">0{milestone.order_in_cycle}</span>
-                  )}
-                  <span>{milestoneShort(milestone)}</span>
-                </div>
-              );
-            })}
-          </div>
-          {customer && loyalty ? (
-            <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
-              {loyalty.in_flight_purchases > 0
-                ? `${loyalty.in_flight_purchases} order${loyalty.in_flight_purchases === 1 ? '' : 's'} awaiting delivery · `
-                : ''}
-              Filled = reward applied to that order. Outlined = reward ready to use.
-            </p>
-          ) : null}
-
-          {!customer ? (
-            <p className="mt-3 text-[12.5px] leading-relaxed text-ink-soft">
-              Sign in or create a personal account to track your rewards. Order 3 saves 10% on that
-              same order, order 4 saves 20%, and order 5 makes one pair of pants free.
-            </p>
-          ) : overviewLoading && !overview ? (
-            <p className="mt-3 text-[12.5px] text-ink-soft">Loading loyalty progress…</p>
-          ) : freeUnlocked ? (
-            <div
-              className="mt-3.5 border-l-2 border-crimson bg-[rgba(165,18,27,0.06)] px-3.5 py-3"
-              data-testid="loyalty-unlocked-banner"
-            >
-              <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-crimson">
-                Free pair of pants unlocked
+              <h3 className="lw-hero-title">
+                {customer
+                  ? freeUnlocked
+                    ? 'Free pair unlocked'
+                    : progressCount === 0
+                      ? 'Your card is ready'
+                      : `${5 - progressCount} ${5 - progressCount === 1 ? 'order' : 'orders'} to your free pants`
+                  : 'Five orders. One pair on us.'}
+              </h3>
+              <p className="lw-hero-note">
+                {customer
+                  ? 'Every delivered order stamps a circle. The 3rd takes 10% off, the 4th takes 20% off, and the 5th makes one pair of pants free on that same order.'
+                  : 'Create an account to track your card. Order 3 takes 10% off itself, order 4 takes 20% off, and order 5 makes exactly one pair of pants free.'}
               </p>
-              <p className="mt-1 text-[12.5px] leading-relaxed text-ink">
-                Add a pair of pants to any checkout and exactly one pair is free. This reward never
-                expires — it stays unlocked until you redeem it, and orders without pants are
-                charged normally without using it.
-              </p>
-              <Link
-                to={itemCount > 0 ? '/checkout' : '/shop'}
-                onClick={onNavigate}
-                className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-crimson hover:text-crimson-deep"
-              >
-                {itemCount > 0 ? 'Redeem at checkout' : 'Choose your pants'}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
             </div>
+
+            {/* Next reward appears once, in the milestone ladder under the
+                card; repeating it here would state the same fact twice. */}
+          </div>
+
+          {customer ? (
+            <>
+              {/* Artwork is a static asset: it renders immediately and is never
+                  gated behind the loyalty request. Only the stamps wait. */}
+              <LoyaltyCard
+                key={customer.id}
+                memberName={displayName}
+                email={customer.email}
+                progress={progressCount}
+                pending={overviewLoading && !overview}
+              />
+
+              {!overview && !overviewLoading ? (
+                <p
+                  className="text-center text-[12.5px] text-ink-soft"
+                  role={overviewError ? 'alert' : 'status'}
+                  data-testid="loyalty-card-status"
+                >
+                  {overviewError
+                    ? `${overviewError} `
+                    : overviewEmpty
+                      ? 'Your card is ready — delivered orders will appear here.'
+                      : 'Loyalty progress is temporarily unavailable.'}
+                  {overviewError ? (
+                    <button
+                      type="button"
+                      onClick={() => void loadOverview()}
+                      className="text-action"
+                    >
+                      Retry
+                    </button>
+                  ) : null}
+                </p>
+              ) : null}
+
+              {freeUnlocked ? (
+                <div className="lw-unlocked" data-testid="loyalty-unlocked-banner">
+                  <p>
+                    <strong>Unlocked · never expires</strong>
+                    Add a pair of pants to any order and exactly one pair is free. Orders without
+                    pants are charged normally and never use it up.
+                  </p>
+                  <Link
+                    to={itemCount > 0 ? '/checkout' : '/shop'}
+                    onClick={onNavigate}
+                  >
+                    {itemCount > 0 ? 'Use it at checkout' : 'Choose your pants'}
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              ) : null}
+            </>
           ) : (
-            <p
-              className="mt-3 text-[12.5px] leading-relaxed text-ink-soft"
-              data-testid="loyalty-remaining-copy"
-            >
-              <span className="font-semibold text-ink">
-                {remainingCount} {remainingCount === 1 ? 'purchase' : 'purchases'} remaining
-              </span>{' '}
-              until your free pair of pants.
-              {loyalty?.next_reward
-                ? ` This order will take milestone ${loyalty.next_reward.target_order}: ${loyalty.next_reward.label}.`
-                : ''}
-              {loyalty && loyalty.redeemed_rewards > 0
-                ? ` (${loyalty.redeemed_rewards} ${loyalty.redeemed_rewards === 1 ? 'reward' : 'rewards'} previously redeemed.)`
-                : ' Only delivered orders count; cancelled orders are excluded.'}
-            </p>
+            <div className="mt-1 border-y border-ink/16 py-5">
+              <ol className="grid grid-cols-5 gap-2" aria-label="Loyalty milestones">
+                {MILESTONES.map((milestone, index) => (
+                  <li
+                    key={milestone.stage}
+                    className="flex flex-col items-center gap-1.5 text-center"
+                    data-testid={`loyalty-milestone-signout-${index + 1}`}
+                  >
+                    <span className="grid h-8 w-8 place-items-center rounded-full border border-crimson/45 font-display text-[11px] font-bold tabular-nums text-crimson">
+                      {index + 1}
+                    </span>
+                    <span className="text-[9px] font-bold uppercase leading-tight tracking-[0.06em] text-ink-soft">
+                      {milestone.stage}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           )}
         </div>
       </section>
 
+
+      </div>
+
+      {/* Discounts belong with the loyalty story. */}
+      <div
+        className={
+          mode === 'page' && customer && tab !== 'Overview' && tab !== 'Loyalty Card'
+            ? 'hidden'
+            : ''
+        }
+      >
       {/* ——— 3. Discount Eligibility (Option 1 + Option 2, Non-Stacking) ——— */}
       <section
         className={mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-6'}
@@ -787,6 +803,16 @@ export function CustomerAccountBody({
         </div>
       </section>
 
+      </div>
+
+      {/* Purchase history: full list on My Orders, latest three on Overview. */}
+      <div
+        className={
+          mode === 'page' && customer && tab !== 'Overview' && tab !== 'My Orders'
+            ? 'hidden'
+            : ''
+        }
+      >
       {/* ——— 4. Purchase History (Signed-in Customers) ——— */}
       {customer ? (
         <section
@@ -820,89 +846,42 @@ export function CustomerAccountBody({
               No orders on this account yet. Completed purchases will appear here automatically.
             </p>
           ) : (
-            <ul className="mt-3.5 space-y-3">
-              {overview.orders.map((ord) => {
-                const stage = resolveTrackingStage(ord.status, ord.tracking);
-                return (
-                  <li
+            <>
+              <ul className="mt-3.5 space-y-3">
+                {(tab === 'Overview' ? overview.orders.slice(0, 3) : overview.orders).map((ord) => (
+                  <AccountOrderCard
                     key={ord.order_id}
-                    className="border border-ink/16 p-3.5"
-                    data-testid="purchase-history-item"
-                  >
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <span className="font-mono text-[12.5px] font-semibold text-ink">
-                        {ord.order_reference}
-                      </span>
-                      <span
-                        className={[
-                          'border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]',
-                          stage.is_cancelled
-                            ? 'border-ink/20 text-ink-faint line-through'
-                            : stage.is_completed
-                              ? 'border-crimson/40 text-crimson'
-                              : 'border-ink/25 text-ink',
-                        ].join(' ')}
-                      >
-                        {stage.label}
-                      </span>
-                    </div>
-
-                    <p className="mt-1 text-[11.5px] text-ink-faint">
-                      {new Date(ord.created_at).toLocaleDateString('en-GB', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                      })}{' '}
-                      · {stage.description}
-                    </p>
-
-                    <ul className="mt-2.5 space-y-1 border-t border-ink/10 pt-2 text-[12.5px] text-ink-soft">
-                      {ord.items.map((item, idx) => (
-                        <li
-                          key={`${ord.order_id}-${idx}`}
-                          className="flex items-baseline justify-between gap-2"
-                        >
-                          <span className="truncate">
-                            {item.product_name} ({item.color_name} / {item.size_name}) ×{' '}
-                            {item.quantity}
-                          </span>
-                          <span className="shrink-0 tabular-nums text-ink">
-                            {formatEGP(item.line_total)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {(ord.loyalty_free_reward_amount ?? 0) > 0 ? (
-                      <p className="mt-2 border-t border-ink/10 pt-2 text-[11.5px] text-crimson">
-                        Free pair of pants reward applied
-                        {ord.loyalty_free_reward_product_name
-                          ? ` — ${ord.loyalty_free_reward_product_name}`
-                          : ''}
-                      </p>
-                    ) : null}
-                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-ink/12 pt-2.5">
-                      <span className="text-[12.5px] font-semibold tabular-nums text-ink">
-                        Total: {formatEGP(ord.total_amount)}
-                      </span>
-                      <Link
-                        to={`/order-confirmation/${encodeURIComponent(ord.order_reference)}`}
-                        state={{ email: customer.email }}
-                        onClick={onNavigate}
-                        className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-[0.16em] text-crimson hover:text-crimson-deep"
-                      >
-                        Receipt
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </Link>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                    order={ord}
+                    email={customer.email}
+                    onNavigate={onNavigate}
+                  />
+                ))}
+              </ul>
+              {tab === 'Overview' && overview.orders.length > 3 ? (
+              <button
+                type="button"
+                onClick={() => setTab('My Orders')}
+                className="mt-4 inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.15em] text-crimson hover:text-crimson-deep"
+              >
+                All {overview.orders.length} orders
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </>
           )}
         </section>
       ) : null}
 
+      </div>
+
+      {/* Reward ledger lives with the card. */}
+      <div
+        className={
+          mode === 'page' && customer && tab !== 'Loyalty Card'
+            ? 'hidden'
+            : ''
+        }
+      >
       {/* ——— 4b. Earned rewards & redemption history (own account only) ——— */}
       {customer && overview ? (
         <section
@@ -997,6 +976,11 @@ export function CustomerAccountBody({
         </section>
       ) : null}
 
+      </div>
+
+      {/* Bag, saved pieces and the order lookup live under Details only, so the
+          Overview stays a genuine summary rather than a second full page. */}
+      <div className={mode === 'page' && customer && tab !== 'Details' ? 'hidden' : ''}>
       {/* ——— 5. Bag & Saved Pieces ——— */}
       <section
         className={mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-5'}
@@ -1156,6 +1140,72 @@ export function CustomerAccountBody({
           />
         ) : null}
       </section>
+
+      </div>
+
+      {mode === 'page' && customer && tab === 'Details' ? (
+        <section
+          className="acct-panel border-b border-ink/16 pb-8"
+          aria-label="Account details"
+          data-testid="account-details-panel"
+        >
+          <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
+            <UserRound className="h-4 w-4 text-crimson" strokeWidth={2} />
+            Account details
+          </h3>
+          <dl className="acct-rows mt-3.5">
+            <div>
+              <dt>Name</dt>
+              <dd>{displayName || 'Not provided yet'}</dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{customer.email}</dd>
+            </div>
+            <div>
+              <dt>Phone</dt>
+              <dd>{overview?.profile.phone || 'Not provided yet'}</dd>
+            </div>
+            <div>
+              <dt>City</dt>
+              <dd>
+                {[overview?.profile.city, overview?.profile.governorate]
+                  .filter(Boolean)
+                  .join(', ') || 'Not provided yet'}
+              </dd>
+            </div>
+            <div>
+              <dt>Member since</dt>
+              <dd>
+                {new Date(overview?.profile.created_at || customer.createdAt || Date.now())
+                  .toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+              </dd>
+            </div>
+          </dl>
+
+          {authFeedback ? (
+            <p
+              role={authFeedback.ok ? 'status' : 'alert'}
+              className="mt-4 border-l-2 border-ink/25 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-ink-soft"
+            >
+              {authFeedback.text}
+            </p>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            className="tws-pill tws-pill--outline mt-5 w-full justify-center sm:w-auto"
+          >
+            <LogOut className="h-4 w-4" strokeWidth={1.8} />
+            Sign out
+          </button>
+        </section>
+      ) : null}
 
       <p className="mt-7 border-t border-ink/14 pt-5 text-[11.5px] leading-relaxed text-ink-faint">
         Cash on delivery across Egypt. Create an account to track purchases and rewards, or check
