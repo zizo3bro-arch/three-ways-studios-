@@ -212,11 +212,57 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
     )
   );
   assert.match(accountHtml, /Loyalty card/);
-  assert.match(accountHtml, /Free product after 5 purchases/);
-  assert.match(accountHtml, /10% Purchase Loyalty Discount/);
+  assert.match(accountHtml, /Rewards across 5 completed orders/);
+  assert.match(accountHtml, /10% OFF/);
+  assert.match(accountHtml, /20% OFF/);
+  assert.match(accountHtml, /Free pants/);
+  assert.match(accountHtml, /Loyalty rewards . 10% . 20% . free pants/);
   assert.match(accountHtml, /10% Email Discount/);
   assert.match(accountHtml, /do not stack/);
   assert.match(accountHtml, /Track an order/);
   assert.match(accountHtml, /Order number \(Reference\)/);
   assert.match(accountHtml, /Email on the order/);
+
+  // The provided two-sided artwork renders as one accessible 3D-flipping card.
+  const { LoyaltyCard } = await vite.ssrLoadModule('/src/components/account/LoyaltyCard.tsx');
+  const cardHtml = renderToStaticMarkup(
+    React.createElement(LoyaltyCard, {
+      memberName: 'Test Member',
+      email: 'member@example.test',
+      progress: 2,
+    })
+  );
+  assert.match(cardHtml, /loyalty-card-3d/);
+  assert.match(cardHtml, /data-side="back"/);
+  assert.match(cardHtml, /Show the front of your rewards card/);
+  assert.match(cardHtml, /loyalty-card-back\.png/);
+  assert.match(cardHtml, /loyalty-card-front\.png/);
+  assert.match(cardHtml, /2\/5/);
+  for (const [asset, expected] of [
+    ['public/images/loyalty-card-back.png', [637, 368]],
+    ['public/images/loyalty-card-front.png', [636, 364]],
+  ]) {
+    const png = await readFile(asset);
+    assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], expected);
+    assert.equal(png[25], 6, 'cropped card keeps transparent pixels around its rounded corners');
+  }
+  assert.match(css, /perspective:\s*1200px/);
+  assert.match(css, /transform:\s*rotateY\(180deg\)/);
+  assert.match(css, /backface-visibility:\s*hidden/);
+
+  // Strict same-order model must be reflected in the copy the customer reads:
+  // no "save it for later / carried forward / redeem at a later checkout" claim,
+  // and the milestone-5 bag is explicitly required to contain the pants.
+  const checkoutSource = await readFile('src/pages/CheckoutPage.tsx', 'utf8');
+  assert.match(checkoutSource, /checkout-free-reward-kept/);
+  assert.match(checkoutSource, /stays unlocked/);
+  assert.match(checkoutSource, /it never expires/);
+  assert.doesNotMatch(checkoutSource, /checkout-free-reward-required/);
+  assert.doesNotMatch(checkoutSource, /cannot be saved for a later one/);
+
+  const accountSource = await readFile('src/components/account/CustomerAccountBody.tsx', 'utf8');
+  assert.match(accountSource, /This reward never/);
+  assert.match(accountSource, /stays unlocked until you redeem it/);
+  assert.doesNotMatch(accountSource, /Forfeited/);
 });

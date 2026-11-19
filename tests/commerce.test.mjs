@@ -519,13 +519,20 @@ test('account overview, 4-stage order tracking, completed purchase history, 5/5 
     true
   );
 
-  // Complete purchases #2 and #3 -> unlocks Option 1 (10% Purchase Loyalty Discount)!
+  // Complete purchases #2 and #3. Under the same-order model, order 3 itself
+  // carries the 10% reward at the moment it is placed.
   for (let i = 0; i < 2; i++) {
     const ord = await asUser(memberA, 'create_cod_order', {
       ...baseOrder,
       p_checkout_request_id: crypto.randomUUID(),
       p_redeem_free_reward: false,
     });
+    if (i === 1) {
+      assert.equal(ord.loyalty_discount_percent, 10);
+      assert.equal(ord.loyalty_discount_amount, 245);
+    } else {
+      assert.equal(ord.loyalty_discount_amount, 0);
+    }
     await setOrderStatus(ord.order_id, 'delivered');
   }
 
@@ -534,8 +541,10 @@ test('account overview, 4-stage order tracking, completed purchase history, 5/5 
   assert.equal(after3.loyalty.progress_in_cycle, 3);
   assert.equal(after3.loyalty.purchases_remaining, 2);
   assert.equal(after3.discounts.loyalty_discount_eligible, true);
+  assert.equal(after3.discounts.loyalty_discount_percent, 20);
+  assert.equal(after3.loyalty.redemption_history.length, 1);
 
-  // Guest typing Amina's email CANNOT spoof Option 1 Loyalty Discount
+  // Guest typing Amina's email CANNOT spoof a loyalty reward
   const spoofAttempt = await asAnon('quote_cod_order', {
     p_items: baseOrder.p_items,
     p_email: 'amina@example.test',
@@ -545,7 +554,9 @@ test('account overview, 4-stage order tracking, completed purchase history, 5/5 
   assert.equal(spoofAttempt.loyalty_discount_applied, false);
   assert.equal(spoofAttempt.discount_total, 0);
 
-  // Non-stacking rule: Member B completes 3 purchases AND THEN subscribes email -> max 10%, never 20%!
+  // Non-stacking: a reward and the one-time email discount never combine.
+  // Member B's order 3 itself carries 10%; subscribing afterwards still leaves
+  // B's order 4 with only the 20% reward, never 20% + 10%.
   for (let i = 0; i < 3; i++) {
     const ordB = await asUser(memberB, 'create_cod_order', {
       ...baseOrder,
@@ -554,6 +565,10 @@ test('account overview, 4-stage order tracking, completed purchase history, 5/5 
       p_checkout_request_id: crypto.randomUUID(),
       p_redeem_free_reward: false,
     });
+    if (i === 2) {
+      assert.equal(ordB.loyalty_discount_percent, 10);
+      assert.equal(ordB.loyalty_discount_amount, 245);
+    }
     await setOrderStatus(ordB.order_id, 'delivered');
   }
   await anon(db, (tx) =>
@@ -568,101 +583,122 @@ test('account overview, 4-stage order tracking, completed purchase history, 5/5 
   assert.equal(nonStackQuote.both_discounts_eligible, true);
   assert.equal(nonStackQuote.loyalty_discount_applied, true);
   assert.equal(nonStackQuote.email_discount_applied, false);
-  assert.equal(nonStackQuote.loyalty_discount_amount, 245);
+  assert.equal(nonStackQuote.loyalty_discount_percent, 20);
+  assert.equal(nonStackQuote.loyalty_discount_amount, 490);
   assert.equal(nonStackQuote.email_discount_amount, 0);
-  assert.equal(nonStackQuote.discount_total, 245); // Strictly 10%, never 20%!
+  assert.equal(nonStackQuote.discount_total, 490);
 
-  // Complete purchases #4 and #5 for Member A -> unlocks 1 FREE product!
-  for (let i = 0; i < 2; i++) {
-    const ord = await asUser(memberA, 'create_cod_order', {
-      ...baseOrder,
-      p_checkout_request_id: crypto.randomUUID(),
-      p_redeem_free_reward: false,
-    });
-    assert.equal(ord.loyalty_discount_amount, 245);
-    await setOrderStatus(ord.order_id, 'delivered');
-  }
+  // B's order 4 keeps only the 20% reward despite the now-available email discount.
+  const bOrder4 = await asUser(memberB, 'create_cod_order', {
+    ...baseOrder,
+    p_full_name: 'Tarek Nabil',
+    p_email: 'tarek@example.test',
+    p_checkout_request_id: crypto.randomUUID(),
+    p_redeem_free_reward: false,
+  });
+  assert.equal(bOrder4.loyalty_discount_percent, 20);
+  assert.equal(bOrder4.loyalty_discount_amount, 490);
+  assert.equal(bOrder4.email_discount_amount, 0);
+  await setOrderStatus(bOrder4.order_id, 'delivered');
+
+  // Order 4 gets 20% on itself; order 5 gets one free pair of pants on itself.
+  const order4 = await asUser(memberA, 'create_cod_order', {
+    ...baseOrder,
+    p_checkout_request_id: crypto.randomUUID(),
+    p_redeem_free_reward: false,
+  });
+  assert.equal(order4.loyalty_discount_percent, 20);
+  assert.equal(order4.loyalty_discount_amount, 490);
+  await setOrderStatus(order4.order_id, 'delivered');
+
+  const pantsVariant = (
+    await db.query(
+      `select v.id from product_variants v join products p on p.id = v.product_id
+       where p.slug = 'tws-wide-leg-pants' and v.size_name = 'L'`
+    )
+  ).rows[0].id;
+
+  // A tee-only bag at milestone 5 is a normal order; the pair stays unlocked.
+  const fifthTeeOnly = await asUser(memberA, 'create_cod_order', {
+    ...baseOrder,
+    p_checkout_request_id: crypto.randomUUID(),
+    p_redeem_free_reward: false,
+  });
+  assert.equal(fifthTeeOnly.loyalty_free_reward_amount, 0);
+  assert.equal(fifthTeeOnly.loyalty_discount_amount, 0);
+  await setOrderStatus(fifthTeeOnly.order_id, 'delivered');
 
   const after5 = await asUser(memberA, 'get_customer_account_overview');
   assert.equal(after5.purchase_summary.completed_purchases, 5);
-  assert.equal(after5.loyalty.progress_in_cycle, 5);
-  assert.equal(after5.loyalty.purchases_remaining, 0);
-  assert.equal(after5.loyalty.available_rewards, 1);
-  assert.equal(after5.loyalty.free_product_unlocked, true);
+  // The milestone was NOT consumed: the customer is still at 4/5 with the pair open.
+  assert.equal(after5.loyalty.qualifying_purchases, 4);
+  assert.equal(after5.loyalty.progress_in_cycle, 4);
+  assert.equal(after5.loyalty.milestones[4].state, 'next');
+  assert.equal(after5.loyalty.next_reward.reward_type, 'free_pants');
+  assert.equal(after5.loyalty.redeemed_rewards, 2);
+  assert.equal(after5.loyalty.rewards.filter((r) => r.reward_type === 'free_pants').length, 0);
 
-  // Guest cannot redeem Member A's free product
+  // Guest typing Member A's email cannot obtain the pair either.
   const guestRedeemAttempt = await asAnon('quote_cod_order', {
-    p_items: baseOrder.p_items,
+    p_items: [...baseOrder.p_items, { variant_id: pantsVariant, quantity: 1 }],
     p_email: 'amina@example.test',
     p_promo_code: null,
-    p_redeem_free_reward: true,
   });
   assert.equal(guestRedeemAttempt.free_reward_available, false);
   assert.equal(guestRedeemAttempt.free_reward_applied, false);
   assert.equal(guestRedeemAttempt.free_reward_amount, 0);
 
-  // Signed-in Member A redeems their 1 FREE product!
+  // The very next order WITH pants redeems exactly one pair — however long the wait.
+  const mixedBag = [
+    { variant_id: variant, quantity: 2 },
+    { variant_id: pantsVariant, quantity: 2 },
+  ];
   const freeQuote = await asUser(memberA, 'quote_cod_order', {
-    p_items: baseOrder.p_items,
+    p_items: mixedBag,
     p_email: 'amina@example.test',
     p_promo_code: null,
-    p_redeem_free_reward: true,
   });
+  assert.equal(freeQuote.loyalty_order_seq, 5);
   assert.equal(freeQuote.free_reward_available, true);
-  assert.equal(freeQuote.free_reward_applied, true);
-  assert.equal(freeQuote.free_reward_amount, 2450);
-  assert.equal(freeQuote.final_total, 75); // Free product (2450 -> 0) + 75 shipping
+  assert.equal(freeQuote.free_reward_amount, 2650);
+  assert.equal(freeQuote.free_reward_product_name, 'TWS Wide Leg Pants');
+  // 2x2450 + 2x2650 = 10200, minus one pair, free shipping over 3500.
+  assert.equal(freeQuote.discount_total, 2650);
+  assert.equal(freeQuote.final_total, 7550);
 
+  const ordersBeforeRedeem = (await db.query('select count(*) n from orders')).rows[0].n;
   const redeemedOrder = await asUser(memberA, 'create_cod_order', {
     ...baseOrder,
+    p_items: mixedBag,
     p_checkout_request_id: crypto.randomUUID(),
-    p_redeem_free_reward: true,
   });
-  assert.equal(redeemedOrder.loyalty_free_reward_amount, 2450);
-  assert.equal(redeemedOrder.total_amount, 75);
+  assert.equal(redeemedOrder.loyalty_free_reward_amount, 2650);
+  assert.equal(redeemedOrder.total_amount, 7550);
+  assert.equal((await db.query('select count(*) n from orders')).rows[0].n, ordersBeforeRedeem + 1);
+  await setOrderStatus(redeemedOrder.order_id, 'delivered');
 
-  // Duplicate reward prevention: available_rewards is immediately 0, second attempt gets 0 free reward
   const afterRedeem = await asUser(memberA, 'get_customer_account_overview');
-  assert.equal(afterRedeem.loyalty.available_rewards, 0);
-  assert.equal(afterRedeem.loyalty.free_product_unlocked, false);
-
-  const duplicateRewardQuote = await asUser(memberA, 'quote_cod_order', {
-    p_items: baseOrder.p_items,
-    p_email: 'amina@example.test',
-    p_promo_code: null,
-    p_redeem_free_reward: true,
-  });
-  assert.equal(duplicateRewardQuote.free_reward_available, false);
-  assert.equal(duplicateRewardQuote.free_reward_applied, false);
-  assert.equal(duplicateRewardQuote.free_reward_amount, 0);
-
-  // Cancelling the reward order restores the reward; delivering a re-redemption does not self-count
-  await setOrderStatus(redeemedOrder.order_id, 'cancelled');
-  assert.equal((await asUser(memberA, 'get_customer_account_overview')).loyalty.available_rewards, 1);
-
-  const reRedeemedOrder = await asUser(memberA, 'create_cod_order', {
-    ...baseOrder,
-    p_checkout_request_id: crypto.randomUUID(),
-    p_redeem_free_reward: true,
-  });
-  await setOrderStatus(reRedeemedOrder.order_id, 'delivered');
-  const afterFreeDelivered = await asUser(memberA, 'get_customer_account_overview');
-  assert.equal(afterFreeDelivered.purchase_summary.completed_purchases, 6);
-  assert.equal(afterFreeDelivered.loyalty.qualifying_purchases, 5);
-  assert.equal(afterFreeDelivered.loyalty.redeemed_rewards, 1);
-  assert.equal(afterFreeDelivered.loyalty.available_rewards, 0);
-  assert.equal(afterFreeDelivered.loyalty.progress_in_cycle, 0);
-  assert.equal(afterFreeDelivered.loyalty.purchases_remaining, 5);
+  assert.equal(afterRedeem.loyalty.qualifying_purchases, 5);
+  assert.equal(afterRedeem.loyalty.progress_in_cycle, 0, 'the cycle resets to order 1');
+  assert.equal(afterRedeem.loyalty.milestones[0].state, 'next');
+  assert.equal(afterRedeem.loyalty.available_free_pants, 0);
+  assert.equal(afterRedeem.loyalty.redemption_history.length, 3);
 
   // Verify 010 down migration rolls back cleanly and 010 up migration re-applies cleanly
   const { readFile } = await import('node:fs/promises');
   const rollbackDb = await studioDb({ upgrade: true });
   t.after(() => rollbackDb.close());
   await rollbackDb.exec(
+    await readFile('supabase/migrations/011_loyalty_rewards_v2.down.sql', 'utf8')
+  );
+  await rollbackDb.exec(
     await readFile('supabase/migrations/010_account_loyalty_discounts.down.sql', 'utf8')
   );
   await rollbackDb.exec(
     await readFile('supabase/migrations/010_account_loyalty_discounts.sql', 'utf8')
+  );
+  await rollbackDb.exec(
+    await readFile('supabase/migrations/011_loyalty_rewards_v2.sql', 'utf8')
   );
 });
 

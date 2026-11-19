@@ -228,7 +228,10 @@ export function AdminOrdersTab({ orders, onRefresh }: AdminOrdersTabProps) {
               </div>
               {(selectedOrder.loyalty_discount_amount ?? 0) > 0 && (
                 <div className="flex justify-between text-crimson-deep">
-                  <span>Loyalty Discount (10%)</span>
+                  <span>
+                    Loyalty reward — order {selectedOrder.loyalty_order_seq ?? ''} of card (
+                    {selectedOrder.loyalty_discount_percent ?? 10}%)
+                  </span>
                   <span>-{formatEGP(selectedOrder.loyalty_discount_amount!)}</span>
                 </div>
               )}
@@ -240,7 +243,12 @@ export function AdminOrdersTab({ orders, onRefresh }: AdminOrdersTabProps) {
               )}
               {(selectedOrder.loyalty_free_reward_amount ?? 0) > 0 && (
                 <div className="flex justify-between text-crimson-deep">
-                  <span>Loyalty Free Product (5/5)</span>
+                  <span>
+                    Loyalty free pair (5/5)
+                    {selectedOrder.loyalty_free_reward_product_name
+                      ? ` — ${selectedOrder.loyalty_free_reward_product_name}`
+                      : ''}
+                  </span>
                   <span>-{formatEGP(selectedOrder.loyalty_free_reward_amount!)}</span>
                 </div>
               )}

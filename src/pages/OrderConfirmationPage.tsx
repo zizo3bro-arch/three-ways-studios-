@@ -236,7 +236,10 @@ export function OrderConfirmationPage() {
             </div>
             {(order.loyalty_discount_amount ?? 0) > 0 ? (
               <div className="flex items-baseline justify-between text-crimson-bright">
-                <dt>Loyalty discount (10%)</dt>
+                <dt>
+                  Milestone reward — order {order.loyalty_order_seq ?? ''} of your card (
+                  {order.loyalty_discount_percent ?? 10}% off)
+                </dt>
                 <dd>−{formatEGP(order.loyalty_discount_amount!)}</dd>
               </div>
             ) : null}
@@ -248,7 +251,12 @@ export function OrderConfirmationPage() {
             ) : null}
             {(order.loyalty_free_reward_amount ?? 0) > 0 ? (
               <div className="flex items-baseline justify-between text-crimson-bright">
-                <dt>Free product reward (5/5)</dt>
+                <dt>
+                  Milestone reward — order {order.loyalty_order_seq ?? 5} of your card (one free pair)
+                  {order.loyalty_free_reward_product_name
+                    ? ` — ${order.loyalty_free_reward_product_name}`
+                    : ''}
+                </dt>
                 <dd>−{formatEGP(order.loyalty_free_reward_amount!)}</dd>
               </div>
             ) : null}

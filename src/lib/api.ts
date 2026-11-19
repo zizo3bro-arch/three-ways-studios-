@@ -92,21 +92,16 @@ export async function quoteCodOrder(params: {
   items: Line[];
   email: string;
   promoCode?: string;
-  redeemFreeReward?: boolean;
 }) {
   const invalid = cartError(params.items);
   const client = await checkoutClient();
   if (!client || invalid) return { quote: null, error: invalid || OFFLINE };
   try {
-    const rpcPayload: Record<string, unknown> = {
+    const { data, error } = await client.rpc('quote_cod_order', {
       p_items: params.items,
       p_email: params.email.trim() || null,
       p_promo_code: params.promoCode?.trim() || null,
-    };
-    if (params.redeemFreeReward) {
-      rpcPayload.p_redeem_free_reward = true;
-    }
-    const { data, error } = await client.rpc('quote_cod_order', rpcPayload);
+    });
     if (error?.code === '55000' && error.message.includes('v_promo_rule'))
       throw new Error('Checkout verification is temporarily unavailable. Please try again later.');
     if (error) throw error;
@@ -152,7 +147,6 @@ export async function createCodOrder(params: {
   paymentMethod: 'COD';
   items: Line[];
   checkoutRequestId: string;
-  redeemFreeReward?: boolean;
 }): Promise<{ order: OrderConfirmationData | null; error: string | null; refreshQuote?: boolean }> {
   const invalid = cartError(params.items);
   const client = await checkoutClient();
@@ -172,9 +166,6 @@ export async function createCodOrder(params: {
     p_payment_method: params.paymentMethod,
     p_checkout_request_id: params.checkoutRequestId,
   };
-  if (params.redeemFreeReward) {
-    payload.p_redeem_free_reward = true;
-  }
   try {
     // Never fall back to a signature without duplicate protection, or retry a
     // write automatically. The customer can safely retry with the same request ID.

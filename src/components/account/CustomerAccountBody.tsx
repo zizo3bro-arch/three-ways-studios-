@@ -26,8 +26,13 @@ import {
 } from '../../lib/api';
 import { formatEGP } from '../../lib/format';
 import { resolveTrackingStage } from '../../lib/orderTracking';
-import type { CustomerAccountOverview, TrackedOrderData } from '../../types/database';
+import type {
+  CustomerAccountOverview,
+  LoyaltyMilestone,
+  TrackedOrderData,
+} from '../../types/database';
 import { OrderTrackingResult } from './OrderTrackingResult';
+import { LoyaltyCard } from './LoyaltyCard';
 
 type LookupState =
   | { status: 'idle' }
@@ -36,6 +41,28 @@ type LookupState =
   | { status: 'missing'; message: string };
 
 type AuthMode = 'register' | 'signin';
+
+/** The reward ladder enforced server-side by 011 (same-order model).
+ * Used only as a fallback while the authenticated overview is loading. */
+const LOYALTY_LADDER: LoyaltyMilestone[] = [
+  { seq: 1, order_in_cycle: 1, reward_type: null, label: null, state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
+  { seq: 2, order_in_cycle: 2, reward_type: null, label: null, state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
+  { seq: 3, order_in_cycle: 3, reward_type: 'percent_10', label: '10% off this order', state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
+  { seq: 4, order_in_cycle: 4, reward_type: 'percent_20', label: '20% off this order', state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
+  { seq: 5, order_in_cycle: 5, reward_type: 'free_pants', label: 'One free pair of pants', state: 'upcoming', order_reference: null, discount_amount: 0, free_product_name: null },
+];
+
+function milestoneShort(milestone: LoyaltyMilestone) {
+  if (milestone.reward_type === 'percent_10') return '10% OFF';
+  if (milestone.reward_type === 'percent_20') return '20% OFF';
+  if (milestone.reward_type === 'free_pants') return 'Free pants';
+  return 'Regular';
+}
+
+function milestoneLabel(milestone: LoyaltyMilestone) {
+  if (milestone.label) return milestone.label;
+  return milestone.reward_type ? milestoneShort(milestone) : 'Regular price';
+}
 
 interface CustomerAccountBodyProps {
   mode: 'panel' | 'page';
@@ -223,8 +250,12 @@ export function CustomerAccountBody({
   const discounts = overview?.discounts;
   const completedCount = overview?.purchase_summary.completed_purchases ?? 0;
   const progressCount = loyalty?.progress_in_cycle ?? 0;
+  const loyaltyMilestones =
+    loyalty?.milestones && loyalty.milestones.length === 5 ? loyalty.milestones : LOYALTY_LADDER;
   const remainingCount = loyalty?.purchases_remaining ?? 5;
-  const freeUnlocked = Boolean(loyalty?.free_product_unlocked);
+  // Unlocked at milestone 5 and kept until a qualifying order redeems it.
+  const freeUnlocked =
+    loyaltyMilestones[4]?.state === 'next' || Boolean(loyalty?.free_product_unlocked);
 
   return (
     <div className={mode === 'page' ? 'space-y-10' : 'space-y-0'}>
@@ -482,14 +513,29 @@ export function CustomerAccountBody({
             Loyalty card
           </h3>
           <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-crimson tabular-nums">
-            {customer ? `${progressCount}/5 purchases` : '5 purchases = 1 free piece'}
+            {customer ? `${progressCount}/5 purchases` : '10% · 20% · free pants'}
           </span>
         </div>
+
+        {customer ? (
+          overview ? (
+            <LoyaltyCard
+              key={customer.id}
+              memberName={displayName}
+              email={customer.email}
+              progress={loyalty?.progress_in_cycle ?? 0}
+            />
+          ) : (
+            <p className="mt-4 text-center text-[12.5px] text-ink-soft" role="status">
+              {overviewError ? 'Loyalty progress is temporarily unavailable.' : 'Loading your rewards card…'}
+            </p>
+          )
+        ) : null}
 
         <div className="mt-3.5 border border-ink/18 p-4">
           <div className="flex items-baseline justify-between gap-3">
             <p className="font-display text-[1rem] uppercase tracking-[0.06em] text-ink">
-              Free product after 5 purchases
+              Rewards across 5 completed orders
             </p>
             {customer ? (
               <span
@@ -501,32 +547,59 @@ export function CustomerAccountBody({
             ) : null}
           </div>
 
+          {/* Server-reported state per milestone: completed vs reward applied. */}
           <div
             className="mt-3 grid grid-cols-5 gap-2"
             aria-label={`Loyalty stamps: ${progressCount} of 5 completed`}
           >
-            {[1, 2, 3, 4, 5].map((slot) => {
-              const filled = customer ? progressCount >= slot : false;
+            {loyaltyMilestones.map((milestone) => {
+              const rewarded = milestone.state === 'rewarded';
+              const applied = milestone.state === 'applied';
+              const available = milestone.state === 'available';
+              const completed = milestone.state === 'completed';
+              const next = milestone.state === 'next';
               return (
                 <div
-                  key={slot}
+                  key={milestone.seq}
+                  data-testid={`loyalty-milestone-${milestone.order_in_cycle}`}
+                  data-state={milestone.state}
                   className={[
-                    'flex h-10 items-center justify-center border text-[11px] font-bold tabular-nums transition-colors',
-                    filled
+                    'flex flex-col items-center justify-center gap-0.5 border px-1 py-1.5 text-center text-[9.5px] font-bold uppercase leading-tight tracking-[0.04em] transition-colors',
+                    rewarded || applied
                       ? 'border-crimson bg-crimson text-paper'
-                      : 'border-ink/20 text-ink-faint',
+                      : available
+                        ? 'border-crimson text-crimson'
+                        : completed
+                          ? 'border-ink/40 bg-ink/5 text-ink'
+                          : next
+                            ? 'border-ink/50 text-ink'
+                            : 'border-ink/20 text-ink-faint',
                   ].join(' ')}
+                  title={`Order ${milestone.order_in_cycle}: ${milestoneLabel(milestone)}`}
                 >
-                  {slot === 5 ? <Gift className="h-4 w-4" strokeWidth={1.9} /> : `0${slot}`}
+                  {milestone.reward_type === 'free_pants' ? (
+                    <Gift className="h-3.5 w-3.5" strokeWidth={1.9} />
+                  ) : (
+                    <span className="tabular-nums">0{milestone.order_in_cycle}</span>
+                  )}
+                  <span>{milestoneShort(milestone)}</span>
                 </div>
               );
             })}
           </div>
+          {customer && loyalty ? (
+            <p className="mt-2 text-[11px] leading-relaxed text-ink-faint">
+              {loyalty.in_flight_purchases > 0
+                ? `${loyalty.in_flight_purchases} order${loyalty.in_flight_purchases === 1 ? '' : 's'} awaiting delivery · `
+                : ''}
+              Filled = reward applied to that order. Outlined = reward ready to use.
+            </p>
+          ) : null}
 
           {!customer ? (
             <p className="mt-3 text-[12.5px] leading-relaxed text-ink-soft">
-              Sign in or create a personal account to track your completed purchases. Every 5
-              completed orders unlock 1 free product.
+              Sign in or create a personal account to track your rewards. Order 3 saves 10% on that
+              same order, order 4 saves 20%, and order 5 makes one pair of pants free.
             </p>
           ) : overviewLoading && !overview ? (
             <p className="mt-3 text-[12.5px] text-ink-soft">Loading loyalty progress…</p>
@@ -536,19 +609,19 @@ export function CustomerAccountBody({
               data-testid="loyalty-unlocked-banner"
             >
               <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-crimson">
-                Free product unlocked ({loyalty?.available_rewards}{' '}
-                {loyalty?.available_rewards === 1 ? 'reward' : 'rewards'} available)
+                Free pair of pants unlocked
               </p>
               <p className="mt-1 text-[12.5px] leading-relaxed text-ink">
-                You completed 5/5 purchases and unlocked 1 FREE product. Select &ldquo;Redeem free
-                product reward&rdquo; at checkout while signed in.
+                Add a pair of pants to any checkout and exactly one pair is free. This reward never
+                expires — it stays unlocked until you redeem it, and orders without pants are
+                charged normally without using it.
               </p>
               <Link
                 to={itemCount > 0 ? '/checkout' : '/shop'}
                 onClick={onNavigate}
                 className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-crimson hover:text-crimson-deep"
               >
-                {itemCount > 0 ? 'Redeem at checkout' : 'Choose your piece'}
+                {itemCount > 0 ? 'Redeem at checkout' : 'Choose your pants'}
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
@@ -560,9 +633,12 @@ export function CustomerAccountBody({
               <span className="font-semibold text-ink">
                 {remainingCount} {remainingCount === 1 ? 'purchase' : 'purchases'} remaining
               </span>{' '}
-              until your free product reward.
+              until your free pair of pants.
+              {loyalty?.next_reward
+                ? ` This order will take milestone ${loyalty.next_reward.target_order}: ${loyalty.next_reward.label}.`
+                : ''}
               {loyalty && loyalty.redeemed_rewards > 0
-                ? ` (${loyalty.redeemed_rewards} free ${loyalty.redeemed_rewards === 1 ? 'reward' : 'rewards'} previously redeemed.)`
+                ? ` (${loyalty.redeemed_rewards} ${loyalty.redeemed_rewards === 1 ? 'reward' : 'rewards'} previously redeemed.)`
                 : ' Only delivered orders count; cancelled orders are excluded.'}
             </p>
           )}
@@ -585,7 +661,7 @@ export function CustomerAccountBody({
           <div className="border border-ink/16 p-3.5">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-ink">
-                10% Purchase Loyalty Discount
+                Loyalty rewards — 10% · 20% · free pants
               </p>
               <span
                 className={[
@@ -595,21 +671,23 @@ export function CustomerAccountBody({
               >
                 {customer
                   ? discounts?.loyalty_discount_eligible
-                    ? 'Eligible · 10% OFF'
-                    : `${Math.min(completedCount, 3)}/3 purchases`
-                  : 'After 3 purchases'}
+                    ? `Next order · ${discounts?.loyalty_discount_percent}% OFF`
+                    : `${Math.min(completedCount, 5)}/5 purchases`
+                  : 'After 3, 4 and 5 purchases'}
               </span>
             </div>
             <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-soft">
               {customer
                 ? discounts?.loyalty_discount_eligible
-                  ? 'Unlocked — 10% off applies automatically at checkout when signed in.'
-                  : `Complete ${discounts?.purchases_until_loyalty_discount ?? Math.max(0, 3 - completedCount)} more ${
-                      (discounts?.purchases_until_loyalty_discount ?? Math.max(0, 3 - completedCount)) === 1
-                        ? 'purchase'
-                        : 'purchases'
-                    } to unlock 10% off.`
-                : 'Sign in and complete 3 purchases to unlock a 10% loyalty discount.'}
+                  ? 'This reward belongs to the order that reaches the milestone and is applied automatically at checkout when signed in.'
+                  : loyalty?.next_reward
+                    ? `Order ${loyalty.next_reward.target_order} in this cycle: ${loyalty.next_reward.label}${
+                        loyalty.purchases_remaining > 1
+                          ? `, then ${loyalty.purchases_remaining - 1} more to complete the card`
+                          : ''
+                      }.`
+                    : 'Orders 3 and 4 discount themselves 10% and 20%; order 5 frees one pair of pants.'
+                : 'Sign in: order 3 takes 10% off itself, order 4 takes 20% off, order 5 makes one pair of pants free.'}
             </p>
           </div>
 
@@ -690,8 +768,7 @@ export function CustomerAccountBody({
           </div>
 
           <p className="text-[11.5px] leading-relaxed text-ink-faint">
-            Maximum 10% eligibility discount per order — Purchase Loyalty and Email discounts do
-            not stack.
+            One loyalty reward per order — rewards and the email discount do not stack.
           </p>
         </div>
       </section>
@@ -782,6 +859,14 @@ export function CustomerAccountBody({
                       ))}
                     </ul>
 
+                    {(ord.loyalty_free_reward_amount ?? 0) > 0 ? (
+                      <p className="mt-2 border-t border-ink/10 pt-2 text-[11.5px] text-crimson">
+                        Free pair of pants reward applied
+                        {ord.loyalty_free_reward_product_name
+                          ? ` — ${ord.loyalty_free_reward_product_name}`
+                          : ''}
+                      </p>
+                    ) : null}
                     <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-ink/12 pt-2.5">
                       <span className="text-[12.5px] font-semibold tabular-nums text-ink">
                         Total: {formatEGP(ord.total_amount)}
@@ -801,6 +886,100 @@ export function CustomerAccountBody({
               })}
             </ul>
           )}
+        </section>
+      ) : null}
+
+      {/* ——— 4b. Earned rewards & redemption history (own account only) ——— */}
+      {customer && overview ? (
+        <section
+          className={
+            mode === 'page' ? 'border-b border-ink/16 pb-8' : 'mt-5 border-b border-ink/14 pb-6'
+          }
+          aria-label="Rewards and redemption history"
+          data-testid="loyalty-ledger"
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <h3 className="tws-eyebrow flex items-center gap-2 text-ink-soft">
+              <Gift className="h-4 w-4 text-crimson" strokeWidth={2} />
+              Rewards applied to orders
+            </h3>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint tabular-nums">
+              {loyalty?.rewards.length ?? 0} applied
+            </span>
+          </div>
+
+          {!loyalty || loyalty.rewards.length === 0 ? (
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">
+              No rewards applied yet. Your 10% reward is applied to order 3 itself, 20% to order 4,
+              and order 5 makes exactly one pair of pants free.
+            </p>
+          ) : (
+            <ul className="mt-3.5 space-y-2.5">
+              {loyalty.rewards.map((reward) => {
+                const statusLabel =
+                  reward.status === 'redeemed'
+                    ? 'Applied · order delivered'
+                    : reward.status === 'reserved'
+                      ? 'Applied · awaiting delivery'
+                      : 'Applied to that order';
+                return (
+                  <li
+                    key={reward.id}
+                    className="flex flex-wrap items-baseline justify-between gap-2 border border-ink/16 p-3"
+                    data-testid="loyalty-reward-item"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[12.5px] font-semibold text-ink">
+                        {reward.label}
+                        {reward.discount_amount > 0 ? ` · ${formatEGP(reward.discount_amount)}` : ''}
+                      </p>
+                      <p className="mt-0.5 text-[11.5px] text-ink-faint">
+                        Cycle {reward.cycle_number} · milestone order{' '}
+                        {reward.milestone_order_in_cycle} of 5
+                        {reward.order_reference ? ` · ${reward.order_reference}` : ''}
+                        {reward.free_product_name ? ` · ${reward.free_product_name}` : ''}
+                      </p>
+                    </div>
+                    <span
+                      className={[
+                        'border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]',
+                        reward.status === 'redeemed' || reward.status === 'reserved'
+                          ? 'border-crimson/40 text-crimson'
+                          : 'border-ink/20 text-ink-faint',
+                      ].join(' ')}
+                    >
+                      {statusLabel}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {loyalty && loyalty.redemption_history.length > 0 ? (
+            <>
+              <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.14em] text-ink-faint">
+                Redemption history
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {loyalty.redemption_history.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="flex flex-wrap items-baseline justify-between gap-2 text-[12px] text-ink-soft"
+                    data-testid="loyalty-redemption-item"
+                  >
+                    <span>
+                      {entry.label}
+                      {entry.order_reference ? ` · order ${entry.order_reference}` : ''}
+                    </span>
+                    <span className="tabular-nums text-ink">
+                      −{formatEGP(entry.discount_amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
         </section>
       ) : null}
 
