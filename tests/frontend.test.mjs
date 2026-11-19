@@ -216,7 +216,9 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
   assert.match(accountHtml, /10% OFF/);
   assert.match(accountHtml, /20% OFF/);
   assert.match(accountHtml, /Free pants/);
-  assert.match(accountHtml, /Loyalty rewards . 10% . 20% . free pants/);
+  // Milestones appear exactly once (in the card section). The old duplicated
+  // "Loyalty rewards — 10% · 20% · free pants" panel must be gone.
+  assert.doesNotMatch(accountHtml, /Loyalty rewards . 10% . 20% . free pants/);
   assert.match(accountHtml, /10% Email Discount/);
   assert.match(accountHtml, /do not stack/);
   assert.match(accountHtml, /Track an order/);
@@ -224,6 +226,7 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
   assert.match(accountHtml, /Email on the order/);
 
   // The provided two-sided artwork renders as one accessible 3D-flipping card.
+  const accountSourceForCard = await readFile('src/components/account/CustomerAccountBody.tsx', 'utf8');
   const { LoyaltyCard } = await vite.ssrLoadModule('/src/components/account/LoyaltyCard.tsx');
   const cardHtml = renderToStaticMarkup(
     React.createElement(LoyaltyCard, {
@@ -233,11 +236,28 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
     })
   );
   assert.match(cardHtml, /loyalty-card-3d/);
-  assert.match(cardHtml, /data-side="back"/);
-  assert.match(cardHtml, /Show the front of your rewards card/);
+  assert.match(cardHtml, /loyalty-card-input/);
+  assert.match(cardHtml, /loyalty-card-label/);
+  // Back face is first in the DOM so it is what the customer sees initially.
+  assert.ok(
+    cardHtml.indexOf('loyalty-card-back.png') < cardHtml.indexOf('loyalty-card-front.png'),
+    'the stamp/back face must render first'
+  );
   assert.match(cardHtml, /loyalty-card-back\.png/);
   assert.match(cardHtml, /loyalty-card-front\.png/);
   assert.match(cardHtml, /2\/5/);
+
+  // The artwork must never be gated behind the loyalty request.
+  const pendingHtml = renderToStaticMarkup(
+    React.createElement(LoyaltyCard, {
+      memberName: 'Test Member',
+      email: 'member@example.test',
+      progress: 0,
+      pending: true,
+    })
+  );
+  assert.match(pendingHtml, /loyalty-card-back\.png/);
+  assert.match(pendingHtml, /—\/5/);
   for (const [asset, expected] of [
     ['public/images/loyalty-card-back.png', [637, 368]],
     ['public/images/loyalty-card-front.png', [636, 364]],
@@ -247,6 +267,20 @@ test('frontend: order tracking stages, loyalty & discount UI, show-all-products,
     assert.deepEqual([png.readUInt32BE(16), png.readUInt32BE(20)], expected);
     assert.equal(png[25], 6, 'cropped card keeps transparent pixels around its rounded corners');
   }
+  // Regression: a `filter` on the flipping element silently forces
+  // transform-style to flat, which paints BOTH faces at once and shows the
+  // mirrored back artwork instead of the front. The shadow must sit on the
+  // face images, never on .loyalty-card-3d.
+  const flipBlock = css.slice(css.indexOf('.loyalty-card-3d {'), css.indexOf('.loyalty-card-input:checked'));
+  assert.doesNotMatch(flipBlock, /filter\s*:/, '.loyalty-card-3d must not use filter');
+  assert.match(css, /transform-style:\s*preserve-3d/);
+  assert.match(css, /backface-visibility:\s*hidden/);
+  // The artwork must be visible before the loyalty request resolves.
+  assert.match(accountSourceForCard, /pending=\{overviewLoading && !overview\}/);
+  // A completed-but-empty response must produce a real state, not a spinner.
+  assert.match(accountSourceForCard, /overviewEmpty/);
+  assert.match(accountSourceForCard, /15000/);
+
   assert.match(css, /perspective:\s*1200px/);
   assert.match(css, /transform:\s*rotateY\(180deg\)/);
   assert.match(css, /backface-visibility:\s*hidden/);

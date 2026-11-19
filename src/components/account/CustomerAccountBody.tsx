@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
@@ -98,6 +98,8 @@ export function CustomerAccountBody({
   const [overview, setOverview] = useState<CustomerAccountOverview | null>(null);
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [overviewEmpty, setOverviewEmpty] = useState(false);
+  const overviewRequest = useRef(0);
 
   const [discountEmail, setDiscountEmail] = useState('');
   const [discountPending, setDiscountPending] = useState(false);
@@ -113,16 +115,31 @@ export function CustomerAccountBody({
     if (!customer) {
       setOverview(null);
       setOverviewError(null);
+      setOverviewEmpty(false);
       return;
     }
+    const request = ++overviewRequest.current;
     setOverviewLoading(true);
     setOverviewError(null);
     const result = await fetchCustomerAccountOverview();
+    // Ignore responses from a superseded request so a stale failure can never
+    // overwrite a newer success.
+    if (request !== overviewRequest.current) return;
     setOverviewLoading(false);
     if (result.error) {
       setOverviewError(result.error);
+      setOverview(null);
+      setOverviewEmpty(false);
       return;
     }
+    if (result.empty || !result.overview) {
+      // The request finished but produced no usable payload. Record it so the
+      // UI shows a real empty state instead of an endless "loading" message.
+      setOverviewEmpty(true);
+      setOverview(null);
+      return;
+    }
+    setOverviewEmpty(false);
     setOverview(result.overview);
   }, [customer]);
 
@@ -131,10 +148,26 @@ export function CustomerAccountBody({
     if (customer) {
       void loadOverview();
     } else {
+      overviewRequest.current += 1;
+      setOverviewLoading(false);
       setOverview(null);
       setOverviewError(null);
+      setOverviewEmpty(false);
     }
   }, [active, customer, loadOverview]);
+
+  // Hard safety net: a request that never settles must not strand the section
+  // on "Loading your rewards card…" forever.
+  useEffect(() => {
+    if (!customer || !overviewLoading) return;
+    const timer = window.setTimeout(() => {
+      if (overview || overviewEmpty || overviewError) return;
+      overviewRequest.current += 1;
+      setOverviewLoading(false);
+      setOverviewError('We could not load your rewards just now. Please refresh to try again.');
+    }, 15000);
+    return () => window.clearTimeout(timer);
+  }, [customer, overviewLoading, overview, overviewEmpty, overviewError]);
 
   useEffect(() => {
     if (customer?.email) {
@@ -518,18 +551,30 @@ export function CustomerAccountBody({
         </div>
 
         {customer ? (
-          overview ? (
+          <>
+            {/* The artwork is a static asset: render it immediately and never
+                gate it behind the network request. Only the stamp values wait. */}
             <LoyaltyCard
               key={customer.id}
               memberName={displayName}
               email={customer.email}
               progress={loyalty?.progress_in_cycle ?? 0}
+              pending={overviewLoading && !overview}
             />
-          ) : (
-            <p className="mt-4 text-center text-[12.5px] text-ink-soft" role="status">
-              {overviewError ? 'Loyalty progress is temporarily unavailable.' : 'Loading your rewards card…'}
-            </p>
-          )
+            {!overview && !overviewLoading ? (
+              <p
+                className="mt-3 text-center text-[12.5px] text-ink-soft"
+                role={overviewError ? 'alert' : 'status'}
+                data-testid="loyalty-card-status"
+              >
+                {overviewError
+                  ? overviewError
+                  : overviewEmpty
+                    ? 'Your rewards card is ready — completed orders will appear here.'
+                    : 'Loyalty progress is temporarily unavailable.'}
+              </p>
+            ) : null}
+          </>
         ) : null}
 
         <div className="mt-3.5 border border-ink/18 p-4">
@@ -657,41 +702,10 @@ export function CustomerAccountBody({
         </h3>
 
         <div className="mt-3.5 space-y-3">
-          {/* Option 1: Purchase Loyalty Discount */}
-          <div className="border border-ink/16 p-3.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-ink">
-                Loyalty rewards — 10% · 20% · free pants
-              </p>
-              <span
-                className={[
-                  'text-[10.5px] font-bold uppercase tracking-[0.14em]',
-                  discounts?.loyalty_discount_eligible ? 'text-crimson' : 'text-ink-faint',
-                ].join(' ')}
-              >
-                {customer
-                  ? discounts?.loyalty_discount_eligible
-                    ? `Next order · ${discounts?.loyalty_discount_percent}% OFF`
-                    : `${Math.min(completedCount, 5)}/5 purchases`
-                  : 'After 3, 4 and 5 purchases'}
-              </span>
-            </div>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-soft">
-              {customer
-                ? discounts?.loyalty_discount_eligible
-                  ? 'This reward belongs to the order that reaches the milestone and is applied automatically at checkout when signed in.'
-                  : loyalty?.next_reward
-                    ? `Order ${loyalty.next_reward.target_order} in this cycle: ${loyalty.next_reward.label}${
-                        loyalty.purchases_remaining > 1
-                          ? `, then ${loyalty.purchases_remaining - 1} more to complete the card`
-                          : ''
-                      }.`
-                    : 'Orders 3 and 4 discount themselves 10% and 20%; order 5 frees one pair of pants.'
-                : 'Sign in: order 3 takes 10% off itself, order 4 takes 20% off, order 5 makes one pair of pants free.'}
-            </p>
-          </div>
+          {/* Loyalty milestones are shown once, in the card section above. This
+              section is now purely the email discount, so nothing is repeated. */}
 
-          {/* Option 2: Email Discount */}
+          {/* Email Discount */}
           <div className="border border-ink/16 p-3.5">
             <div className="flex items-baseline justify-between gap-2">
               <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-ink">

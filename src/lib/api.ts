@@ -273,18 +273,29 @@ export async function trackOrder(
 
 export async function fetchCustomerAccountOverview(): Promise<{
   overview: CustomerAccountOverview | null;
+  /** True when the request completed but the server returned no payload.
+   *  Distinguished from an error so the UI never renders an endless spinner. */
+  empty: boolean;
   error: string | null;
 }> {
-  if (!customerClient) return { overview: null, error: OFFLINE };
+  if (!customerClient) return { overview: null, empty: false, error: OFFLINE };
   try {
     const { data, error } = await customerClient.rpc('get_customer_account_overview');
     if (error) throw error;
-    if (!data || typeof data !== 'object' || !('profile' in data) || !('loyalty' in data)) {
-      return { overview: null, error: null };
+    if (data == null) return { overview: null, empty: true, error: null };
+    if (
+      typeof data !== 'object' ||
+      !('profile' in data) ||
+      !('loyalty' in data) ||
+      !('discounts' in data)
+    ) {
+      // A well-formed account always has these three blocks. Anything else is a
+      // server contract mismatch and must surface instead of hanging.
+      return { overview: null, empty: true, error: null };
     }
-    return { overview: data as CustomerAccountOverview, error: null };
+    return { overview: data as CustomerAccountOverview, empty: false, error: null };
   } catch (e) {
-    return { overview: null, error: message(e, 'Could not load your account details.') };
+    return { overview: null, empty: false, error: message(e, 'Could not load your account details.') };
   }
 }
 
