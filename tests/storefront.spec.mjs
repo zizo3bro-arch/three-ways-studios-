@@ -347,6 +347,7 @@ test('cart, persisted COD order, failed writes, receipt, newsletter and customer
   await page.getByText('Pay the courier in cash when your order arrives.').click();
   await expect(radio).toBeFocused();
   await fillDelivery(page, 'buyer@example.test');
+  await page.getByRole('button', { name: 'Submit email for 10% discount' }).click();
   await expect(page.locator('.cart-total')).toContainText('2,280');
   const creation = '**/rpc/create_cod_order';
   await page.route(creation, (r) =>
@@ -374,6 +375,8 @@ test('cart, persisted COD order, failed writes, receipt, newsletter and customer
   await account.getByLabel('Reference').fill(order.order_reference);
   await account.getByLabel('Email on the order').fill('buyer@example.test');
   await account.getByRole('button', { name: 'Find my order' }).click();
+  await expect(account.getByTestId('order-tracking-result')).toContainText('1. Accepted');
+  await expect(account.getByTestId('order-tracking-result')).toContainText('3. Ready / Not Shipped');
   await expect(account.getByRole('link', { name: 'Open confirmation' })).toBeVisible();
 });
 test('checkout gates confirmation, retries verification, and safely recovers a committed promo order', async ({ page }) => {
@@ -419,7 +422,7 @@ test('checkout gates confirmation, retries verification, and safely recovers a c
   await expect(page.getByRole('alert')).toContainText('Could not verify this bag: Inventory unavailable');
   await expect(confirm).toBeDisabled();
   await page.unroute(quote);
-  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await page.getByRole('button', { name: 'Submit email for 10% discount' }).click();
   await expect(total).toHaveText('EGP 2,280');
   await expect(confirm).toBeEnabled();
 
@@ -531,8 +534,8 @@ test('all routes, account boundary, responsive grid and no horizontal document o
         expect(cols).toBe(width >= 1024 ? 4 : 2);
         const art = await page.locator('.campaign-paint').boundingBox();
         const previousHeight = width < 920
-          ? Math.min(560, Math.max(160, width * 0.435))
-          : Math.min(560, Math.max(340, width * 0.33));
+          ? Math.min(416, Math.max(178, width * 0.47))
+          : Math.min(604, Math.max(384, width * 0.36));
         expect(art.height - previousHeight, `hero height added at ${width}px`).toBeGreaterThan(10);
         expect(art.height - previousHeight, `hero height added at ${width}px`).toBeLessThan(48);
         await expect(page.locator('.campaign').getByRole('link', { name: 'Shop now' })).toBeInViewport();
@@ -790,6 +793,13 @@ test('customer registration appears in admin Customers tab; staff RLS & session 
             ])
           ).rows[0].row;
         }
+        if (name === 'rpc/get_customer_account_overview') {
+          return (await tx.query('select public.get_customer_account_overview() as row')).rows[0]
+            .row;
+        }
+        if (name === 'rpc/track_order') {
+          return rpc(tx, 'track_order', body);
+        }
         if (name === 'rpc/admin_list_customers') {
           return (await tx.query('select * from public.admin_list_customers()')).rows;
         }
@@ -848,6 +858,10 @@ test('customer registration appears in admin Customers tab; staff RLS & session 
     .click();
   await expect(accountDialog.getByRole('heading', { name: newCustomerName })).toBeVisible();
   await expect(accountDialog).toContainText(newCustomerEmail);
+  await expect(accountDialog.getByTestId('loyalty-card')).toContainText('0/5');
+  await expect(accountDialog.getByTestId('loyalty-remaining-copy')).toContainText(
+    '5 purchases remaining'
+  );
   await accountDialog.getByRole('button', { name: 'Sign out', exact: true }).click();
   await expect(accountDialog.getByLabel('Account email')).toBeVisible();
   await page.keyboard.press('Escape');

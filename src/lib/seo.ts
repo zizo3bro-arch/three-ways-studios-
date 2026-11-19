@@ -106,6 +106,15 @@ const RULES: Array<[RegExp, (path: string) => Meta]> = [
     }),
   ],
   [
+    /^\/account$/,
+    () => ({
+      title: `Your account — ${BRAND}`,
+      description: 'Access your Three Ways Studios account, loyalty progress, purchase history, and order tracking.',
+      canonical: null,
+      noindex: true,
+    }),
+  ],
+  [
     /^\/(terms|privacy)$/,
     (path) => ({
       title: `${path === '/terms' ? 'Terms & conditions' : 'Privacy policy'} — ${BRAND}`,

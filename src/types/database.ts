@@ -80,7 +80,23 @@ export interface Customer {
   updated_at: string;
 }
 
-export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'processing'
+  | 'ready'
+  | 'shipped'
+  | 'delivered'
+  | 'cancelled';
+
+export interface OrderTrackingStage {
+  step: number;
+  code: 'accepted' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  label: string;
+  description: string;
+  is_completed: boolean;
+  is_cancelled: boolean;
+}
 
 export interface OrderItem {
   id?: string;
@@ -102,6 +118,7 @@ export interface Order {
   id: string;
   order_reference: string;
   customer_id: string;
+  auth_user_id?: string | null;
   customer_name: string;
   customer_email: string;
   customer_phone: string;
@@ -113,6 +130,8 @@ export interface Order {
   subtotal: number;
   shipping_cost?: number;
   email_discount_amount: number;
+  loyalty_discount_amount?: number;
+  loyalty_free_reward_amount?: number;
   promo_discount_amount: number;
   discount_total: number;
   applied_promo_code: string | null;
@@ -207,6 +226,16 @@ export interface QuoteResponse {
   email_discount_applied: boolean;
   email_discount_percent: number;
   email_discount_amount: number;
+  email_discount_eligible?: boolean;
+  email_discount_already_used?: boolean;
+  loyalty_discount_eligible?: boolean;
+  loyalty_discount_applied?: boolean;
+  loyalty_discount_percent?: number;
+  loyalty_discount_amount?: number;
+  both_discounts_eligible?: boolean;
+  free_reward_available?: boolean;
+  free_reward_applied?: boolean;
+  free_reward_amount?: number;
   promo_code_applied: string | null;
   promo_discount_percent: number;
   promo_discount_amount: number;
@@ -229,11 +258,82 @@ export interface OrderConfirmationData {
   subtotal: number;
   shipping_cost?: number;
   email_discount_amount: number;
+  loyalty_discount_amount?: number;
+  loyalty_free_reward_amount?: number;
   promo_discount_amount: number;
   discount_total: number;
   applied_promo_code: string | null;
   total_amount: number;
   status: OrderStatus;
+  tracking?: OrderTrackingStage;
   created_at: string;
+  updated_at?: string;
   items: OrderItem[];
+}
+
+export interface TrackedOrderData {
+  order_reference: string;
+  status: OrderStatus;
+  tracking: OrderTrackingStage;
+  payment_method: 'COD';
+  subtotal: number;
+  shipping_cost?: number;
+  email_discount_amount: number;
+  loyalty_discount_amount?: number;
+  loyalty_free_reward_amount?: number;
+  promo_discount_amount: number;
+  discount_total: number;
+  applied_promo_code: string | null;
+  total_amount: number;
+  city: string;
+  governorate: string;
+  created_at: string;
+  updated_at?: string;
+  items: OrderItem[];
+}
+
+export interface CustomerOrderHistoryItem extends TrackedOrderData {
+  order_id: string;
+  is_completed: boolean;
+  is_cancelled: boolean;
+}
+
+export interface CustomerAccountOverview {
+  profile: {
+    id: string;
+    email: string;
+    full_name: string;
+    phone: string;
+    governorate: string;
+    city: string;
+    created_at: string | null;
+  };
+  purchase_summary: {
+    completed_purchases: number;
+    total_orders: number;
+  };
+  loyalty: {
+    target_purchases: number;
+    completed_purchases: number;
+    qualifying_purchases: number;
+    progress_in_cycle: number;
+    purchases_remaining: number;
+    earned_rewards: number;
+    redeemed_rewards: number;
+    available_rewards: number;
+    free_product_unlocked: boolean;
+  };
+  discounts: {
+    loyalty_target_purchases: number;
+    loyalty_discount_percent: number;
+    loyalty_discount_eligible: boolean;
+    purchases_until_loyalty_discount: number;
+    email_discount_percent: number;
+    email_submitted: boolean;
+    email_discount_used: boolean;
+    email_discount_eligible: boolean;
+    both_eligible_non_stacking: boolean;
+    effective_discount_percent: number;
+  };
+  orders: CustomerOrderHistoryItem[];
 }
