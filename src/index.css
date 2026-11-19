@@ -1367,33 +1367,55 @@
     gap: 18px;
   }
   .loyalty-card-wrap {
-    width: min(100%, 36rem);
-    margin: clamp(18px, 3vw, 30px) auto 0;
+    width: min(100%, 34rem);
+    margin: clamp(16px, 3vw, 26px) auto 0;
     text-align: center;
+  }
+  /* Real checkbox drives the flip so it works without JS state and stays
+     keyboard/screen-reader accessible. Visually hidden, never display:none. */
+  .loyalty-card-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
   .loyalty-card-button {
     display: block;
     width: 100%;
     padding: 0;
     border: 0;
-    border-radius: 6%;
     background: transparent;
     perspective: 1200px;
+    cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
   .loyalty-card-3d {
     position: relative;
     display: block;
     width: 100%;
+    /* Match the artwork's own 637x368 box so neither face is cropped. */
     aspect-ratio: 637 / 368;
     transform-style: preserve-3d;
-    filter: drop-shadow(0 18px 17px rgb(20 12 10 / 0.22))
-      drop-shadow(0 3px 4px rgb(20 12 10 / 0.16));
+    transform: rotateY(0deg);
+    /* No `filter` here: a filter forces transform-style to flat, which makes
+       backface-visibility stop working and paints both faces at once. The
+       shadow lives on the faces themselves instead. */
     transition: transform 760ms cubic-bezier(0.2, 0.76, 0.24, 1);
     will-change: transform;
   }
-  .loyalty-card-3d.is-front {
+  /* Back face first; checking the box turns the card over. */
+  .loyalty-card-input:checked + .loyalty-card-button .loyalty-card-3d {
     transform: rotateY(180deg);
+  }
+  .loyalty-card-input:focus-visible + .loyalty-card-button {
+    outline: 2px solid var(--color-crimson);
+    outline-offset: 7px;
   }
   .loyalty-card-face {
     position: absolute;
@@ -1403,23 +1425,28 @@
     border-radius: 5.8%;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
+    background: #a80000;
   }
   .loyalty-card-face img {
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: fill;
+    object-fit: contain;
+    filter: drop-shadow(0 18px 17px rgb(20 12 10 / 0.22))
+      drop-shadow(0 3px 4px rgb(20 12 10 / 0.16));
   }
   .loyalty-card-face--front {
     transform: rotateY(180deg);
   }
-  .loyalty-card-hint {
-    margin-top: 14px;
-    color: var(--color-ink-faint);
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
+  .loyalty-card-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .loyalty-card-progress {
     max-width: 27rem;
@@ -1457,8 +1484,10 @@
   .loyalty-card-dots span.is-complete {
     background: var(--color-crimson);
   }
-  .loyalty-card-button:focus-visible {
-    outline-offset: 7px;
+  @media (prefers-reduced-motion: reduce) {
+    .loyalty-card-3d {
+      transition-duration: 1ms;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .loyalty-card-3d {
