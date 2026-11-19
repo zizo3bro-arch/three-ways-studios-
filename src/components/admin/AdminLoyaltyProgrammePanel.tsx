@@ -2,6 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Check, Clock, Gift, History, Save } from 'lucide-react';
 import { rpc } from '../../lib/rpc';
 
+/** PostgREST says "Could not find the function … in the schema cache" when the
+ * function is absent OR the cache is stale. Only the first is worth explaining
+ * to staff, and it means a migration has not been applied. */
+function isMissingFunction(message: string): boolean {
+  return /could not find the function|does not exist|schema cache/i.test(message);
+}
+
 /* =========================================================
    LOYALTY PROGRAMME — the five-stamp card, configurable forward.
 
@@ -163,19 +170,36 @@ export function AdminLoyaltyProgrammePanel({ onSaved }: { onSaved?: () => void }
             pair, and the pants are the only free item.
           </p>
         </div>
-        <span className="cms-chip">
+        <span className={state === 'error' ? 'cms-chip is-dirty' : 'cms-chip'}>
           <Clock className="h-3 w-3" />
-          {programme ? `In force from ${formatWhen(programme.effective_from)}` : 'Reading…'}
+          {state === 'error'
+            ? 'Programme unavailable'
+            : programme
+              ? `In force from ${formatWhen(programme.effective_from)}`
+              : 'Reading…'}
         </span>
       </div>
 
       {error ? (
-        <p role="alert" className="cms-banner is-error">
-          {error}{' '}
-          <button type="button" className="underline" onClick={() => void load()}>
-            Retry
+        <div role="alert" className="cms-banner is-error">
+          {isMissingFunction(error) ? (
+            <>
+              <p className="font-semibold">The rewards programme is not installed in this database yet.</p>
+              <p className="mt-1 leading-relaxed">
+                The console is deployed, but the server function it reads was not created. Apply
+                <code className="mx-1">012_loyalty_delivery_unlock.sql</code> in the Supabase SQL
+                editor, then reload this page. Nothing below can be read or changed until it exists —
+                <strong> no customer progress or reward has been touched.</strong>
+              </p>
+            </>
+          ) : (
+            <p className="leading-relaxed">{error}</p>
+          )}
+          <p className="mt-1 text-[10.5px] text-ink-faint">{error}</p>
+          <button type="button" className="mt-2 cms-btn" onClick={() => void load()}>
+            Try again
           </button>
-        </p>
+        </div>
       ) : null}
 
       {state === 'loading' && !programme ? (
@@ -228,6 +252,7 @@ export function AdminLoyaltyProgrammePanel({ onSaved }: { onSaved?: () => void }
               max={90}
               step="1"
               value={percent3}
+              disabled={!programme}
               onChange={(event) => {
                 setPercent3(event.target.value);
                 setConfirming(false);
@@ -245,6 +270,7 @@ export function AdminLoyaltyProgrammePanel({ onSaved }: { onSaved?: () => void }
               max={90}
               step="1"
               value={percent4}
+              disabled={!programme}
               onChange={(event) => {
                 setPercent4(event.target.value);
                 setConfirming(false);
@@ -262,6 +288,7 @@ export function AdminLoyaltyProgrammePanel({ onSaved }: { onSaved?: () => void }
             <input
               type="datetime-local"
               value={effectiveFrom}
+              disabled={!programme}
               onChange={(event) => {
                 setEffectiveFrom(event.target.value);
                 setConfirming(false);
@@ -279,6 +306,7 @@ export function AdminLoyaltyProgrammePanel({ onSaved }: { onSaved?: () => void }
           </span>
           <input
             value={reason}
+            disabled={!programme}
             onChange={(event) => {
               setReason(event.target.value);
               setConfirming(false);
@@ -330,7 +358,7 @@ export function AdminLoyaltyProgrammePanel({ onSaved }: { onSaved?: () => void }
             <button
               type="submit"
               className="cms-btn is-primary"
-              disabled={!valid || saving}
+              disabled={!valid || saving || !programme}
               data-testid="loyalty-save"
             >
               <Save className="h-3.5 w-3.5" /> Review &amp; save

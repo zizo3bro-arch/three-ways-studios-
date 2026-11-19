@@ -4,6 +4,8 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { studioDb, anon, productsQuery, rpc } from './studio-db.mjs';
 
 const MEMBER = { id: crypto.randomUUID(), email: 'amina@example.test', name: 'Amina Saleh' };
@@ -406,4 +408,77 @@ test('site content: every new field has a safe default and social channels are o
     db.query("update site_settings set home_collection_mode = 'random' where id = 'default'"),
     /violates check constraint/
   );
+});
+
+test('every RPC the console and storefront call exists in the database', async (t) => {
+  // The failure this guards against: the app ships a call to a server function
+  // that no migration ever created, so the panel dies with "Could not find the
+  // function … in the schema cache" while every build and unit test stays green.
+  const db = await studioDb({ upgrade: true });
+  t.after(() => db.close());
+
+  const files = [];
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(path);
+      else if (/\.tsx?$/.test(entry.name)) files.push(path);
+    }
+  };
+  await walk('src');
+
+  const called = new Set();
+  for (const file of files) {
+    const source = await readFile(file, 'utf8');
+    for (const match of source.matchAll(/rpc(?:<[^>]*>)?\(\s*'([a-z_0-9]+)'/g)) {
+      called.add(match[1]);
+    }
+  }
+  assert.ok(called.size >= 10, `expected to find the app's RPC calls (found ${called.size})`);
+
+  const { rows } = await db.query(
+    `select p.proname from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'`
+  );
+  const available = new Set(rows.map((row) => row.proname));
+  const missing = [...called].filter((name) => !available.has(name)).sort();
+  assert.deepEqual(missing, [], `RPCs called by the app but missing from the schema: ${missing.join(', ')}`);
+
+  // Argument names matter too: PostgREST matches by name, so a renamed argument
+  // is just as fatal as a missing function.
+  const argumentChecks = [
+    ['loyalty_program_preview', []],
+    ['admin_loyalty_program_history', ['p_limit']],
+    ['admin_update_loyalty_program', ['p_milestone_3_percent', 'p_milestone_4_percent', 'p_effective_from', 'p_reason']],
+    ['admin_adjust_stock', ['p_variant_id', 'p_delta', 'p_reason', 'p_note']],
+    ['admin_record_refund', ['p_order_id', 'p_amount', 'p_reason']],
+    ['admin_add_order_note', ['p_order_id', 'p_body']],
+    ['admin_order_activity', ['p_order_id']],
+    ['admin_customer_profile', ['p_auth_user_id']],
+    ['admin_list_stock_movements', ['p_limit', 'p_variant_id']],
+  ];
+  for (const [name, expected] of argumentChecks) {
+    const match = await db.query(
+      `select pg_get_function_identity_arguments(p.oid) as args
+       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = $1`,
+      [name]
+    );
+    assert.equal(match.rows.length, 1, `${name} must exist exactly once`);
+    const names = match.rows[0].args
+      .split(',')
+      .map((part) => part.trim().split(/\s+/)[0])
+      .filter(Boolean);
+    assert.deepEqual(names, expected, `${name} argument names`);
+  }
+
+  // The preview must also answer for a signed-in reader, which is how PostgREST
+  // reaches it: no required parameters, and a plain call returns the ladder.
+  const preview = await db.query('select public.loyalty_program_preview() as p');
+  assert.equal(preview.rows[0].p.milestone_3_percent, 10);
+  assert.equal(preview.rows[0].p.milestone_4_percent, 20);
+  assert.equal(preview.rows[0].p.milestone_5_reward_type, 'free_pants');
+  assert.equal(preview.rows[0].p.cycle_length, 5);
+  assert.equal(preview.rows[0].p.milestones.length, 5);
 });
