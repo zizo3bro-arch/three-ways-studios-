@@ -23,6 +23,9 @@ export function StudioListSection() {
       <h2 id="newsletter-title" className="section-label">
         {settings.newsletter_text}
       </h2>
+      <p className="mt-2 max-w-[46ch] text-[13.5px] leading-relaxed text-ink-soft">
+        Submit your email address for early release notes and a one-time 10% discount at checkout.
+      </p>
       <form onSubmit={subscribe}>
         <label className="sr-only" htmlFor="studio-email">
           Email address

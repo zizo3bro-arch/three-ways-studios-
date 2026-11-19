@@ -2,21 +2,13 @@ import { useMemo, useState } from 'react';
 import { Eye, Search, X } from 'lucide-react';
 import { formatEGP } from '../../lib/format';
 import { adminClient as supabase } from '../../lib/adminClient';
+import { ADMIN_STATUS_OPTIONS } from '../../lib/orderTracking';
 import type { Order, OrderStatus } from '../../types/database';
 
 interface AdminOrdersTabProps {
   orders: Order[];
   onRefresh: () => Promise<void>;
 }
-
-const ORDER_STATUSES: OrderStatus[] = [
-  'pending',
-  'confirmed',
-  'processing',
-  'shipped',
-  'delivered',
-  'cancelled',
-];
 
 export function AdminOrdersTab({ orders, onRefresh }: AdminOrdersTabProps) {
   const [search, setSearch] = useState('');
@@ -88,9 +80,9 @@ export function AdminOrdersTab({ orders, onRefresh }: AdminOrdersTabProps) {
             className="border border-ink/15 bg-paper px-3 py-2 text-xs text-ink"
           >
             <option value="all">All Statuses</option>
-            {ORDER_STATUSES.map((st) => (
-              <option key={st} value={st}>
-                {st.toUpperCase()}
+            {ADMIN_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
               </option>
             ))}
           </select>
@@ -153,9 +145,9 @@ export function AdminOrdersTab({ orders, onRefresh }: AdminOrdersTabProps) {
                       onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
                       className="border border-ink/20 bg-paper px-2.5 py-1 text-[11px] text-ink uppercase"
                     >
-                      {ORDER_STATUSES.map((st) => (
-                        <option key={st} value={st}>
-                          {st}
+                      {ADMIN_STATUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
                         </option>
                       ))}
                     </select>
@@ -234,10 +226,22 @@ export function AdminOrdersTab({ orders, onRefresh }: AdminOrdersTabProps) {
                 <span>Subtotal</span>
                 <span>{formatEGP(selectedOrder.subtotal)}</span>
               </div>
+              {(selectedOrder.loyalty_discount_amount ?? 0) > 0 && (
+                <div className="flex justify-between text-crimson-deep">
+                  <span>Loyalty Discount (10%)</span>
+                  <span>-{formatEGP(selectedOrder.loyalty_discount_amount!)}</span>
+                </div>
+              )}
               {selectedOrder.email_discount_amount > 0 && (
                 <div className="flex justify-between text-crimson-deep">
                   <span>Email Discount</span>
                   <span>-{formatEGP(selectedOrder.email_discount_amount)}</span>
+                </div>
+              )}
+              {(selectedOrder.loyalty_free_reward_amount ?? 0) > 0 && (
+                <div className="flex justify-between text-crimson-deep">
+                  <span>Loyalty Free Product (5/5)</span>
+                  <span>-{formatEGP(selectedOrder.loyalty_free_reward_amount!)}</span>
                 </div>
               )}
               {selectedOrder.promo_discount_amount > 0 && (

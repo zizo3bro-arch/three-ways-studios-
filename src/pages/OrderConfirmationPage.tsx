@@ -3,6 +3,7 @@ import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowRight, Banknote, CheckCircle2, Printer } from 'lucide-react';
 import { fetchOrderConfirmation } from '../lib/api';
 import { formatEGP } from '../lib/format';
+import { ORDER_TRACKING_STEPS, resolveTrackingStage } from '../lib/orderTracking';
 import type { OrderConfirmationData } from '../types/database';
 
 /* =========================================================
@@ -233,10 +234,22 @@ export function OrderConfirmationPage() {
               <dt className="text-ink-soft">Subtotal</dt>
               <dd className="font-semibold text-ink">{formatEGP(order.subtotal)}</dd>
             </div>
+            {(order.loyalty_discount_amount ?? 0) > 0 ? (
+              <div className="flex items-baseline justify-between text-crimson-bright">
+                <dt>Loyalty discount (10%)</dt>
+                <dd>−{formatEGP(order.loyalty_discount_amount!)}</dd>
+              </div>
+            ) : null}
             {order.email_discount_amount > 0 ? (
               <div className="flex items-baseline justify-between text-crimson-bright">
-                <dt>Email privilege</dt>
+                <dt>Email privilege (10%)</dt>
                 <dd>−{formatEGP(order.email_discount_amount)}</dd>
+              </div>
+            ) : null}
+            {(order.loyalty_free_reward_amount ?? 0) > 0 ? (
+              <div className="flex items-baseline justify-between text-crimson-bright">
+                <dt>Free product reward (5/5)</dt>
+                <dd>−{formatEGP(order.loyalty_free_reward_amount!)}</dd>
               </div>
             ) : null}
             {order.promo_discount_amount > 0 ? (
@@ -261,6 +274,53 @@ export function OrderConfirmationPage() {
             </div>
           </dl>
         </div>
+
+        {/* live tracking progression */}
+        {(() => {
+          const stage = resolveTrackingStage(order.status, order.tracking);
+          return (
+            <div
+              className="border-t border-ink/14 px-5 py-6 sm:px-9"
+              data-testid="receipt-tracking"
+            >
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="tws-eyebrow text-ink-faint">Order tracking · {stage.label}</p>
+                <span className="text-[12px] text-ink-soft">{stage.description}</span>
+              </div>
+              {!stage.is_cancelled ? (
+                <ol className="mt-3.5 grid grid-cols-1 gap-2.5 sm:grid-cols-4">
+                  {ORDER_TRACKING_STEPS.map((step) => {
+                    const reached = stage.is_completed || stage.step >= step.step;
+                    const current = !stage.is_completed && stage.step === step.step;
+                    return (
+                      <li
+                        key={step.step}
+                        className={[
+                          'border px-3.5 py-3 text-[12px]',
+                          current
+                            ? 'border-crimson bg-[rgba(165,18,27,0.05)]'
+                            : reached
+                              ? 'border-ink/28'
+                              : 'border-ink/12 opacity-60',
+                        ].join(' ')}
+                      >
+                        <p
+                          className={[
+                            'font-bold uppercase tracking-[0.08em]',
+                            current ? 'text-crimson' : 'text-ink',
+                          ].join(' ')}
+                        >
+                          {step.step}. {step.label}
+                        </p>
+                        <p className="mt-1 text-[11.5px] text-ink-soft">{step.description}</p>
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : null}
+            </div>
+          );
+        })()}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink/12 px-5 py-5 sm:px-9">
           <p className="max-w-sm text-[11.5px] leading-relaxed text-ink-faint">

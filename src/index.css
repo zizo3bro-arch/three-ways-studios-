@@ -292,6 +292,8 @@
     left: -1rem;
     width: max-content;
     max-width: 310px;
+    max-height: min(68vh, 420px);
+    overflow-y: auto;
     padding: 0.65rem 1.15rem;
     border: 1px solid var(--rule);
   }
@@ -314,8 +316,8 @@
 
   /* ——— Campaign Hero ——— */
   .campaign {
-    padding-top: calc(var(--header) + clamp(14px, 3vw, 42px));
-    padding-bottom: clamp(12px, 1.5vw, 24px);
+    padding-top: calc(var(--header) + clamp(20px, 3.4vw, 50px));
+    padding-bottom: clamp(18px, 2.2vw, 34px);
     max-width: 2040px;
     margin: auto;
   }
@@ -327,7 +329,7 @@
   .campaign-paint {
     display: block;
     width: 100%;
-    height: clamp(178px, 47vw, 416px);
+    height: clamp(202px, 50vw, 446px);
     mix-blend-mode: multiply;
   }
   .campaign-signature {
@@ -352,7 +354,7 @@
     align-items: end;
     justify-content: space-between;
     gap: 20px;
-    padding-top: clamp(10px, 1.4vw, 22px);
+    padding-top: clamp(16px, 2vw, 30px);
   }
   .campaign-caption {
     font-size: clamp(0.78rem, 1.48vw, 1.2rem);
@@ -586,8 +588,8 @@
 
   /* ——— Product Detail Spread & Gallery ——— */
   .piece-spread {
-    padding-top: calc(var(--header) + clamp(10px, 2vw, 30px));
-    padding-bottom: calc(clamp(30px, 3.8vw, 52px) + clamp(12px, 1.5vw, 24px));
+    padding-top: calc(var(--header) + clamp(20px, 3vw, 46px));
+    padding-bottom: calc(clamp(42px, 5vw, 72px) + clamp(14px, 1.8vw, 28px));
     display: grid;
     grid-template-columns: minmax(0, 1.24fr) minmax(0, 0.86fr);
     gap: clamp(28px, 4vw, 68px);
@@ -644,7 +646,7 @@
   .gallery-frame {
     flex: 0 0 100%;
     min-width: 0;
-    height: clamp(340px, 47vw, 720px);
+    height: clamp(368px, 50vw, 768px);
     scroll-snap-align: start;
     scroll-snap-stop: always;
     display: grid;
@@ -978,7 +980,7 @@
   /* ——— Purchase Panel ——— */
   .purchase {
     min-width: 0;
-    padding-top: 28px;
+    padding-top: 34px;
   }
   .piece-title {
     position: relative;
@@ -1017,14 +1019,14 @@
   .piece-description {
     font-size: clamp(0.95rem, 1.26vw, 1.14rem);
     line-height: 1.65;
-    margin: 0.55em 0 1.35em;
+    margin: 0.7em 0 1.6em;
   }
   .option-row {
     display: grid;
     grid-template-columns: minmax(76px, 22%) minmax(0, 1fr);
     align-items: center;
     gap: 10px;
-    padding-block: clamp(13px, 1.8vw, 22px);
+    padding-block: clamp(16px, 2.2vw, 26px);
     border-top: 1px solid var(--rule);
   }
   .choice-list {
@@ -1384,7 +1386,7 @@ html.tws-scroll-locked body {
 }
 @media (min-width: 920px) {
   .campaign-paint {
-    height: clamp(384px, 36vw, 604px);
+    height: clamp(412px, 38.5vw, 640px);
   }
 }
 @media (max-width: 1023px) {

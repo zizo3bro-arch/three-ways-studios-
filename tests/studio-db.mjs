@@ -36,7 +36,10 @@ export async function studioDb({ upgrade = false, legacyCheckout = false } = {})
   await run('migrations/006_admin_hardening_safe.sql');
   if (upgrade && !legacyCheckout) await run('migrations/007_cod_checkout.sql');
   await run('migrations/008_registered_customers.sql');
-  if (!legacyCheckout) await run('migrations/009_checkout_idempotency.sql');
+  if (!legacyCheckout) {
+    await run('migrations/009_checkout_idempotency.sql');
+    await run('migrations/010_account_loyalty_discounts.sql');
+  }
   const catalog = [
     [
       'TWS Signature Tee',
@@ -103,24 +106,34 @@ export const orderArgs = [
   'p_items',
   'p_promo_code',
 ];
-export async function rpc(tx, name, body) {
+export async function rpc(tx, name, body = {}) {
   const keys =
     name === 'quote_cod_order'
-      ? quoteArgs
-      : name === 'get_order_confirmation'
+      ? [...quoteArgs, ...('p_redeem_free_reward' in body ? ['p_redeem_free_reward'] : [])]
+      : name === 'get_order_confirmation' || name === 'track_order'
         ? ['p_order_reference', 'p_email']
-        : name === 'create_cod_order'
-          ? [
-              ...orderArgs,
-              ...('p_payment_method' in body ? ['p_payment_method'] : []),
-              ...('p_checkout_request_id' in body ? ['p_checkout_request_id'] : []),
-            ]
-          : [];
-  if (!keys.length || keys.some((k) => !(k in body)) || keys.length !== Object.keys(body).length)
+        : name === 'get_customer_account_overview'
+          ? []
+          : name === 'create_cod_order'
+            ? [
+                ...orderArgs,
+                ...('p_payment_method' in body ? ['p_payment_method'] : []),
+                ...('p_checkout_request_id' in body ? ['p_checkout_request_id'] : []),
+                ...('p_redeem_free_reward' in body ? ['p_redeem_free_reward'] : []),
+              ]
+            : null;
+  if (!keys || keys.some((k) => !(k in body)) || keys.length !== Object.keys(body).length)
     throw Error('Unexpected RPC signature');
-  const params = keys
-    .map((k, i) => `${k} => $${i + 1}::${{ p_items: 'jsonb', p_checkout_request_id: 'uuid' }[k] || 'text'}`)
-    .join(',');
+  if (!keys.length) {
+    const result = await tx.query(`select public.${name}() as result`);
+    return result.rows[0].result;
+  }
+  const types = {
+    p_items: 'jsonb',
+    p_checkout_request_id: 'uuid',
+    p_redeem_free_reward: 'boolean',
+  };
+  const params = keys.map((k, i) => `${k} => $${i + 1}::${types[k] || 'text'}`).join(',');
   const result = await tx.query(
     `select public.${name}(${params}) as result`,
     keys.map((k) => (k === 'p_items' ? JSON.stringify(body[k]) : body[k]))

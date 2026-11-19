@@ -66,7 +66,7 @@ export function Navbar() {
                     <Link onClick={() => setMenu(false)} to="/shop">
                       All pieces
                     </Link>
-                    {products.slice(0, 4).map((p) => (
+                    {products.map((p) => (
                       <Link key={p.id} to={`/product/${p.slug}`}>
                         {p.name}
                       </Link>

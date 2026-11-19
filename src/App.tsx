@@ -39,6 +39,9 @@ const NotFoundPage = lazy(() =>
 const CheckoutPage = lazy(() =>
   import('./pages/CheckoutPage').then((m) => ({ default: m.CheckoutPage }))
 );
+const AccountPage = lazy(() =>
+  import('./pages/AccountPage').then((m) => ({ default: m.AccountPage }))
+);
 const OrderConfirmationPage = lazy(() =>
   import('./pages/OrderConfirmationPage').then((m) => ({ default: m.OrderConfirmationPage }))
 );
@@ -139,6 +142,7 @@ function StorefrontRoutes() {
       <Route path="/cart" element={<CartPage />} />
       <Route path="/privacy" element={<PolicyPage privacy />} />
       <Route path="/terms" element={<PolicyPage privacy={false} />} />
+      <Route path="/account" element={<AccountPage />} />
       <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/order-confirmation/:orderRef" element={<OrderConfirmationPage />} />
       <Route path="*" element={<NotFoundPage />} />

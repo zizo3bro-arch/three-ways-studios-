@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
-import { createCodOrder, isVariantId, quoteCodOrder } from '../lib/api';
+import { createCodOrder, isVariantId, quoteCodOrder, subscribeNewsletter } from '../lib/api';
 import { EGYPTIAN_GOVERNORATES, formatEGP } from '../lib/format';
 import { refreshCatalog } from '../hooks/useCatalog';
 import type { QuoteResponse } from '../types/database';
@@ -33,8 +33,14 @@ export function CheckoutPage() {
     if (!fullNameInput && customer.fullName) setFullNameInput(customer.fullName);
     if (!email && customer.email) setEmail(customer.email);
   }, [customer, fullNameInput, email]);
+
   const [promo, setPromo] = useState('');
   const [applied, setApplied] = useState('');
+  const [redeemFreeReward, setRedeemFreeReward] = useState(false);
+  const [emailDiscountPending, setEmailDiscountPending] = useState(false);
+  const [emailDiscountNote, setEmailDiscountNote] = useState<{ ok: boolean; text: string } | null>(
+    null
+  );
   const [payment, setPayment] = useState<'COD'>('COD');
   const [attempt, setAttempt] = useState(0);
   const [checked, setChecked] = useState<CheckedQuote>();
@@ -42,16 +48,17 @@ export function CheckoutPage() {
   const writing = useRef(false);
   const checkoutAttempt = useRef<CheckoutAttempt | null>(null);
   const [notice, setNotice] = useState('');
+
   // Only quote inputs enter the key. Syncing a price or stock limit must not
   // start a quote loop; stale responses must never enable the submit button.
   const key = JSON.stringify({
     items: items.map(({ variant_id, quantity }) => ({ variant_id, quantity })),
     email: email.trim(),
     promoCode: applied,
+    redeemFreeReward,
   });
-  // Use the identity of this request, not just its values: changing a code
-  // and then changing it back still needs to finish the new verification.
-  const input = useMemo<QuoteInput>(() => JSON.parse(key), [key, attempt]);
+  // Include customer?.id and attempt so signing in/out or retrying refreshes the server quote.
+  const input = useMemo<QuoteInput>(() => JSON.parse(key), [key, attempt, customer?.id]);
   const empty = items.length === 0;
   useEffect(() => {
     if (empty) return;
@@ -60,13 +67,19 @@ export function CheckoutPage() {
       const result = await quoteCodOrder(input);
       if (!current) return;
       setChecked({ input, ...result });
-      if (result.quote) syncItemStock(result.quote.items);
+      if (result.quote) {
+        syncItemStock(result.quote.items);
+        if (redeemFreeReward && !result.quote.free_reward_available) {
+          setRedeemFreeReward(false);
+        }
+      }
     }, 220);
     return () => {
       current = false;
       window.clearTimeout(timer);
     };
-  }, [input, empty, syncItemStock]);
+  }, [input, empty, redeemFreeReward, syncItemStock]);
+
   const currentCheck = checked?.input === input ? checked : undefined;
   const quote = currentCheck?.quote;
   const quoteError = currentCheck?.error;
@@ -75,10 +88,11 @@ export function CheckoutPage() {
   const phone = mobileNumber(phoneInput);
   const city = cityInput.trim();
   const address = addressInput.trim();
+  const validEmail = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(input.email);
   const detailsComplete =
     fullName.length >= 3 &&
     /^01[0125]\d{8}$/.test(phone) &&
-    /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(input.email) &&
+    validEmail &&
     EGYPTIAN_GOVERNORATES.includes(governorate) &&
     city.length >= 2 &&
     address.length >= 10;
@@ -89,15 +103,45 @@ export function CheckoutPage() {
     setAttempt((n) => n + 1);
   }
 
+  async function unlockEmailDiscount() {
+    if (emailDiscountPending) return;
+    setEmailDiscountNote(null);
+    if (!validEmail) {
+      setEmailDiscountNote({
+        ok: false,
+        text: 'Enter your email address in Delivery details first to unlock 10% off.',
+      });
+      return;
+    }
+    setEmailDiscountPending(true);
+    const result = await subscribeNewsletter(input.email);
+    setEmailDiscountPending(false);
+    if (!result.ok) {
+      setEmailDiscountNote({ ok: false, text: result.message });
+      return;
+    }
+    setEmailDiscountNote({
+      ok: true,
+      text: result.alreadySubscribed
+        ? 'Email confirmed on the studio list. Verifying eligibility…'
+        : '10% Email Discount unlocked — updating your total…',
+    });
+    retryQuote();
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (writing.current || !allowed || !event.currentTarget.checkValidity()) return;
     const data = new FormData(event.currentTarget);
     if (data.get('payment_method') !== 'COD') return;
 
-    // Keep the same request ID for retries of this bag, including a refresh
-    // after an interrupted response. No contact details are stored here.
-    const bag = JSON.stringify(input.items);
+    // Keep the same request ID for retries of this bag + reward selection,
+    // including a refresh after an interrupted response.
+    const bag = JSON.stringify({
+      items: input.items,
+      redeemFreeReward: Boolean(redeemFreeReward && verifiedQuote?.free_reward_available),
+      customer: customer?.id ?? 'guest',
+    });
     if (checkoutAttempt.current?.bag !== bag) {
       let saved: CheckoutAttempt | null = null;
       try {
@@ -136,6 +180,7 @@ export function CheckoutPage() {
       items: input.items,
       promoCode: input.promoCode,
       checkoutRequestId: checkoutAttempt.current.id,
+      redeemFreeReward: Boolean(redeemFreeReward && verifiedQuote?.free_reward_available),
     });
     if (!order || error) {
       writing.current = false;
@@ -209,7 +254,10 @@ export function CheckoutPage() {
                 type="email"
                 name="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setEmailDiscountNote(null);
+                }}
                 autoComplete="email"
                 required
                 placeholder="you@example.com"
@@ -294,6 +342,81 @@ export function CheckoutPage() {
               </li>
             ))}
           </ul>
+
+          {/* Free Product Loyalty Reward (5/5 completed purchases) */}
+          {quote?.free_reward_available ? (
+            <div
+              className="mb-5 border border-crimson/40 bg-[rgba(165,18,27,0.04)] p-3.5"
+              data-testid="checkout-free-reward-box"
+            >
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={redeemFreeReward}
+                  disabled={submitting}
+                  onChange={(e) => setRedeemFreeReward(e.target.checked)}
+                  className="mt-1 h-4 w-4 accent-[#a5121b]"
+                />
+                <span>
+                  <strong className="block text-xs uppercase tracking-[0.12em] text-crimson">
+                    Redeem free product reward (5/5 purchases)
+                  </strong>
+                  <small>
+                    Deduct 1 piece for free from this order using your unlocked loyalty reward.
+                  </small>
+                </span>
+              </label>
+            </div>
+          ) : null}
+
+          {/* Member Loyalty & Email Discount Eligibility (Non-Stacking 10%) */}
+          <div className="mb-5 border-y border-ink/16 py-3.5" data-testid="checkout-discount-box">
+            <p className="option-label">10% Member &amp; Email Discount</p>
+            {verifiedQuote?.loyalty_discount_applied ? (
+              <p className="mt-1.5 text-[0.88rem] leading-relaxed text-ink-soft">
+                <strong className="text-crimson">10% Purchase Loyalty Discount applied</strong>
+                {verifiedQuote.both_discounts_eligible
+                  ? ' — maximum 10% applies (loyalty and email discounts do not stack).'
+                  : ' from your completed account purchases.'}
+              </p>
+            ) : verifiedQuote?.email_discount_applied ? (
+              <p className="mt-1.5 text-[0.88rem] leading-relaxed text-ink-soft">
+                <strong className="text-crimson">10% Email Discount applied</strong> for{' '}
+                {input.email.toLowerCase()}.
+              </p>
+            ) : quote?.email_discount_already_used ? (
+              <p className="mt-1.5 text-[0.88rem] leading-relaxed text-ink-soft">
+                The one-time 10% Email Discount has already been used for this email address.
+                {customer
+                  ? ' Complete 3 delivered purchases on your account to unlock 10% Loyalty Discount.'
+                  : ''}
+              </p>
+            ) : (
+              <div className="mt-1.5">
+                <p className="text-[0.86rem] leading-relaxed text-ink-soft">
+                  Submit your email address for a one-time 10% discount, or sign in after 3
+                  completed purchases for 10% loyalty pricing (discounts do not stack).
+                </p>
+                <button
+                  type="button"
+                  disabled={submitting || emailDiscountPending}
+                  onClick={() => void unlockEmailDiscount()}
+                  className="text-action mt-2 inline-block"
+                >
+                  {emailDiscountPending ? 'Applying…' : 'Submit email for 10% discount'}
+                </button>
+                {emailDiscountNote ? (
+                  <p
+                    className="form-note"
+                    role={emailDiscountNote.ok ? 'status' : 'alert'}
+                  >
+                    {emailDiscountNote.text}
+                  </p>
+                ) : null}
+              </div>
+            )}
+          </div>
+
           <label htmlFor="promo-code" className="option-label">
             Promo code
           </label>
@@ -349,10 +472,22 @@ export function CheckoutPage() {
                     : formatEGP(verifiedQuote.shipping_cost)}
               </dd>
             </div>
+            {Boolean(verifiedQuote?.loyalty_discount_applied && verifiedQuote.loyalty_discount_amount) && (
+              <div>
+                <dt>Loyalty discount ({verifiedQuote!.loyalty_discount_percent ?? 10}%)</dt>
+                <dd>−{formatEGP(verifiedQuote!.loyalty_discount_amount!)}</dd>
+              </div>
+            )}
             {verifiedQuote?.email_discount_applied && (
               <div>
                 <dt>Email discount ({verifiedQuote.email_discount_percent}%)</dt>
                 <dd>−{formatEGP(verifiedQuote.email_discount_amount)}</dd>
+              </div>
+            )}
+            {Boolean(verifiedQuote?.free_reward_applied && verifiedQuote.free_reward_amount) && (
+              <div>
+                <dt>Free product reward (5/5)</dt>
+                <dd>−{formatEGP(verifiedQuote!.free_reward_amount!)}</dd>
               </div>
             )}
             {!!verifiedQuote?.promo_discount_amount && (

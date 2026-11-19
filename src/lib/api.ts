@@ -1,5 +1,13 @@
+import { customerClient } from './customerClient';
+import { resolveTrackingStage } from './orderTracking';
 import { supabase } from './supabase';
-import type { OrderConfirmationData, Product, QuoteResponse } from '../types/database';
+import type {
+  CustomerAccountOverview,
+  OrderConfirmationData,
+  Product,
+  QuoteResponse,
+  TrackedOrderData,
+} from '../types/database';
 
 const OFFLINE = 'The studio is not connected. Please try again later.';
 const UUID = /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i;
@@ -11,6 +19,22 @@ function message(error: unknown, fallback: string) {
     ? error.message
     : fallback;
 }
+
+/** Uses the authenticated customer session when signed in so PostgreSQL can
+ * evaluate server-side loyalty discounts and free-product rewards via auth.uid(),
+ * while falling back cleanly to the anonymous client for guest checkout. */
+async function checkoutClient() {
+  if (!supabase) return null;
+  if (!customerClient) return supabase;
+  try {
+    const { data } = await customerClient.auth.getSession();
+    if (data.session?.access_token) return customerClient;
+  } catch {
+    // Fall back to anonymous client for guests.
+  }
+  return supabase;
+}
+
 function published(row: Product): Product {
   return {
     ...row,
@@ -64,15 +88,25 @@ function cartError(items: Line[]) {
     ? 'One or more items cannot be ordered. Please update your bag.'
     : null;
 }
-export async function quoteCodOrder(params: { items: Line[]; email: string; promoCode?: string }) {
+export async function quoteCodOrder(params: {
+  items: Line[];
+  email: string;
+  promoCode?: string;
+  redeemFreeReward?: boolean;
+}) {
   const invalid = cartError(params.items);
-  if (!supabase || invalid) return { quote: null, error: invalid || OFFLINE };
+  const client = await checkoutClient();
+  if (!client || invalid) return { quote: null, error: invalid || OFFLINE };
   try {
-    const { data, error } = await supabase.rpc('quote_cod_order', {
+    const rpcPayload: Record<string, unknown> = {
       p_items: params.items,
       p_email: params.email.trim() || null,
       p_promo_code: params.promoCode?.trim() || null,
-    });
+    };
+    if (params.redeemFreeReward) {
+      rpcPayload.p_redeem_free_reward = true;
+    }
+    const { data, error } = await client.rpc('quote_cod_order', rpcPayload);
     if (error?.code === '55000' && error.message.includes('v_promo_rule'))
       throw new Error('Checkout verification is temporarily unavailable. Please try again later.');
     if (error) throw error;
@@ -118,11 +152,13 @@ export async function createCodOrder(params: {
   paymentMethod: 'COD';
   items: Line[];
   checkoutRequestId: string;
+  redeemFreeReward?: boolean;
 }): Promise<{ order: OrderConfirmationData | null; error: string | null; refreshQuote?: boolean }> {
   const invalid = cartError(params.items);
-  if (!supabase || invalid || params.paymentMethod !== 'COD')
-    return { order: null, error: invalid || (!supabase ? OFFLINE : 'Select cash on delivery.') };
-  const payload = {
+  const client = await checkoutClient();
+  if (!client || invalid || params.paymentMethod !== 'COD')
+    return { order: null, error: invalid || (!client ? OFFLINE : 'Select cash on delivery.') };
+  const payload: Record<string, unknown> = {
     p_full_name: params.fullName.trim(),
     p_email: params.email.trim().toLowerCase(),
     p_phone: params.phone.trim(),
@@ -136,18 +172,21 @@ export async function createCodOrder(params: {
     p_payment_method: params.paymentMethod,
     p_checkout_request_id: params.checkoutRequestId,
   };
+  if (params.redeemFreeReward) {
+    payload.p_redeem_free_reward = true;
+  }
   try {
     // Never fall back to a signature without duplicate protection, or retry a
     // write automatically. The customer can safely retry with the same request ID.
-    const response = await supabase.rpc('create_cod_order', payload).retry(false);
+    const response = await client.rpc('create_cod_order', payload).retry(false);
     if (response.error?.code === 'PGRST202')
       return { order: null, error: 'Order confirmation is temporarily unavailable. Please try again later.' };
     if (response.error) {
       return {
         order: null,
         error: response.error.message,
-        // A rejected transaction didn't commit. Re-quote in case inventory or a promo has changed.
-        refreshQuote: ['P0001', '23514'].includes(response.error.code),
+        // A rejected transaction didn't commit. Re-quote in case inventory, loyalty or promo changed.
+        refreshQuote: ['P0001', '23514', '23505'].includes(response.error.code),
       };
     }
     if (!receipt(response.data))
@@ -162,6 +201,7 @@ export async function createCodOrder(params: {
     };
   }
 }
+
 export async function fetchOrderConfirmation(
   orderReference: string,
   email: string
@@ -180,20 +220,113 @@ export async function fetchOrderConfirmation(
     return { order: null, error: message(e, 'Order lookup is unavailable.') };
   }
 }
+
+export async function trackOrder(
+  orderReference: string,
+  email: string
+): Promise<{ order: TrackedOrderData | null; error: string | null }> {
+  if (!supabase) return { order: null, error: OFFLINE };
+  const cleanRef = orderReference.trim();
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanRef || !cleanEmail) {
+    return { order: null, error: 'Enter your order number and the email used on the order.' };
+  }
+  try {
+    const { data, error } = await supabase.rpc('track_order', {
+      p_order_reference: cleanRef,
+      p_email: cleanEmail,
+    });
+    if (error?.code === 'PGRST202') {
+      const fallback = await fetchOrderConfirmation(cleanRef, cleanEmail);
+      if (!fallback.order) return { order: null, error: fallback.error };
+      const o = fallback.order;
+      return {
+        order: {
+          order_reference: o.order_reference,
+          status: o.status,
+          tracking: resolveTrackingStage(o.status, o.tracking),
+          payment_method: o.payment_method,
+          subtotal: o.subtotal,
+          shipping_cost: o.shipping_cost,
+          email_discount_amount: o.email_discount_amount,
+          loyalty_discount_amount: o.loyalty_discount_amount,
+          loyalty_free_reward_amount: o.loyalty_free_reward_amount,
+          promo_discount_amount: o.promo_discount_amount,
+          discount_total: o.discount_total,
+          applied_promo_code: o.applied_promo_code,
+          total_amount: o.total_amount,
+          city: o.city,
+          governorate: o.governorate,
+          created_at: o.created_at,
+          updated_at: o.updated_at,
+          items: o.items,
+        },
+        error: null,
+      };
+    }
+    if (error) throw error;
+    if (!data || !data.order_reference || !Array.isArray(data.items)) {
+      return { order: null, error: 'No order matched that order number and email.' };
+    }
+    return {
+      order: {
+        ...(data as TrackedOrderData),
+        tracking: resolveTrackingStage(data.status, data.tracking),
+      },
+      error: null,
+    };
+  } catch (e) {
+    return { order: null, error: message(e, 'Order tracking is unavailable.') };
+  }
+}
+
+export async function fetchCustomerAccountOverview(): Promise<{
+  overview: CustomerAccountOverview | null;
+  error: string | null;
+}> {
+  if (!customerClient) return { overview: null, error: OFFLINE };
+  try {
+    const { data, error } = await customerClient.rpc('get_customer_account_overview');
+    if (error) throw error;
+    if (!data || typeof data !== 'object' || !('profile' in data) || !('loyalty' in data)) {
+      return { overview: null, error: null };
+    }
+    return { overview: data as CustomerAccountOverview, error: null };
+  } catch (e) {
+    return { overview: null, error: message(e, 'Could not load your account details.') };
+  }
+}
+
 export async function subscribeNewsletter(email: string) {
   const normalized = email.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized))
-    return { ok: false, message: 'Enter a valid email address.' };
+    return { ok: false, alreadySubscribed: false, message: 'Enter a valid email address.' };
   if (!supabase)
-    return { ok: false, message: 'Subscriptions are unavailable. Your email has not been saved.' };
+    return {
+      ok: false,
+      alreadySubscribed: false,
+      message: 'Subscriptions are unavailable. Your email has not been saved.',
+    };
   try {
     // INSERT only: the public role must never need SELECT or UPDATE on subscribers.
     const { error } = await supabase.from('newsletter_subscribers').insert({ email: normalized });
     if (error?.code === '23505')
-      return { ok: true, message: 'This address is already on the studio list.' };
+      return {
+        ok: true,
+        alreadySubscribed: true,
+        message: 'This address is already on the studio list.',
+      };
     if (error) throw error;
-    return { ok: true, message: 'You’re on the list. Thank you for subscribing.' };
+    return {
+      ok: true,
+      alreadySubscribed: false,
+      message: 'You’re on the list — your one-time 10% email discount is unlocked for checkout.',
+    };
   } catch (e) {
-    return { ok: false, message: `Subscription not confirmed. ${message(e, 'Please try again.')}` };
+    return {
+      ok: false,
+      alreadySubscribed: false,
+      message: `Subscription not confirmed. ${message(e, 'Please try again.')}`,
+    };
   }
 }
