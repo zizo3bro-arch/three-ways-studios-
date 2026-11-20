@@ -6,6 +6,7 @@ import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { createCodOrder, isVariantId, quoteCodOrder, subscribeNewsletter } from '../lib/api';
 import { EGYPTIAN_GOVERNORATES, formatEGP } from '../lib/format';
 import { refreshCatalog } from '../hooks/useCatalog';
+import { reportOrderPlaced } from '../lib/orderEmails';
 import type { QuoteResponse } from '../types/database';
 
 type QuoteInput = Parameters<typeof quoteCodOrder>[0];
@@ -189,6 +190,9 @@ export function CheckoutPage() {
     }
     clearCart();
     void refreshCatalog();
+    // Transactional order emails are best-effort and never block a saved
+    // order: the confirmation page loads regardless of provider state.
+    void reportOrderPlaced(order);
     // Pass only the lookup email; even a refresh or forged sessionStorage receipt
     // cannot render a confirmation without an actual database lookup.
     navigate(`/order-confirmation/${encodeURIComponent(order.order_reference)}`, {

@@ -48,4 +48,57 @@ npm run test:e2e             # production-mode test build, Chromium + local SQL 
 
 **Deployment:** use the linked GitHub → Vercel project and its existing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`. `vercel.json` preserves SPA rewrites, the content security policy and private admin response headers. Merge by pull request; Vercel builds the production branch. A successful Vercel deployment is not proof that database migrations ran. After applying `007` and `009`, use an approved test customer and address to check a no-promo quote, promo validation, the saved COD receipt total and stock decrement in the same Supabase project. Cancel the test order through the staff console to restore stock; do not place real test orders without coordinating with fulfillment.
 
+## Transactional emails (Resend)
+
+**Provider:** Resend, through its official server-side SDK (`resend`), invoked only from
+the Vercel serverless function `api/send-order-emails.ts`. No email code runs in the
+browser, and `RESEND_API_KEY` never reaches the frontend bundle.
+
+**What is sent after an order is saved in Supabase (`create_cod_order`):**
+1. Customer order confirmation — to the checkout email, from `Three Ways Studios
+   <FROM_EMAIL>`, subject `Order Confirmed — #REF`. Contains the order number,
+   date/time, full item list with product images, color/size, quantities, unit and
+   line prices, subtotal, discounts, shipping, final total, customer name, phone and
+   delivery address, payment method (Cash on Delivery), and a button linking to the
+   existing order receipt at `/order-confirmation/:ref?email=…`.
+2. Studio new-order notification — to `ADMIN_NOTIFICATION_EMAIL`
+   (default `zizo3bro@gmail.com`), from `Three Ways Studios — New Order Notification`,
+   subject `NEW ORDER RECEIVED — #REF`, with customer, address, items, totals and a
+   direct link to the existing Admin Panel at `/admin`.
+
+**Design:** premium responsive HTML (crimson #a5121b, ink #17130f, paper #f2eee6),
+the uploaded logo asset at `public/assets/three-ways-studios-logo.png`, single-column
+layout with a `max-width: 480px` mobile adaptation, plus a plain-text alternative.
+
+**Reliability & idempotency:** migration `014_email_notifications.sql` creates
+`public.email_notifications` — one row per `(order_id, notification_type)` with status
+`pending / sent / failed`. A `sent` row means the email was delivered; page refreshes,
+order re-opens, status changes and endpoint retries never send a duplicate. Failed
+rows are retried by calling the same endpoint again. The order itself is never marked
+failed because the email provider is temporarily unavailable.
+
+**Credentials still required (not yet configured):**
+- `RESEND_API_KEY` — create a Resend API key and set it in Vercel project settings.
+- A verified sender domain in Resend (e.g. `orders@yourdomain.com`); set `FROM_EMAIL`
+  to the verified address. Until a domain is verified, Resend's `onboarding@resend.dev`
+  can be used for test deliveries only.
+- `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` — server-side only, so the function
+  can read the saved order receipt and write the delivery log.
+- `PUBLIC_SITE_URL` — absolute origin used for links and images inside emails.
+- `ADMIN_NOTIFICATION_EMAIL` — defaults to `zizo3bro@gmail.com`.
+
+Add all of the above as server-side environment variables in Vercel (never `VITE_*`,
+never committed to GitHub). Emails are silently skipped until `RESEND_API_KEY` is set,
+so checkout keeps working in the meantime.
+
+**Files changed:** `api/send-order-emails.ts`, `src/lib/emails.ts`,
+`src/lib/orderEmails.ts`, `src/pages/CheckoutPage.tsx`,
+`supabase/migrations/014_email_notifications.sql`, `tsconfig.app.json`,
+`.env.example`, `tests/emails.test.mjs`, `README.md`.
+
+**Production verification:** after the Vercel env vars are set and migration `014` is
+applied, place a controlled test order with a test email address, confirm both emails
+arrive (customer inbox + `zizo3bro@gmail.com`), verify order details, logo and mobile
+layout, then refresh the confirmation page to confirm no duplicate emails are sent.
+
 See the [reference comparison and test scope](docs/design-proof/README.md). Browser tests run against a disposable database with the actual SQL. They do not sign in with real staff credentials, write customer orders or subscribe addresses in production.
