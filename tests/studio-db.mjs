@@ -43,6 +43,7 @@ export async function studioDb({ upgrade = false, legacyCheckout = false } = {})
     await run('migrations/012_loyalty_delivery_unlock.sql');
     await run('migrations/013_console_operations.sql');
   }
+  await run('migrations/014_email_notifications.sql');
   const catalog = [
     [
       'TWS Signature Tee',
