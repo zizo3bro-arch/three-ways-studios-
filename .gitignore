@@ -36,3 +36,6 @@ yarn-error.log*
 # local verification artefacts
 .verify/
 .tmpmeasure/
+
+# local Build-time verification output (Vercel api emulation)
+.api-build/

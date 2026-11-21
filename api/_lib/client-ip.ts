@@ -1,5 +1,5 @@
 import { isIP } from 'node:net';
-import type { ApiRequest } from './types';
+import type { ApiRequest } from './types.js';
 
 export type ClientIpSource =
   | 'x-vercel-forwarded-for'

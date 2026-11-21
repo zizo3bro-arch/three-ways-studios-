@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.api.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": ".api-build",
+    "rootDir": "api",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["api/**/*.ts"]
+}

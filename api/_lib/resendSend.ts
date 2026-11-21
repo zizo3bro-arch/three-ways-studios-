@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import type { ResendFailureReason, SendArgs, SendOutcome } from './types';
+import type { ResendFailureReason, SendArgs, SendOutcome } from './types.js';
 
 export interface ResendSendResult {
   data: { id: string } | null;

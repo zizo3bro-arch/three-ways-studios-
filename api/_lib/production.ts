@@ -5,15 +5,15 @@
  * and api/admin-new-order.ts).
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { OrderClient } from './order';
-import type { HandlerDeps } from './handler';
-import type { NotificationType, EmailEnv, EmailOrder, SendEmailContent, SendArgs, SendOutcome } from './types';
-import { loadEmailEnv } from './env';
-import { resolveClientIp } from './client-ip';
-import { claimEmailNotification, rateLimitCheck, recordEmailOutcome } from './claims';
-import { loadOrderForNotification } from './order';
-import { createResendTransport, classifyResendOutcome } from './resendSend';
-import { buildAdminNewOrderEmailHtml, buildCustomerConfirmationEmailHtml } from './emails';
+import type { OrderClient } from './order.js';
+import type { HandlerDeps } from './handler.js';
+import type { NotificationType, EmailEnv, EmailOrder, SendEmailContent, SendArgs, SendOutcome } from './types.js';
+import { loadEmailEnv } from './env.js';
+import { resolveClientIp } from './client-ip.js';
+import { claimEmailNotification, rateLimitCheck, recordEmailOutcome } from './claims.js';
+import { loadOrderForNotification } from './order.js';
+import { createResendTransport, classifyResendOutcome } from './resendSend.js';
+import { buildAdminNewOrderEmailHtml, buildCustomerConfirmationEmailHtml } from './emails.js';
 
 function orderClientFor(client: SupabaseClient): OrderClient {
   return {

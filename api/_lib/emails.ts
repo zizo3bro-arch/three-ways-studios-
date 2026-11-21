@@ -1,4 +1,4 @@
-import type { EmailOrder, EmailLineItem } from './types';
+import type { EmailOrder, EmailLineItem } from './types.js';
 
 export function esc(value: unknown): string {
   return String(value ?? '')

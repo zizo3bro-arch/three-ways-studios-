@@ -1,4 +1,4 @@
-import type { EmailEnv } from './types';
+import type { EmailEnv } from './types.js';
 
 /**
  * Server-side environment for the email functions. Everything is trimmed;

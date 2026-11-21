@@ -2,7 +2,7 @@
  * Load the order (+ line items) needed to construct an email, server-side.
  * Never returns data supplied by the request body.
  */
-import type { EmailLineItem, EmailOrder } from './types';
+import type { EmailLineItem, EmailOrder } from './types.js';
 
 export interface OrderClient {
   from(table: string): {

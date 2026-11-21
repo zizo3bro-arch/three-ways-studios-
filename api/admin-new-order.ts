@@ -5,9 +5,9 @@
  * as above. The ONLY recipient is the server-configured studio inbox
  * (ADMIN_NOTIFICATION_EMAIL) — never a value from the request body.
  */
-import { handleOrderNotificationRequest } from './_lib/handler';
-import { createProductionDeps } from './_lib/production';
-import type { ApiRequest, ApiResponse } from './_lib/types';
+import { handleOrderNotificationRequest } from './_lib/handler.js';
+import { createProductionDeps } from './_lib/production.js';
+import type { ApiRequest, ApiResponse } from './_lib/types.js';
 
 const deps = createProductionDeps('admin-new-order');
 
