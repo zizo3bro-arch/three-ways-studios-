@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Banknote, CheckCircle2, Printer } from 'lucide-react';
 import { fetchOrderConfirmation } from '../lib/api';
+import { announceOrderConfirmationEmail } from '../lib/emailNotifications';
 import { formatEGP } from '../lib/format';
 import { ORDER_TRACKING_STEPS, resolveTrackingStage } from '../lib/orderTracking';
 import type { OrderConfirmationData } from '../types/database';
@@ -39,6 +40,16 @@ export function OrderConfirmationPage() {
       current = false;
     };
   }, [orderRef, initialEmail]);
+
+  const notifiedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    // Best-effort: if checkout crashed/aborted between placing the order and
+    // the emails firing, landing on the receipt re-attempts the confirmation
+    // email. Safe: the server's claim token + idempotency key prevent duplicates.
+    if (!order?.order_id || notifiedForRef.current === order.order_id) return;
+    notifiedForRef.current = order.order_id;
+    void announceOrderConfirmationEmail(order.order_id);
+  }, [order]);
 
   useEffect(() => {
     document.title = orderRef

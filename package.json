@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc -b --force",
-    "test": "node --test tests/commerce.test.mjs tests/loyalty-rewards.test.mjs tests/loyalty-unlock.test.mjs tests/console.test.mjs tests/frontend.test.mjs",
+    "test": "node --test tests/commerce.test.mjs tests/loyalty-rewards.test.mjs tests/loyalty-unlock.test.mjs tests/console.test.mjs tests/frontend.test.mjs tests/email-notifications-unit.test.mjs tests/email-notifications-db.test.mjs tests/email-notifications-handler.test.mjs",
     "test:e2e": "playwright test",
     "test:visual": "playwright test tests/visual.spec.mjs"
   },
@@ -22,12 +22,14 @@
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.2.0"
+    "react-router-dom": "^7.2.0",
+    "resend": "^6.39.0"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.16",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.0.9",
+    "@types/node": "^22.20.5",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",

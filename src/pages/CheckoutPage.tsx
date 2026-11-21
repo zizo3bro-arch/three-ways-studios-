@@ -4,6 +4,7 @@ import { ArrowRight, Gift } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { createCodOrder, isVariantId, quoteCodOrder, subscribeNewsletter } from '../lib/api';
+import { announceOrderEmails } from '../lib/emailNotifications';
 import { EGYPTIAN_GOVERNORATES, formatEGP } from '../lib/format';
 import { refreshCatalog } from '../hooks/useCatalog';
 import type { QuoteResponse } from '../types/database';
@@ -187,6 +188,9 @@ export function CheckoutPage() {
     } catch {
       // The order is already saved.
     }
+    // Best-effort email notifications. The claim tokens + idempotency keys on
+    // the server make re-triggering safe; the receipt comes from the database.
+    void announceOrderEmails(order.order_id);
     clearCart();
     void refreshCatalog();
     // Pass only the lookup email; even a refresh or forged sessionStorage receipt
