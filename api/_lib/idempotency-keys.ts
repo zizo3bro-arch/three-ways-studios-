@@ -1,4 +1,4 @@
-import type { NotificationType } from './types';
+import type { NotificationType } from './types.js';
 
 /**
  * Resend's Idempotency-Key contract (https://resend.com/docs/dashboard/emails/idempotency-keys):

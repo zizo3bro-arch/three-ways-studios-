@@ -6,9 +6,9 @@
  * the order row and nothing from the request can influence the content,
  * recipient or sender. Responses are minimal and never echo addresses.
  */
-import { handleOrderNotificationRequest } from './_lib/handler';
-import { createProductionDeps } from './_lib/production';
-import type { ApiRequest, ApiResponse } from './_lib/types';
+import { handleOrderNotificationRequest } from './_lib/handler.js';
+import { createProductionDeps } from './_lib/production.js';
+import type { ApiRequest, ApiResponse } from './_lib/types.js';
 
 const deps = createProductionDeps('order-confirmation');
 

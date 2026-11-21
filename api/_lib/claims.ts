@@ -3,7 +3,7 @@
  * Every claim/outcome goes through the SECURITY DEFINER functions from
  * migration 014; these wrappers are the only path the API endpoints use.
  */
-import type { NotificationType } from './types';
+import type { NotificationType } from './types.js';
 
 export async function rateLimitCheck(
   rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message?: string } | null }>,

@@ -18,11 +18,11 @@
  *  10. record the outcome conditionally on the claim token
  *  11. safe minimal response — never echoes customer/admin addresses
  */
-import type { ClientIpResolution } from './client-ip';
-import type { ClaimResult } from './claims';
-import { hasJsonContentType, InvalidJsonError, BodyTooLargeError, jsonError, readJsonBody, sendJson } from './http';
-import { idempotencyKeyMatches, isValidIdempotencyKey } from './idempotency-keys';
-import type { EmailEnv, EmailOrder, NotificationType, SendArgs, SendEmailContent, SendOutcome, ApiRequest, ApiResponse } from './types';
+import type { ClientIpResolution } from './client-ip.js';
+import type { ClaimResult } from './claims.js';
+import { hasJsonContentType, InvalidJsonError, BodyTooLargeError, jsonError, readJsonBody, sendJson } from './http.js';
+import { idempotencyKeyMatches, isValidIdempotencyKey } from './idempotency-keys.js';
+import type { EmailEnv, EmailOrder, NotificationType, SendArgs, SendEmailContent, SendOutcome, ApiRequest, ApiResponse } from './types.js';
 
 export const ALLOWED_BODY_KEYS = ['order_id'] as const;
 

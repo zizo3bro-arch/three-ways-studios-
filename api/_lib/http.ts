@@ -1,4 +1,4 @@
-import type { ApiRequest, ApiResponse } from './types';
+import type { ApiRequest, ApiResponse } from './types.js';
 
 export const BODY_LIMIT_BYTES = 16 * 1024;
 
