@@ -40,7 +40,15 @@ export type EnvLoadResult =
 export function loadEmailEnv(
   env: Record<string, string | undefined> = process.env
 ): EnvLoadResult {
-  const supabaseUrl = read('SUPABASE_URL', env) || read('VITE_SUPABASE_URL', env);
+  // SUPABASE_URL wins over the public VITE_ variable, so a wrong but present
+  // SUPABASE_URL silently overrides a working one. The chosen source is
+  // reported by the diagnostics (api/_lib/production.ts), never a value.
+  const explicitSupabaseUrl = read('SUPABASE_URL', env);
+  const publicSupabaseUrl = read('VITE_SUPABASE_URL', env);
+  const supabaseUrl = explicitSupabaseUrl || publicSupabaseUrl;
+  const supabaseUrlSource: 'SUPABASE_URL' | 'VITE_SUPABASE_URL' = explicitSupabaseUrl
+    ? 'SUPABASE_URL'
+    : 'VITE_SUPABASE_URL';
   const serviceRoleKey = read('SUPABASE_SERVICE_ROLE_KEY', env);
   const resendApiKey = read('RESEND_API_KEY', env);
   const resendFrom = read('RESEND_FROM_EMAIL', env);
@@ -75,6 +83,7 @@ export function loadEmailEnv(
     ok: true,
     env: {
       supabaseUrl: url.origin,
+      supabaseUrlSource,
       serviceRoleKey,
       resendApiKey,
       resendFrom,
