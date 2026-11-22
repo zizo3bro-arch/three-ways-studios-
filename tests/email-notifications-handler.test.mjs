@@ -73,11 +73,18 @@ async function makeOrder(db, orderId = ORDER_ID, name = 'Integration Buyer') {
   await db.query(
     `insert into orders(id, order_reference, customer_id, customer_name, customer_email,
                         customer_phone, governorate, city, delivery_address, payment_method,
-                        subtotal, total_amount)
+                        subtotal, shipping_cost, total_amount)
      values ($1, 'TWS-2026-IT001', $2, $3, 'integration@example.test',
-             '01000000000', 'Cairo', 'Cairo', 'Test address', 'COD', 100, 100)
+             '01000000000', 'Cairo', 'Cairo', 'Test address', 'COD', 200, 75, 275)
      on conflict (id) do nothing`,
     [orderId, CUSTOMER_ID, name]
+  );
+  await db.query(
+    `insert into order_items(order_id, product_name, product_slug, color_name, size_name,
+                             unit_price, quantity, line_total)
+     select $1, 'Integration Tee', 'integration-tee', 'Black', 'L', 100, 2, 200
+     where not exists (select 1 from order_items where order_id = $1)`,
+    [orderId]
   );
 }
 
@@ -86,11 +93,11 @@ async function makeOrder(db, orderId = ORDER_ID, name = 'Integration Buyer') {
  * it stands in for the network and returns whatever Resend would have
  * returned (or throws).
  */
-async function realPipeline(db, handleFetch) {
+async function realPipeline(db, handleFetch, notificationType = 'order-confirmation') {
   const { handleOrderNotificationRequest } = await load('/api/_lib/handler.ts');
   const { createResendTransport, classifyResendOutcome } = await load('/api/_lib/resendSend.ts');
   const { buildTestEnv } = await load('/api/_lib/env.ts');
-  const { buildCustomerConfirmationEmailHtml } = await load('/api/_lib/emails.ts');
+  const { buildCustomerConfirmationEmailHtml, buildAdminNewOrderEmailHtml } = await load('/api/_lib/emails.ts');
   const { rateLimitCheck, claimEmailNotification, recordEmailOutcome } = await load('/api/_lib/claims.ts');
   const env = buildTestEnv({ claimLeaseSeconds: 120, ipLimit: 200, orderLimit: 200 });
 
@@ -174,17 +181,23 @@ async function realPipeline(db, handleFetch) {
   globalThis.fetch = handleFetch;
 
   const deps = {
-    notificationType: 'order-confirmation',
+    notificationType,
     loadEnv: async () => ({ ok: true, env }),
     resolveIp: () => ({ ip: '203.0.113.7', source: 'x-vercel-forwarded-for', trusted: true }),
     rateLimit: async (key, limit, windowSeconds) => rateLimitCheck(trackingRpc, key, limit, windowSeconds),
-    claim: async (orderId, leaseSeconds) => claimEmailNotification(trackingRpc, orderId, 'order-confirmation', leaseSeconds),
+    claim: async (orderId, leaseSeconds) => claimEmailNotification(trackingRpc, orderId, notificationType, leaseSeconds),
     recordOutcome: async (orderId, status, opts, claimToken) =>
-      recordEmailOutcome(trackingRpc, orderId, 'order-confirmation', claimToken, status, opts),
+      recordEmailOutcome(trackingRpc, orderId, notificationType, claimToken, status, opts),
     loadOrder,
     buildEmail: (order, env2) => {
-      const { subject, html } = buildCustomerConfirmationEmailHtml(order);
-      return { from: env2.resendFrom, to: order.customer_email, subject, html };
+      const { subject, html } = notificationType === 'admin-new-order'
+        ? buildAdminNewOrderEmailHtml(order)
+        : buildCustomerConfirmationEmailHtml(order);
+      const to = notificationType === 'admin-new-order'
+        ? env2.adminNotificationEmail
+        : order.customer_email;
+      if (!to) return { error: 'missing-admin-inbox' };
+      return { from: env2.resendFrom, to, subject, html };
     },
     sendEmail: async (args) => {
       const transport = createResendTransport(env.resendApiKey);
@@ -252,6 +265,75 @@ test('handler+db: real order sent → row transitioned to sent with resend_id', 
   assert.equal(row.status, 'sent');
   assert.equal(row.resend_id, 'resend-email-id-1');
   assert.equal(row.last_error, null);
+});
+
+test('handler+db: committed pending order sends complete customer + admin payloads and records both outcomes', async (t) => {
+  const db = await studioDb();
+  t.after(() => db.close());
+  await makeOrder(db);
+
+  const captured = [];
+  const mockResend = async (_url, init) => {
+    captured.push(JSON.parse(init.body));
+    return new Response(JSON.stringify({ id: `mock-resend-${captured.length}` }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  const customerPipeline = await realPipeline(db, mockResend, 'order-confirmation');
+  const customerRes = fakeRes();
+  await customerPipeline.handler(customerPipeline.deps, fakeReq({ order_id: ORDER_ID }), customerRes);
+  customerPipeline.restore();
+
+  const adminPipeline = await realPipeline(db, mockResend, 'admin-new-order');
+  const adminRes = fakeRes();
+  await adminPipeline.handler(adminPipeline.deps, fakeReq({ order_id: ORDER_ID }), adminRes);
+  adminPipeline.restore();
+
+  assert.equal(customerRes.statusCode, 200);
+  assert.equal(adminRes.statusCode, 200);
+  assert.equal(captured.length, 2, 'one mocked provider call per notification type');
+
+  const customer = captured.find((message) => message.to === 'integration@example.test');
+  const admin = captured.find((message) => message.to === 'admin@test-project.supabase.co');
+  assert.ok(customer, 'customer payload uses the committed order email');
+  assert.ok(admin, 'admin payload uses the server-configured inbox');
+  assert.match(customer.subject, /Order confirmation.*TWS-2026-IT001/);
+  assert.match(customer.html, /has been received/);
+  assert.match(customer.html, /Integration Tee/);
+  assert.match(customer.html, /EGP 275\.00/);
+
+  for (const fact of [
+    'TWS-2026-IT001',
+    'Integration Buyer',
+    'integration@example.test',
+    '01000000000',
+    'Test address',
+    'Integration Tee',
+    'Unit price',
+    'EGP 100.00',
+    'EGP 200.00',
+    'Shipping',
+    'EGP 75.00',
+    'EGP 275.00',
+    'Status: pending',
+  ]) assert.ok(admin.html.includes(fact), `admin payload includes ${fact}`);
+
+  const { rows: notifications } = await db.query(
+    `select notification_type, status, resend_id
+       from email_notifications
+      where order_id = $1
+      order by notification_type`,
+    [ORDER_ID]
+  );
+  assert.deepEqual(notifications, [
+    { notification_type: 'admin-new-order', status: 'sent', resend_id: 'mock-resend-2' },
+    { notification_type: 'order-confirmation', status: 'sent', resend_id: 'mock-resend-1' },
+  ]);
+
+  const order = (await db.query('select status from orders where id = $1', [ORDER_ID])).rows[0];
+  assert.equal(order.status, 'pending', 'email handling does not accept or advance the order');
 });
 
 test('handler+db: 409 concurrent conflict → transient, claim preserved (503)', async (t) => {
