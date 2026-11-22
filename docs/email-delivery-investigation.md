@@ -260,3 +260,105 @@ key and the service-role key never appear in a log line.
    with the same version Vercel uses. If Vercel changes parsers, revisit.
 3. **`/api/email-health` is public.** It reveals only booleans and the deployed
    commit — the same information a reader of this repository has.
+
+---
+
+# Round 2 — `503 rate-limit-unavailable` (2026-11-22)
+
+After the round-1 deployment (`977b898`) the routes were finally invoked — and
+both answered `503` with `outcome: "rate-limit-unavailable"`. That refusal
+happens **before** the order load, before the claim and before Resend, so it is
+the rate limiter's own failure path. This round asked for the exact cause.
+
+## 10. What the deployed database proves
+
+Read-only queries against the production project (`nujowlxvfpklylhglzse`),
+chronological, nothing written:
+
+| Check | Result |
+| --- | --- |
+| `public.rate_limit_check(text,integer,integer,boolean,integer,integer)` | exists **once**, `SECURITY DEFINER`, owner `postgres`, `search_path = public, pg_temp`, ACL `{postgres=X, service_role=X}`, `has_function_privilege('service_role', …) = true` |
+| `claim_email_notification`, `record_email_outcome`, `cleanup_rate_limit_buckets` | present, executable by `service_role` |
+| `rate_limit_buckets`, `email_notifications` | RLS enabled, `service_role` has INSERT/SELECT/UPDATE, schema `public` USAGE granted |
+| Row counts | `rate_limit_buckets` = **0**, `email_notifications` = **0** |
+| `pg_stat_statements` (reset 2026-11-16, `dealloc = 0`) | PostgREST statements exist for `create_cod_order`, but **zero** statements mention `rate_limit_check`, `claim_email_notification` or `record_email_outcome` |
+| PostgREST schema cache | event triggers `pgrst_ddl_watch` / `pgrst_drop_watch` exist and `NOTIFY pgrst, 'reload schema'` on `CREATE FUNCTION` / `ALTER FUNCTION` |
+| Roles | `service_role` has no rogue `role`/`db` settings; no long-running or locking sessions |
+
+`rate_limit_check` inserts a bucket row on every call, and the table is empty,
+so the function has **never executed**. Together with the statement-statistics
+gap the conclusion is narrow and strong:
+
+> The failure is **not** a missing object, a missing grant, an RLS policy, an
+> argument mismatch (`PGRST203`) or a stale schema cache (`PGRST202`). It is
+> that the RPC request never becomes a query inside Postgres at all.
+
+That leaves the request itself: a rejected credential (`401` "Invalid API key"
+/ `PGRST301`, or `42501` when an anon key is used as a service key), a URL that
+is not this project's REST endpoint (a `db.`/pooler host, another project), or a
+transport failure. **All three were invisible**, because `api/_lib/production.ts`
+mapped `{ data, error }` to `{ message }` and `api/_lib/claims.ts` turned any
+error into `null` → `503 rate-limit-unavailable` with no log line. The code
+destroyed the only evidence.
+
+## 11. The fix (diagnosis, not bypass)
+
+Fail-closed behaviour is unchanged: a failing limiter still yields `503`, no
+claim, no email, no cached allow. What changed is that the refusal now says why.
+
+* `api/_lib/log.ts` — `sanitizeDiagnostic()` (redacts JWT-shaped and
+  `sb_secret_`/`sb_publishable_` strings, strips newlines, caps length),
+  `describeKey()` (JWT `role` + `ref`, or the key's format — never the key) and
+  `hostOf()`.
+* `api/_lib/production.ts` — one `config` event per cold start
+  (`supabase_host`, `supabase_url_source`, `key_format`, `key_role`,
+  `key_project_matches_url`, `admin_inbox_configured`); every RPC now logs
+  `rpc-error` with `fn`, `http_status`, `code`, sanitized `message`/`hint`, and
+  `rpc-skipped` if the client was never built. `POST /rest/v1/rpc/…` requests
+  that throw are caught and logged instead of vanishing in `claims.ts`.
+* `api/_lib/env.ts` + `types.ts` — record whether the URL came from
+  `SUPABASE_URL` or the public `VITE_SUPABASE_URL` fallback (a wrong but
+  present `SUPABASE_URL` silently wins over a working fallback).
+* `api/email-health.ts` — reports the same host/credential shape, and
+  `?probe=1` performs one read-only `HEAD /rest/v1/products` through the
+  production service-role client. That answers "do the deployed credentials
+  work?" **without placing an order**.
+
+## 12. How to read the result
+
+Open `https://three-ways-studios.vercel.app/api/email-health?probe=1`.
+
+| `supabase_probe` / log | Meaning | Fix |
+| --- | --- | --- |
+| `ok: true` + `rpc-error` `PGRST202` / `function … in the schema cache` | credential and URL are good; PostgREST does not expose the function | reload the schema cache (`NOTIFY pgrst, 'reload schema'`), no code change |
+| `ok: false`, `code: PGRST301`, message "Invalid API key" | `SUPABASE_SERVICE_ROLE_KEY` is not valid for this project | replace it with the project's `service_role` secret |
+| `ok: false`, `code: 42501`, "permission denied for function" | an anon key was used as the service key | use the `service_role` key (`key_role: "anon"` is in the `config` line) |
+| `ok: false`, `code: PGRST205`/`404`, host is not `<ref>.supabase.co` | `SUPABASE_URL` points at a wrong host/project (`key_project_matches_url: false` confirms it) | point `SUPABASE_URL` at `https://<ref>.supabase.co` |
+| `ok: false`, `message` contains `fetch failed`, `ENOTFOUND`, `EAI_AGAIN` | DNS/egress from the function to `*.supabase.co` | platform/network fix, not code |
+
+No environment value, no migration and no deploy is included in this change:
+the branch only adds diagnostics and the read-only probe. Deciding the fix for
+the row above is a separate, approved step.
+
+## 13. Tests added (`tests/email-rpc-diagnostics.test.mjs`, 12 tests)
+
+* `describeKey` on a legacy service JWT, an anon JWT, a JWT from another
+  project, `sb_secret_…`, `sb_publishable_…`, empty and garbage keys — and it
+  never returns any part of the key.
+* `sanitizeDiagnostic` redacts JWTs and new-style keys, strips newlines, caps
+  length; `hostOf` never invents a host.
+* A `PGRST202` rejection produces a `config` event (host, URL source, key
+  shape, role, project match) **and** an `rpc-error` event, the limiter still
+  returns `null`, and no log line contains the key, the Resend key, the admin
+  address or the order id.
+* The full handler still answers `503 rate-limit-unavailable`, logs
+  `rpc-error` with `PGRST301`, and never calls the email transport.
+* A transport failure (`fetch failed`) is logged with its name and message
+  instead of disappearing.
+* A key from another project shows `key_project_matches_url: false`; an anon
+  key shows `key_role: "anon"` and the `42501` it causes.
+* `SUPABASE_URL` absent → `supabase_url_source: "VITE_SUPABASE_URL"`.
+* `/api/email-health` makes **no** database request by default, exactly one
+  read-only `HEAD /rest/v1/products` with `?probe=1`, reports a failing
+  credential as `supabase_probe.ok: false` with the error code, and never
+  echoes the key.

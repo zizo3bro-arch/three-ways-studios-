@@ -62,8 +62,24 @@ page, so a committed order could silently produce no email and no log at all).
   single-line JSON with `scope: "tws-email-api"` — invocation, status, outcome
   code, duration, order tag. No customer data, no addresses, no secrets.
 * `GET /api/email-health` answers JSON (`routed_to_function`, `commit`,
-  `environment`, env booleans). HTML instead of JSON means `/api/*` is being
-  rewritten to `index.html`; 404 means the functions are not deployed.
+  `environment`, env booleans, `supabase_host`, `supabase_url_source`, and the
+  credential shape `{ format, role, project_matches_url }`). HTML instead of
+  JSON means `/api/*` is being rewritten to `index.html`; 404 means the
+  functions are not deployed.
+* `GET /api/email-health?probe=1` additionally issues **one read-only**
+  `HEAD /rest/v1/products` through the same service-role client the
+  notification endpoints use, and returns `supabase_probe`
+  (`ok`, `latency_ms`, or the sanitized PostgREST `code` / `message` / `hint`).
+  It separates "the route is fine, the server credential/URL is wrong" from
+  "the database refuses the RPC" without creating an order, claiming a
+  notification, sending an email or writing anything.
+* Both functions log one `config` event per cold start (`supabase_host`,
+  `supabase_url_source`, `key_format`, `key_role`,
+  `key_project_matches_url`, `admin_inbox_configured`) and an `rpc-error`
+  event whenever a Supabase RPC is rejected (`fn`, `http_status`, `code`,
+  sanitized `message` / `hint`, plus `rpc-skipped` when the client was never
+  built). Errors are still mapped to `null` → fail-closed 503; only the
+  diagnosis is new.
 * `vercel.json`'s SPA fallback is `"source": "/((?!api/).*)"` so no `/api/*`
   request can ever be answered by `index.html`. `tests/vercel-routing.test.mjs`
   compiles every rewrite source with `path-to-regexp@6.1.0` (Vercel's parser).
@@ -171,7 +187,8 @@ Migration 014 installs `public.rate_limit_check(p_key, p_limit, p_window_seconds
   harness that does not exist in this sandbox.
 - **Fail-closed**: if the limiter itself is unavailable (RPC error), the
   endpoint returns 503 `rate-limit-unavailable` and never contacts Resend.
-  No silent fail-open path exists.
+  No silent fail-open path exists. The refusal is now diagnosable: the
+  discarded PostgREST error is logged as `rpc-error` (see §6).
 
 ## 3. Client IP
 
