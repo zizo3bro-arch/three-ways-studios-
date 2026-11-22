@@ -4,7 +4,6 @@ import { ArrowRight, Gift } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useCustomerAuth } from '../context/CustomerAuthContext';
 import { createCodOrder, isVariantId, quoteCodOrder, subscribeNewsletter } from '../lib/api';
-import { announceOrderEmails } from '../lib/emailNotifications';
 import { EGYPTIAN_GOVERNORATES, formatEGP } from '../lib/format';
 import { refreshCatalog } from '../hooks/useCatalog';
 import type { QuoteResponse } from '../types/database';
@@ -188,9 +187,15 @@ export function CheckoutPage() {
     } catch {
       // The order is already saved.
     }
-    // Best-effort email notifications. The claim tokens + idempotency keys on
-    // the server make re-triggering safe; the receipt comes from the database.
-    void announceOrderEmails(order.order_id);
+    // Diagnostic only — no customer data, no order contents. `createCodOrder`
+    // already fired the email trigger from the RPC response; this line proves
+    // the UI reached the success branch so a missing trigger can be told apart
+    // from a missing success branch in the browser console.
+    try {
+      console.info('[tws:checkout] order-confirmed', { orderTag: order.order_id.slice(0, 8) });
+    } catch {
+      // logging must never affect checkout
+    }
     clearCart();
     void refreshCatalog();
     // Pass only the lookup email; even a refresh or forged sessionStorage receipt
