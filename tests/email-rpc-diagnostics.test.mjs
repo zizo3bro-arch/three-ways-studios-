@@ -502,6 +502,28 @@ test('email-health?probe=1 reports the credential failure without leaking it', a
   });
 });
 
+test('email-health probes Supabase even when an unrelated Resend variable is missing', async () => {
+  await withEnv({ ...COMPLETE_ENV, RESEND_FROM_EMAIL: undefined }, async () => {
+    await withFetch(
+      () => new Response('', { status: 200, headers: { 'content-range': '0-0/0' } }),
+      async (calls) => {
+        const { default: handler } = await load('/api/email-health.ts');
+        const res = fakeRes();
+        await captureLogs(() =>
+          handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+        );
+        const body = res.json();
+        assert.equal(body.env.configured, false);
+        assert.equal(body.env.reason, 'missing-resend-from-email');
+        assert.equal(body.supabase_probe.ok, true);
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0].method, 'HEAD');
+        assert.ok(!JSON.stringify(body).includes(SERVICE_KEY));
+      }
+    );
+  });
+});
+
 test('email-health without configuration reports the reason and never probes', async () => {
   const blank = {
     SUPABASE_URL: undefined,

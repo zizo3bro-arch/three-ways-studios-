@@ -43,6 +43,45 @@ interface ProbeResult {
   hint?: string | null;
 }
 
+type ProbeConfig =
+  | {
+      ok: true;
+      supabaseUrl: string;
+      serviceRoleKey: string;
+      source: 'SUPABASE_URL' | 'VITE_SUPABASE_URL';
+    }
+  | { ok: false; reason: 'missing-supabase-url' | 'missing-service-role-key' | 'invalid-supabase-url' };
+
+/**
+ * The connectivity probe must remain usable when an unrelated mail variable is
+ * missing. Using loadEmailEnv() here used to suppress ?probe=1 whenever, for
+ * example, RESEND_FROM_EMAIL was absent — exactly when diagnostics are needed.
+ */
+function loadProbeConfig(
+  source: Record<string, string | undefined> = process.env
+): ProbeConfig {
+  const explicitUrl = source.SUPABASE_URL?.trim() ?? '';
+  const publicUrl = source.VITE_SUPABASE_URL?.trim() ?? '';
+  const rawUrl = explicitUrl || publicUrl;
+  const serviceRoleKey = source.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? '';
+  if (!rawUrl) return { ok: false, reason: 'missing-supabase-url' };
+  if (!serviceRoleKey) return { ok: false, reason: 'missing-service-role-key' };
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'https:' || url.username || url.password) {
+      return { ok: false, reason: 'invalid-supabase-url' };
+    }
+    return {
+      ok: true,
+      supabaseUrl: url.origin,
+      serviceRoleKey,
+      source: explicitUrl ? 'SUPABASE_URL' : 'VITE_SUPABASE_URL',
+    };
+  } catch {
+    return { ok: false, reason: 'invalid-supabase-url' };
+  }
+}
+
 function wantsProbe(url: string | undefined): boolean {
   if (!url) return false;
   const query = url.includes('?') ? url.slice(url.indexOf('?') + 1) : '';
@@ -116,14 +155,31 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     }
 
     const env = loadEmailEnv();
+    const probeConfig = loadProbeConfig();
     const vercelEnv = process.env.VERCEL_ENV;
-    const host = env.ok ? hostOf(env.env.supabaseUrl) : null;
-    const key = env.ok ? describeKey(env.env.serviceRoleKey) : null;
-    // Resolve the probe before serialising so `env` stays narrowed (no `!`).
-    let probeResult: ProbeResult | 'not-requested (add ?probe=1)' = 'not-requested (add ?probe=1)';
-    if (env.ok && wantsProbe(req.url)) {
-      probeResult = await probeSupabase(env.env.supabaseUrl, env.env.serviceRoleKey);
+    const host = probeConfig.ok ? hostOf(probeConfig.supabaseUrl) : null;
+    const key = probeConfig.ok ? describeKey(probeConfig.serviceRoleKey) : null;
+    let probeResult: ProbeResult | string = 'not-requested (add ?probe=1)';
+    if (wantsProbe(req.url)) {
+      probeResult = probeConfig.ok
+        ? await probeSupabase(probeConfig.supabaseUrl, probeConfig.serviceRoleKey)
+        : `unavailable: ${probeConfig.reason}`;
     }
+
+    const envStatus = env.ok
+      ? {
+          configured: true,
+          admin_inbox_configured: Boolean(env.env.adminNotificationEmail),
+          supabase_host: host,
+          supabase_url_source: probeConfig.ok ? probeConfig.source : 'unknown',
+          key: {
+            format: key?.format ?? 'unknown',
+            role: key?.role ?? null,
+            project_matches_url:
+              host && key?.projectRef ? host.startsWith(`${key.projectRef}.`) : null,
+          },
+        }
+      : { configured: false, reason: env.reason };
 
     sendJson(res, 200, {
       ok: true,
@@ -138,20 +194,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
       booted_at: BOOTED_AT,
       time: new Date().toISOString(),
       // Booleans, a host and a credential SHAPE only: never a value.
-      env: env.ok
-        ? {
-            configured: true,
-            admin_inbox_configured: Boolean(env.env.adminNotificationEmail),
-            supabase_host: host,
-            supabase_url_source: env.env.supabaseUrlSource ?? 'unknown',
-            key: {
-              format: key?.format ?? 'unknown',
-              role: key?.role ?? null,
-              project_matches_url:
-                host && key?.projectRef ? host.startsWith(`${key.projectRef}.`) : null,
-            },
-          }
-        : { configured: false, reason: env.reason },
+      env: envStatus,
       supabase_probe: probeResult,
       endpoints: ['/api/order-confirmation', '/api/admin-new-order'],
     });
