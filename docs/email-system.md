@@ -33,10 +33,40 @@ api/
 supabase/migrations/014_email_notifications.sql
   email_notifications (claim ownership + conditional outcome recording)
   rate_limit_buckets (atomic per-key fixed-window limiter)
-src/lib/emailNotifications.ts  fire-and-forget browser trigger
-src/pages/CheckoutPage.tsx     places the order → triggers both emails
+api/email-health.ts           GET-only, secret-free routing/env/commit diagnostics
+api/_lib/log.ts               PII-free request logging (one JSON line per event)
+src/lib/emailNotifications.ts  fire-and-forget browser trigger + diagnostics
+src/lib/codCommit.ts           the order-commit path: write → announce → receipt guard
+src/lib/api.ts                 createCodOrder delegates to codCommit
+src/pages/CheckoutPage.tsx     places the order (no longer owns the trigger)
 src/pages/OrderConfirmationPage.tsx  landing on the receipt re-attempts the customer email (never the admin one)
 ```
+
+### Where the trigger runs, and why
+
+The emails are announced **from the commit path**, not from a UI component:
+`src/lib/codCommit.ts` calls the trigger as soon as `create_cod_order` answers
+without an error — before, and independently of, the receipt guard the UI needs.
+See `docs/email-delivery-investigation.md` for the incident that made this
+necessary (the trigger used to sit behind `if (!order) return;` in the checkout
+page, so a committed order could silently produce no email and no log at all).
+
+### Diagnostics (added 2026-11-22)
+
+* The browser logs one line per attempt: `[tws:email] trigger|request-accepted|
+  request-rejected|request-failed|endpoint-not-reachable`, carrying the endpoint,
+  an 8-character order tag, the HTTP status, the response content-type, the
+  elapsed time and a reason code. `endpoint-not-reachable` + `html-response`
+  means the SPA fallback answered `/api/*` (routing, not Resend).
+* Both functions log `request-start` / `order-accepted` / `request-complete` as
+  single-line JSON with `scope: "tws-email-api"` — invocation, status, outcome
+  code, duration, order tag. No customer data, no addresses, no secrets.
+* `GET /api/email-health` answers JSON (`routed_to_function`, `commit`,
+  `environment`, env booleans). HTML instead of JSON means `/api/*` is being
+  rewritten to `index.html`; 404 means the functions are not deployed.
+* `vercel.json`'s SPA fallback is `"source": "/((?!api/).*)"` so no `/api/*`
+  request can ever be answered by `index.html`. `tests/vercel-routing.test.mjs`
+  compiles every rewrite source with `path-to-regexp@6.1.0` (Vercel's parser).
 
 Nothing here runs in the browser except the two fire-and-forget triggers in
 `src/lib/emailNotifications.ts`. The Resend API key and the Supabase service
@@ -297,7 +327,8 @@ the row claimable (status stays `claimed`) with the error recorded.
   fired at order placement, so the studio inbox is not spammed on every
   page view. This is the one deliberate asymmetry with the checkout path.
 - Both triggers are fire-and-forget: receipts come from the database, not
-  from any email.
+  from any email. Neither can block, reject or invalidate a committed order,
+  and neither can fail without leaving a diagnostic line (see above).
 
 ## 9. Tests
 

@@ -1,4 +1,6 @@
 import { customerClient } from './customerClient';
+import { commitCodOrder, isOrderReceipt } from './codCommit';
+import { announceOrderEmails } from './emailNotifications';
 import { resolveTrackingStage } from './orderTracking';
 import { supabase } from './supabase';
 import type {
@@ -123,18 +125,6 @@ export async function quoteCodOrder(params: {
   }
 }
 
-function receipt(data: OrderConfirmationData | null): data is OrderConfirmationData {
-  return Boolean(
-    data &&
-      UUID.test(data.order_id) &&
-      data.order_reference &&
-      data.payment_method === 'COD' &&
-      Number.isFinite(data.total_amount) &&
-      Array.isArray(data.items) &&
-      data.items.length
-  );
-}
-
 export async function createCodOrder(params: {
   fullName: string;
   email: string;
@@ -147,11 +137,21 @@ export async function createCodOrder(params: {
   paymentMethod: 'COD';
   items: Line[];
   checkoutRequestId: string;
-}): Promise<{ order: OrderConfirmationData | null; error: string | null; refreshQuote?: boolean }> {
+}): Promise<{
+  order: OrderConfirmationData | null;
+  /** Set whenever PostgreSQL committed an order, even if the receipt was unusable. */
+  orderId: string | null;
+  error: string | null;
+  refreshQuote?: boolean;
+}> {
   const invalid = cartError(params.items);
   const client = await checkoutClient();
   if (!client || invalid || params.paymentMethod !== 'COD')
-    return { order: null, error: invalid || (!client ? OFFLINE : 'Select cash on delivery.') };
+    return {
+      order: null,
+      orderId: null,
+      error: invalid || (!client ? OFFLINE : 'Select cash on delivery.'),
+    };
   const payload: Record<string, unknown> = {
     p_full_name: params.fullName.trim(),
     p_email: params.email.trim().toLowerCase(),
@@ -166,31 +166,17 @@ export async function createCodOrder(params: {
     p_payment_method: params.paymentMethod,
     p_checkout_request_id: params.checkoutRequestId,
   };
-  try {
-    // Never fall back to a signature without duplicate protection, or retry a
-    // write automatically. The customer can safely retry with the same request ID.
-    const response = await client.rpc('create_cod_order', payload).retry(false);
-    if (response.error?.code === 'PGRST202')
-      return { order: null, error: 'Order confirmation is temporarily unavailable. Please try again later.' };
-    if (response.error) {
-      return {
-        order: null,
-        error: response.error.message,
-        // A rejected transaction didn't commit. Re-quote in case inventory, loyalty or promo changed.
-        refreshQuote: ['P0001', '23514', '23505'].includes(response.error.code),
-      };
-    }
-    if (!receipt(response.data))
-      throw new Error(
-        'The studio did not return an order reference. Retry with the same bag and email.'
-      );
-    return { order: response.data, error: null };
-  } catch (e) {
-    return {
-      order: null,
-      error: message(e, 'The order could not be confirmed. Retry with the same bag and email.'),
-    };
-  }
+  // The write, the receipt guard and the email trigger live in commitCodOrder:
+  // the trigger fires as soon as the RPC commits, so no UI path can skip it.
+  // Never fall back to a signature without duplicate protection, or retry a
+  // write automatically. The customer can safely retry with the same request ID.
+  return commitCodOrder(payload, {
+    rpc: async (body) => {
+      const { data, error } = await client.rpc('create_cod_order', body).retry(false);
+      return { data, error: error ? { code: error.code, message: error.message } : null };
+    },
+    announce: announceOrderEmails,
+  });
 }
 
 export async function fetchOrderConfirmation(
@@ -204,7 +190,7 @@ export async function fetchOrderConfirmation(
       p_email: email.trim().toLowerCase(),
     });
     if (error) throw error;
-    return receipt(data)
+    return isOrderReceipt(data)
       ? { order: data, error: null }
       : { order: null, error: 'No order matched that reference and email.' };
   } catch (e) {

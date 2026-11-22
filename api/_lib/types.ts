@@ -40,6 +40,8 @@ export interface ApiResponse {
   getHeader(name: string): string | string[] | undefined;
   writeHead(statusCode: number, headers?: Record<string, string>): void;
   end(body?: string): void;
+  /** Set by `writeHead` in the Vercel runtime; read by the request diagnostics. */
+  statusCode?: number;
 }
 
 export interface EmailLineItem {

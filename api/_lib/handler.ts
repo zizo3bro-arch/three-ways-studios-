@@ -21,6 +21,7 @@
 import type { ClientIpResolution } from './client-ip.js';
 import type { ClaimResult } from './claims.js';
 import { hasJsonContentType, InvalidJsonError, BodyTooLargeError, jsonError, readJsonBody, sendJson } from './http.js';
+import { logEvent, observeResponse, orderTag } from './log.js';
 import { idempotencyKeyMatches, isValidIdempotencyKey } from './idempotency-keys.js';
 import type { EmailEnv, EmailOrder, NotificationType, SendArgs, SendEmailContent, SendOutcome, ApiRequest, ApiResponse } from './types.js';
 
@@ -60,11 +61,44 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Instrumented entry point. Every invocation now leaves a trace in the Vercel
+ * runtime log, so "no invocation" can be proven or disproven from the platform
+ * instead of being inferred from a missing email. Diagnostics never change the
+ * response and never log customer data (see ./log.ts).
+ */
 export async function handleOrderNotificationRequest(
   deps: HandlerDeps,
   req: ApiRequest,
   res: ApiResponse
 ): Promise<void> {
+  const startedAt = Date.now();
+  const snapshot = observeResponse(res);
+  logEvent('request-start', {
+    endpoint: deps.notificationType,
+    method: req.method ?? 'unknown',
+  });
+  try {
+    await handleRequest(deps, req, res);
+  } catch (error) {
+    logEvent('request-crashed', {
+      endpoint: deps.notificationType,
+      reason: error instanceof Error ? error.name : 'unknown',
+    });
+    throw error;
+  } finally {
+    const { statusCode, errorCode } = snapshot();
+    logEvent('request-complete', {
+      endpoint: deps.notificationType,
+      method: req.method ?? 'unknown',
+      status: statusCode,
+      outcome: errorCode ?? 'ok',
+      ms: Date.now() - startedAt,
+    });
+  }
+}
+
+async function handleRequest(deps: HandlerDeps, req: ApiRequest, res: ApiResponse): Promise<void> {
   if (req.method !== 'POST') {
     jsonError(res, 405, 'method-not-allowed', {}, { Allow: 'POST' });
     return;
@@ -106,6 +140,10 @@ export async function handleOrderNotificationRequest(
     return;
   }
   const orderId = orderIdRaw;
+  logEvent('order-accepted', {
+    endpoint: deps.notificationType,
+    orderTag: orderTag(orderId),
+  });
 
   const envResult = await deps.loadEnv();
   if (!envResult.ok) {

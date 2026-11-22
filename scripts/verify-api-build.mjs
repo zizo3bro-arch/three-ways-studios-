@@ -31,7 +31,7 @@ const buildDir = path.join(root, '.api-build');
 const tscBin = path.join(root, 'node_modules', '.bin', 'tsc');
 const STATIC_FROM = /from\s*['"]([^'"]+)['"]/g;
 const DYNAMIC_IMPORT = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-const ENTRIES = ['order-confirmation.js', 'admin-new-order.js'];
+const ENTRIES = ['order-confirmation.js', 'admin-new-order.js', 'email-health.js'];
 
 const fail = (message) => {
   console.error(`\n✗ verify:api — ${message}`);
