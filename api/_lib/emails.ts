@@ -38,6 +38,7 @@ function itemsTable(items: EmailLineItem[]): string {
             <span style="color:${BRAND.muted};font-size:12px;">${esc(item.color_name)} &middot; ${esc(item.size_name)}</span>
           </td>
           <td style="padding:10px 8px;border-bottom:1px solid #e5dece;font-size:14px;color:${BRAND.ink};text-align:center;">${esc(item.quantity)}</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e5dece;font-size:14px;color:${BRAND.ink};text-align:right;white-space:nowrap;">${esc(money(item.unit_price))}</td>
           <td style="padding:10px 8px;border-bottom:1px solid #e5dece;font-size:14px;color:${BRAND.ink};text-align:right;white-space:nowrap;">${esc(money(item.line_total))}</td>
         </tr>`
     )
@@ -48,7 +49,8 @@ function itemsTable(items: EmailLineItem[]): string {
         <tr>
           <th style="padding:8px;border-bottom:2px solid ${BRAND.crimson};text-align:left;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${BRAND.muted};">Item</th>
           <th style="padding:8px;border-bottom:2px solid ${BRAND.crimson};text-align:center;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${BRAND.muted};">Qty</th>
-          <th style="padding:8px;border-bottom:2px solid ${BRAND.crimson};text-align:right;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${BRAND.muted};">Total</th>
+          <th style="padding:8px;border-bottom:2px solid ${BRAND.crimson};text-align:right;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${BRAND.muted};">Unit price</th>
+          <th style="padding:8px;border-bottom:2px solid ${BRAND.crimson};text-align:right;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${BRAND.muted};">Line total</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
@@ -126,12 +128,12 @@ export function buildCustomerConfirmationEmailHtml(order: EmailOrder): { subject
   const subtotal = money(order.subtotal);
   const discountRows = totalsTableRows(order);
   const html = layout(
-    'Order confirmed',
+    'Order received',
     `We have received your order. ${rawRef} will be prepared with care.`,
     `
       <div style="padding:14px 0 4px;">
         <p style="font-size:16px;line-height:1.65;margin:0;">Dear ${esc(order.customer_name)},</p>
-        <p style="font-size:15px;line-height:1.65;margin:14px 0 0;">Your order <strong>${ref}</strong> is confirmed. Cash on delivery — no payment is taken online.</p>
+        <p style="font-size:15px;line-height:1.65;margin:14px 0 0;">Your order <strong>${ref}</strong> has been received. Cash on delivery — no payment is taken online.</p>
         <p style="font-size:13px;color:${BRAND.muted};line-height:1.6;margin:12px 0 0;">Placed ${esc(dateLine(order.created_at))}. Delivery to ${esc(order.city)}, ${esc(order.governorate)}.</p>
       </div>
       ${items}
@@ -145,7 +147,7 @@ export function buildCustomerConfirmationEmailHtml(order: EmailOrder): { subject
     'Three Ways Studios &middot; Cairo, Egypt. Cash on delivery — we never charge you online.'
   );
   return {
-    subject: `Order confirmed — ${order.order_reference}`,
+    subject: `Order confirmation — ${order.order_reference}`,
     html,
   };
 }
@@ -158,7 +160,7 @@ export function buildAdminNewOrderEmailHtml(order: EmailOrder): { subject: strin
     'A new cash-on-delivery order was placed and is ready for preparation.',
     `
       <p style="font-size:15px;line-height:1.65;margin:10px 0 0;">New order <strong>${ref}</strong></p>
-      <p style="font-size:13px;color:${BRAND.muted};line-height:1.6;margin:8px 0 0;">Placed ${esc(dateLine(order.created_at))} &middot; Payment: ${esc(order.payment_method)}</p>
+      <p style="font-size:13px;color:${BRAND.muted};line-height:1.6;margin:8px 0 0;">Placed ${esc(dateLine(order.created_at))} &middot; Payment: ${esc(order.payment_method)} &middot; Status: ${esc(order.status)}</p>
 
       <div style="margin:16px 0 0;padding:14px 16px;background:${BRAND.paper};border-radius:10px;">
         <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${BRAND.muted};">Customer</div>

@@ -510,6 +510,43 @@ test('production wiring: recipients come from server data, never from the body',
   assert.deepEqual(missingInbox, { error: 'missing-admin-inbox' });
 });
 
+test('email builders include the complete committed-order facts without overstating status', async () => {
+  const { buildCustomerConfirmationEmailHtml, buildAdminNewOrderEmailHtml } = await load('/api/_lib/emails.ts');
+  const order = fakeOrder();
+
+  const customer = buildCustomerConfirmationEmailHtml(order);
+  assert.equal(customer.subject, `Order confirmation — ${order.order_reference}`);
+  assert.match(customer.html, /Order received/);
+  assert.match(customer.html, /has been received/);
+  assert.doesNotMatch(customer.html, /accepted|shipped/i);
+  for (const fact of [
+    order.order_reference,
+    order.items[0].product_name,
+    String(order.items[0].quantity),
+    'EGP 2,450.00',
+    order.city,
+    order.governorate,
+  ]) assert.ok(customer.html.includes(fact), `customer email includes ${fact}`);
+
+  const admin = buildAdminNewOrderEmailHtml(order);
+  for (const fact of [
+    order.order_reference,
+    order.customer_name,
+    order.customer_email,
+    order.customer_phone,
+    order.delivery_address,
+    order.items[0].product_name,
+    String(order.items[0].quantity),
+    'Unit price',
+    'EGP 2,450.00',
+    'Subtotal',
+    'Shipping',
+    'Total',
+    'Status: pending',
+    'Sat, 21 Nov 2026 12:00:00 GMT',
+  ]) assert.ok(admin.html.includes(fact), `admin email includes ${fact}`);
+});
+
 test('email builders escape interpolated data (XSS-safety)', async () => {
   const { buildCustomerConfirmationEmailHtml, buildAdminNewOrderEmailHtml } = await load('/api/_lib/emails.ts');
   const payload = '<script>alert(1)</script>';

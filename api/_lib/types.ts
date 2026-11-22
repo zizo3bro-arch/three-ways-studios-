@@ -16,6 +16,8 @@ export interface EmailEnv {
   resendFrom: string;
   /** Studio inbox receiving admin-new-order notifications. Required there. */
   adminNotificationEmail: string | null;
+  /** Which variable supplied supabaseUrl: diagnostics only, never a value. */
+  supabaseUrlSource?: 'SUPABASE_URL' | 'VITE_SUPABASE_URL';
   claimLeaseSeconds: number;
   ipLimit: number;
   ipWindowSeconds: number;
