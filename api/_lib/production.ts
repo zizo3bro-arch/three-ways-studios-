@@ -47,8 +47,12 @@ export function createProductionDeps(notificationType: NotificationType): Handle
    * One `config` event per cold start. It describes the Supabase target and the
    * credential SHAPE — never a value:
    *   supabase_host            which host the client actually talks to (a `db.`
-   *                            or pooler host means SUPABASE_URL is wrong)
-   *   supabase_url_source      SUPABASE_URL or the public VITE_ fallback
+   *                            or pooler host means the URL is wrong)
+   *   supabase_url_source      TWS_SUPABASE_URL, SUPABASE_URL or the public
+   *                            VITE_ fallback
+   *   key_source               TWS_SUPABASE_SERVICE_ROLE_KEY or the legacy
+   *                            SUPABASE_SERVICE_ROLE_KEY (always paired with
+   *                            the URL source — see resolveSupabaseConfig)
    *   key_format               jwt / sb_secret / sb_publishable / unknown
    *   key_role                 the JWT `role` claim (must be service_role)
    *   key_project_matches_url  JWT `ref` claim vs the URL host — a key from
@@ -63,6 +67,7 @@ export function createProductionDeps(notificationType: NotificationType): Handle
       endpoint: notificationType,
       supabase_host: host,
       supabase_url_source: env.supabaseUrlSource ?? 'unknown',
+      key_source: env.serviceRoleKeySource ?? 'unknown',
       key_format: key.format,
       key_role: key.role,
       key_project_matches_url:

@@ -55,6 +55,11 @@ const OTHER_PROJECT_KEY = legacyKey(SERVICE_JWT_ROLE, 'aaaaaaaaaaaaaaaaaaaa');
 const ANON_KEY = legacyKey('anon');
 const RESEND_KEY = 're_test_key_value_that_must_never_be_logged';
 
+/** The dedicated TWS_* pair: a second, distinct project reference. */
+const TWS_PROJECT_REF = 'twsdedicatedproj0000';
+const TWS_URL = `https://${TWS_PROJECT_REF}.supabase.co`;
+const TWS_KEY = legacyKey(SERVICE_JWT_ROLE, TWS_PROJECT_REF);
+
 /**
  * Captures every JSON log line `logEvent` emits while `fn` runs. The live array
  * is handed to `fn` so assertions can read lines as they are emitted.
@@ -105,6 +110,17 @@ const COMPLETE_ENV = {
   ADMIN_NOTIFICATION_EMAIL: 'orders@example.test',
   VITE_SUPABASE_URL: undefined,
   VITE_SUPABASE_ANON_KEY: undefined,
+  // Hermeticity: the legacy-selection tests must never observe an ambient
+  // TWS_* pair from the machine running the suite.
+  TWS_SUPABASE_URL: undefined,
+  TWS_SUPABASE_SERVICE_ROLE_KEY: undefined,
+};
+
+/** Same credentials as COMPLETE_ENV but supplied as the dedicated pair. */
+const TWS_ENV = {
+  ...COMPLETE_ENV,
+  TWS_SUPABASE_URL: TWS_URL,
+  TWS_SUPABASE_SERVICE_ROLE_KEY: TWS_KEY,
 };
 
 function fakeRes() {
@@ -453,6 +469,10 @@ test('email-health stays read-only and only probes when asked', async () => {
         assert.equal(plainBody.routed_to_function, true);
         assert.equal(plainBody.env.configured, true);
         assert.equal(plainBody.env.supabase_host, 'nujowlxvfpklylhglzse.supabase.co');
+        // Neither TWS_* variable set: the legacy fallback is what is resolved
+        // and what the diagnostics report, sources included.
+        assert.equal(plainBody.env.supabase_url_source, 'SUPABASE_URL');
+        assert.equal(plainBody.env.key.source, 'SUPABASE_SERVICE_ROLE_KEY');
         assert.equal(plainBody.env.key.role, 'service_role');
         assert.match(String(plainBody.supabase_probe), /not-requested/);
         assert.equal(calls.length, 0, 'the default health check must not touch the database');
@@ -529,6 +549,8 @@ test('email-health without configuration reports the reason and never probes', a
     SUPABASE_URL: undefined,
     VITE_SUPABASE_URL: undefined,
     SUPABASE_SERVICE_ROLE_KEY: undefined,
+    TWS_SUPABASE_URL: undefined,
+    TWS_SUPABASE_SERVICE_ROLE_KEY: undefined,
     RESEND_API_KEY: undefined,
     RESEND_FROM_EMAIL: undefined,
     ADMIN_NOTIFICATION_EMAIL: undefined,
@@ -545,6 +567,289 @@ test('email-health without configuration reports the reason and never probes', a
         assert.equal(res.statusCode, 200);
         assert.equal(res.json().env.configured, false);
         assert.equal(calls.length, 0);
+      }
+    );
+  });
+});
+
+/* ————————————— the dedicated TWS_* Supabase variables ————————————— */
+
+test('the TWS_* pair is selected over legacy variables, end to end', async () => {
+  await withEnv(TWS_ENV, async () => {
+    await withFetch(
+      () => new Response('', { status: 200, headers: { 'content-range': '0-0/0' } }),
+      async (calls) => {
+        // The production wiring /api/order-confirmation and
+        // /api/admin-new-order use resolves the dedicated pair…
+        const logs = await captureLogs(async () => {
+          const { createProductionDeps } = await load('/api/_lib/production.ts');
+          const deps = createProductionDeps('order-confirmation');
+          const loaded = await deps.loadEnv();
+          assert.equal(loaded.ok, true);
+          await deps.rateLimit('ip:203.0.113.9', 20, 600);
+        });
+        const config = logs.find((line) => line.event === 'config');
+        assert.ok(config, 'missing config event');
+        assert.equal(config.supabase_host, `${TWS_PROJECT_REF}.supabase.co`);
+        assert.equal(config.supabase_url_source, 'TWS_SUPABASE_URL');
+        assert.equal(config.key_source, 'TWS_SUPABASE_SERVICE_ROLE_KEY');
+        assert.equal(config.key_project_matches_url, true);
+
+        // …and /api/email-health must resolve the identical pair.
+        const { default: handler } = await load('/api/email-health.ts');
+        const res = fakeRes();
+        await captureLogs(() =>
+          handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+        );
+        const body = res.json();
+        assert.equal(body.env.supabase_host, `${TWS_PROJECT_REF}.supabase.co`);
+        assert.equal(body.env.supabase_url_source, 'TWS_SUPABASE_URL');
+        assert.equal(body.env.key.source, 'TWS_SUPABASE_SERVICE_ROLE_KEY');
+        assert.equal(body.env.key.project_matches_url, true);
+        assert.equal(body.supabase_probe.ok, true);
+
+        // Every request went to the dedicated project, never the legacy one:
+        // no mixing of a TWS URL with a legacy key or vice versa.
+        assert.equal(calls.length, 2, 'expected one rate-limit RPC and one probe');
+        for (const call of calls) {
+          assert.ok(
+            call.url.startsWith(TWS_URL),
+            `request left the TWS project: ${call.url}`
+          );
+        }
+        const serialised = JSON.stringify([body, logs]);
+        assert.ok(!serialised.includes(TWS_KEY), 'the TWS key leaked');
+        assert.ok(!serialised.includes(SERVICE_KEY), 'the legacy key leaked');
+      }
+    );
+  });
+});
+
+test('half a TWS_* pair fails closed and never falls back to legacy variables', async () => {
+  for (const [partial, reason] of [
+    [{ TWS_SUPABASE_URL: TWS_URL }, 'missing-tws-service-role-key'],
+    [{ TWS_SUPABASE_SERVICE_ROLE_KEY: TWS_KEY }, 'missing-tws-supabase-url'],
+  ]) {
+    // The legacy pair below is COMPLETE — falling back to it would succeed,
+    // which is exactly what must not happen.
+    await withEnv({ ...COMPLETE_ENV, ...partial }, async () => {
+      await withFetch(
+        () => jsonResponse(200, []),
+        async (calls) => {
+          const { createProductionDeps } = await load('/api/_lib/production.ts');
+          const deps = createProductionDeps('admin-new-order');
+          const loaded = await deps.loadEnv();
+          assert.equal(loaded.ok, false);
+          assert.equal(loaded.reason, reason);
+
+          const { default: handler } = await load('/api/email-health.ts');
+          const res = fakeRes();
+          await captureLogs(() =>
+            handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+          );
+          const body = res.json();
+          assert.equal(body.env.configured, false);
+          assert.equal(body.env.reason, reason);
+          assert.equal('supabase_host' in body.env, false);
+          assert.equal('key' in body.env, false);
+          assert.match(String(body.supabase_probe), new RegExp(`unavailable: ${reason}`));
+          assert.equal(calls.length, 0, 'a half-configured pair must not reach any database');
+        }
+      );
+    });
+  }
+});
+
+test('an invalid URL or a mismatched key never reports a successful match', async () => {
+  // 4a. A syntactically invalid dedicated URL fails closed before any client
+  //     is built; no host, no key shape, no successful match is reported.
+  await withEnv({ ...TWS_ENV, TWS_SUPABASE_URL: 'not-a-url' }, async () => {
+    await withFetch(
+      () => jsonResponse(200, []),
+      async (calls) => {
+        const { default: handler } = await load('/api/email-health.ts');
+        const res = fakeRes();
+        await captureLogs(() =>
+          handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+        );
+        const body = res.json();
+        assert.equal(body.env.configured, false);
+        assert.equal(body.env.reason, 'invalid-supabase-url');
+        assert.match(String(body.supabase_probe), /unavailable: invalid-supabase-url/);
+        assert.notEqual(body.env?.key?.project_matches_url, true);
+        assert.equal(calls.length, 0);
+      }
+    );
+  });
+
+  // 4b. A service key from a different project is reported as a mismatch (not
+  //     a match) and the probe fails — the diagnostics cannot look healthy.
+  await withEnv({ ...TWS_ENV, TWS_SUPABASE_SERVICE_ROLE_KEY: OTHER_PROJECT_KEY }, async () => {
+    await withFetch(
+      () =>
+        jsonResponse(401, {
+          code: 'PGRST301',
+          message: 'Invalid API key',
+          hint: null,
+          details: null,
+        }),
+      async (calls) => {
+        const { default: handler } = await load('/api/email-health.ts');
+        const res = fakeRes();
+        await captureLogs(() =>
+          handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+        );
+        const body = res.json();
+        assert.equal(body.env.configured, true);
+        assert.equal(body.env.key.project_matches_url, false);
+        assert.notEqual(body.env.key.project_matches_url, true);
+        assert.equal(body.supabase_probe.ok, false);
+        assert.equal(body.supabase_probe.code, 'PGRST301');
+        assert.equal(calls.length, 1);
+        assert.ok(!JSON.stringify(body).includes(OTHER_PROJECT_KEY));
+      }
+    );
+  });
+});
+
+test('a wrong-role key from the correct project can never probe healthy', async () => {
+  // The anon key is a VALID JWT for this project: its ref matches the URL and
+  // `products` is publicly readable, so the probe's HEAD read succeeds with
+  // HTTP 200 (the storefront performs exactly this read anonymously). The
+  // credential is nevertheless NOT the service-role key the email pipeline
+  // runs on — a 200 from a public table must never make a wrong-role
+  // configuration look healthy. No real credentials and no database: the keys
+  // are built locally by legacyKey(), fetch is stubbed.
+  await withEnv({ ...COMPLETE_ENV, SUPABASE_SERVICE_ROLE_KEY: ANON_KEY }, async () => {
+    await withFetch(
+      () => new Response('', { status: 200, headers: { 'content-range': '0-0/0' } }),
+      async (calls) => {
+        const { default: handler } = await load('/api/email-health.ts');
+        const res = fakeRes();
+        const logs = await captureLogs(() =>
+          handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+        );
+        const body = res.json();
+        assert.equal(res.statusCode, 200);
+        // 1. The probe verdict is false even though the read succeeded.
+        assert.equal(body.supabase_probe.ok, false);
+        assert.equal(body.supabase_probe.code, 'key-role-not-service');
+        // …and the read really was offered and answered (the public table).
+        assert.equal(calls.length, 1);
+        assert.match(calls[0].url, /\/rest\/v1\/products/);
+        // 2. The incorrect role is reported clearly — and no credential is.
+        assert.equal(body.env.configured, true);
+        assert.equal(body.env.key.format, 'jwt');
+        assert.equal(body.env.key.role, 'anon');
+        assert.equal(body.env.key.project_matches_url, true); // right project, wrong role
+        assert.match(String(body.supabase_probe.message), /service-role key required/);
+        assert.match(String(body.supabase_probe.message), /anon/);
+        const serialised = JSON.stringify([body, logs]);
+        for (const forbidden of [ANON_KEY, ANON_KEY.split('.')[1], ANON_KEY.split('.')[2], RESEND_KEY]) {
+          assert.ok(!serialised.includes(forbidden), 'leaked key material');
+        }
+      }
+    );
+  });
+
+  // The dedicated TWS_* pair is gated by the same rule: right project, wrong
+  // role — still not healthy, whatever the read returns.
+  const anonTwsKey = legacyKey('anon', TWS_PROJECT_REF);
+  await withEnv({ ...TWS_ENV, TWS_SUPABASE_SERVICE_ROLE_KEY: anonTwsKey }, async () => {
+    await withFetch(
+      () => new Response('', { status: 200, headers: { 'content-range': '0-0/0' } }),
+      async () => {
+        const { default: handler } = await load('/api/email-health.ts');
+        const res = fakeRes();
+        await captureLogs(() =>
+          handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+        );
+        const body = res.json();
+        assert.equal(body.supabase_probe.ok, false);
+        assert.equal(body.supabase_probe.code, 'key-role-not-service');
+        assert.equal(body.env.supabase_url_source, 'TWS_SUPABASE_URL');
+        assert.equal(body.env.key.role, 'anon');
+        assert.equal(body.env.key.project_matches_url, true);
+        assert.ok(!JSON.stringify(body).includes(anonTwsKey));
+      }
+    );
+  });
+});
+
+test('sb_publishable and unrecognized key formats fail closed at the role gate', async () => {
+  // The gate admits only service-role credentials. A publishable key is the
+  // public browser key and an unrecognised blob proves nothing — neither may
+  // probe healthy, whatever the public-table read returns.
+  for (const [key, format] of [
+    ['sb_publishable_test_only_not_a_secret', 'sb_publishable'],
+    ['not-a-key-at-all', 'unknown'],
+  ]) {
+    await withEnv({ ...COMPLETE_ENV, SUPABASE_SERVICE_ROLE_KEY: key }, async () => {
+      await withFetch(
+        () => new Response('', { status: 200, headers: { 'content-range': '0-0/0' } }),
+        async (calls) => {
+          const { default: handler } = await load('/api/email-health.ts');
+          const res = fakeRes();
+          await captureLogs(() =>
+            handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+          );
+          const body = res.json();
+          // 200 from the public table must not make the key look healthy.
+          assert.equal(body.supabase_probe.ok, false);
+          assert.equal(body.supabase_probe.code, 'key-role-not-service');
+          assert.equal(body.env.key.format, format);
+          assert.match(
+            String(body.supabase_probe.message),
+            new RegExp(`service-role key required \\(key format "${format}"\\)`)
+          );
+          assert.equal(calls.length, 1);
+          assert.ok(!JSON.stringify(body).includes(key), 'leaked key material');
+        }
+      );
+    });
+  }
+});
+
+test('service-role JWT and sb_secret keys pass the role gate', async () => {
+  // The gate must not become a false-positive machine: when the read
+  // succeeds, real service-role credentials still report healthy.
+  await withEnv(COMPLETE_ENV, async () => {
+    await withFetch(
+      () => new Response('', { status: 200, headers: { 'content-range': '0-0/0' } }),
+      async () => {
+        const { default: handler } = await load('/api/email-health.ts');
+        const res = fakeRes();
+        await captureLogs(() =>
+          handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+        );
+        const body = res.json();
+        assert.equal(body.supabase_probe.ok, true);
+        assert.equal(body.supabase_probe.code, undefined, 'the gate must stay silent');
+        assert.equal(body.env.key.format, 'jwt');
+        assert.equal(body.env.key.role, 'service_role');
+        assert.equal(body.env.key.project_matches_url, true);
+      }
+    );
+  });
+
+  // sb_secret_* is the modern secret-key format: full access, no role claim.
+  const secretKey = 'sb_secret_test_only_not_a_real_key';
+  await withEnv({ ...COMPLETE_ENV, SUPABASE_SERVICE_ROLE_KEY: secretKey }, async () => {
+    await withFetch(
+      () => new Response('', { status: 200, headers: { 'content-range': '0-0/0' } }),
+      async () => {
+        const { default: handler } = await load('/api/email-health.ts');
+        const res = fakeRes();
+        await captureLogs(() =>
+          handler({ method: 'GET', url: '/api/email-health?probe=1', headers: {} }, res)
+        );
+        const body = res.json();
+        assert.equal(body.supabase_probe.ok, true);
+        assert.equal(body.supabase_probe.code, undefined, 'the gate must stay silent');
+        assert.equal(body.env.key.format, 'sb_secret');
+        assert.equal(body.env.key.role, null);
+        assert.equal(body.env.key.project_matches_url, null); // no ref claim to match
+        assert.ok(!JSON.stringify(body).includes(secretKey), 'leaked key material');
       }
     );
   });

@@ -19,7 +19,9 @@
  * What is additionally logged (added 2026-11-22, when a failing Supabase RPC
  * was surfacing as a bare `503 rate-limit-unavailable`):
  *   - `config` / `config-invalid`: which host the Supabase client talks to,
- *     whether the URL came from `SUPABASE_URL` or the public `VITE_` fallback,
+ *     whether the URL came from the dedicated `TWS_SUPABASE_URL` pair, the
+ *     legacy `SUPABASE_URL` or the public `VITE_` fallback, which variable
+ *     supplied the key,
  *     and the credential SHAPE (jwt / sb_secret / sb_publishable, the JWT
  *     `role` claim, whether the JWT `ref` matches the URL host). Shapes and a
  *     public host, never a key, never a prefix, never a signature.
