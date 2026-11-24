@@ -212,6 +212,117 @@ test('env validation: required keys, from-address parsing, and limits parsing', 
   assert.equal(noAdmin.env.adminNotificationEmail, null);
 });
 
+test('env resolution: the TWS_* pair wins, half a pair fails closed, legacy fallback survives', async () => {
+  const { loadEmailEnv, resolveSupabaseConfig } = await load('/api/_lib/env.ts');
+  const legacy = {
+    SUPABASE_URL: 'https://legacy-project.supabase.co',
+    SUPABASE_SERVICE_ROLE_KEY: 'legacy-service-role-key',
+    RESEND_API_KEY: 're_test',
+    RESEND_FROM_EMAIL: 'Three Ways Studios <orders@test-project.supabase.co>',
+    ADMIN_NOTIFICATION_EMAIL: 'staff@test-project.supabase.co',
+    TWS_SUPABASE_URL: undefined,
+    TWS_SUPABASE_SERVICE_ROLE_KEY: undefined,
+  };
+  const TWS_URL = 'https://dedicated-project.supabase.co';
+  const TWS_KEY = 'tws-service-role-key';
+
+  // 1. Both TWS variables set: the dedicated pair is selected even though a
+  //    complete legacy pair exists — and the halves are never mixed.
+  const dedicated = loadEmailEnv({
+    ...legacy,
+    TWS_SUPABASE_URL: TWS_URL,
+    TWS_SUPABASE_SERVICE_ROLE_KEY: TWS_KEY,
+  });
+  assert.equal(dedicated.ok, true);
+  assert.equal(dedicated.env.supabaseUrl, TWS_URL);
+  assert.equal(dedicated.env.supabaseUrlSource, 'TWS_SUPABASE_URL');
+  assert.equal(dedicated.env.serviceRoleKey, TWS_KEY);
+  assert.equal(dedicated.env.serviceRoleKeySource, 'TWS_SUPABASE_SERVICE_ROLE_KEY');
+  assert.notEqual(dedicated.env.supabaseUrl, legacy.SUPABASE_URL);
+  assert.notEqual(dedicated.env.serviceRoleKey, legacy.SUPABASE_SERVICE_ROLE_KEY);
+
+  // 2. Only TWS_SUPABASE_URL set: fails closed — the legacy key must NOT be
+  //    mixed in, even though the legacy pair is complete.
+  const urlOnly = loadEmailEnv({ ...legacy, TWS_SUPABASE_URL: TWS_URL });
+  assert.equal(urlOnly.ok, false);
+  assert.equal(urlOnly.reason, 'missing-tws-service-role-key');
+
+  // 3. Only TWS_SUPABASE_SERVICE_ROLE_KEY set: fails closed — the legacy URL
+  //    must NOT be mixed in.
+  const keyOnly = loadEmailEnv({ ...legacy, TWS_SUPABASE_SERVICE_ROLE_KEY: TWS_KEY });
+  assert.equal(keyOnly.ok, false);
+  assert.equal(keyOnly.reason, 'missing-tws-supabase-url');
+
+  // 4. Neither TWS variable set: the legacy fallback is fully functional and
+  //    reports its sources (explicit URL, then the VITE_ fallback).
+  const legacyEnv = loadEmailEnv(legacy);
+  assert.equal(legacyEnv.ok, true);
+  assert.equal(legacyEnv.env.supabaseUrl, legacy.SUPABASE_URL);
+  assert.equal(legacyEnv.env.supabaseUrlSource, 'SUPABASE_URL');
+  assert.equal(legacyEnv.env.serviceRoleKey, legacy.SUPABASE_SERVICE_ROLE_KEY);
+  assert.equal(legacyEnv.env.serviceRoleKeySource, 'SUPABASE_SERVICE_ROLE_KEY');
+  const viteFallback = loadEmailEnv({
+    ...legacy,
+    SUPABASE_URL: undefined,
+    VITE_SUPABASE_URL: legacy.SUPABASE_URL,
+  });
+  assert.equal(viteFallback.ok, true);
+  assert.equal(viteFallback.env.supabaseUrlSource, 'VITE_SUPABASE_URL');
+  assert.equal(viteFallback.env.serviceRoleKeySource, 'SUPABASE_SERVICE_ROLE_KEY');
+
+  // Empty / whitespace-only values count as unconfigured (they are trimmed):
+  // a blank pair falls back to legacy, a half-set dedicated pair still fails.
+  const blankPair = loadEmailEnv({
+    ...legacy,
+    TWS_SUPABASE_URL: '   ',
+    TWS_SUPABASE_SERVICE_ROLE_KEY: '',
+  });
+  assert.equal(blankPair.ok, true);
+  assert.equal(blankPair.env.supabaseUrlSource, 'SUPABASE_URL');
+  const whitespaceKey = loadEmailEnv({
+    ...legacy,
+    TWS_SUPABASE_URL: TWS_URL,
+    TWS_SUPABASE_SERVICE_ROLE_KEY: '   ',
+  });
+  assert.equal(whitespaceKey.ok, false);
+  assert.equal(whitespaceKey.reason, 'missing-tws-service-role-key');
+
+  // 5. A syntactically invalid dedicated URL fails closed with the same reason
+  //    code the health endpoint reports — and never a successful match.
+  const badUrl = loadEmailEnv({
+    ...legacy,
+    TWS_SUPABASE_URL: 'not-a-url',
+    TWS_SUPABASE_SERVICE_ROLE_KEY: TWS_KEY,
+  });
+  assert.equal(badUrl.ok, false);
+  assert.equal(badUrl.reason, 'invalid-supabase-url');
+
+  // The shared resolver (used by the /api/email-health probe) must agree with
+  // loadEmailEnv for every configuration: same pair, same sources, or the same
+  // failure reason. This is what keeps the endpoints and diagnostics in sync.
+  const cases = [
+    legacy,
+    { ...legacy, TWS_SUPABASE_URL: TWS_URL, TWS_SUPABASE_SERVICE_ROLE_KEY: TWS_KEY },
+    { ...legacy, TWS_SUPABASE_URL: TWS_URL },
+    { ...legacy, TWS_SUPABASE_SERVICE_ROLE_KEY: TWS_KEY },
+    { ...legacy, TWS_SUPABASE_URL: 'not-a-url', TWS_SUPABASE_SERVICE_ROLE_KEY: TWS_KEY },
+  ];
+  for (const source of cases) {
+    const resolved = resolveSupabaseConfig(source);
+    const full = loadEmailEnv(source);
+    if (resolved.ok) {
+      assert.equal(full.ok, true);
+      assert.equal(resolved.supabaseUrl, full.env.supabaseUrl);
+      assert.equal(resolved.supabaseUrlSource, full.env.supabaseUrlSource);
+      assert.equal(resolved.serviceRoleKey, full.env.serviceRoleKey);
+      assert.equal(resolved.serviceRoleKeySource, full.env.serviceRoleKeySource);
+    } else {
+      assert.equal(full.ok, false);
+      assert.equal(resolved.reason, full.reason);
+    }
+  }
+});
+
 test('client IP: only Vercel-trusted headers, validated, everything else is unknown', async () => {
   const { resolveClientIp } = await load('/api/_lib/client-ip.ts');
 

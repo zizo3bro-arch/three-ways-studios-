@@ -16,7 +16,8 @@
  *
  * `?probe=1` additionally performs ONE read-only Supabase request
  * (`HEAD /rest/v1/products`, a table the storefront already reads publicly)
- * through the same service-role client the notification endpoints use. That is
+ * through the same service-role client the notification endpoints use, built
+ * from the same resolveSupabaseConfig() pair (api/_lib/env.ts). That is
  * what separates "the route is fine but the server credential/URL is wrong"
  * from "the database refuses the RPC" — without creating an order, without
  * claiming a notification, without sending an email and without writing
@@ -26,7 +27,7 @@
  * notification, and never returns a secret, an address or an order.
  */
 import { createClient } from '@supabase/supabase-js';
-import { loadEmailEnv } from './_lib/env.js';
+import { loadEmailEnv, resolveSupabaseConfig, type SupabaseConfigResult } from './_lib/env.js';
 import { jsonError, sendJson } from './_lib/http.js';
 import { describeKey, hostOf, logEvent, observeResponse, sanitizeDiagnostic } from './_lib/log.js';
 import type { ApiRequest, ApiResponse } from './_lib/types.js';
@@ -43,43 +44,22 @@ interface ProbeResult {
   hint?: string | null;
 }
 
-type ProbeConfig =
-  | {
-      ok: true;
-      supabaseUrl: string;
-      serviceRoleKey: string;
-      source: 'SUPABASE_URL' | 'VITE_SUPABASE_URL';
-    }
-  | { ok: false; reason: 'missing-supabase-url' | 'missing-service-role-key' | 'invalid-supabase-url' };
+type ProbeConfig = SupabaseConfigResult;
 
 /**
  * The connectivity probe must remain usable when an unrelated mail variable is
  * missing. Using loadEmailEnv() here used to suppress ?probe=1 whenever, for
  * example, RESEND_FROM_EMAIL was absent — exactly when diagnostics are needed.
+ * The Supabase pair itself comes from the same resolver the notification
+ * endpoints use (resolveSupabaseConfig), so the probe can never describe or
+ * exercise a configuration the endpoints would not pick: dedicated
+ * `TWS_SUPABASE_URL` + `TWS_SUPABASE_SERVICE_ROLE_KEY` pair first (half a pair
+ * fails closed), legacy variables only when neither TWS variable is set.
  */
 function loadProbeConfig(
   source: Record<string, string | undefined> = process.env
 ): ProbeConfig {
-  const explicitUrl = source.SUPABASE_URL?.trim() ?? '';
-  const publicUrl = source.VITE_SUPABASE_URL?.trim() ?? '';
-  const rawUrl = explicitUrl || publicUrl;
-  const serviceRoleKey = source.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? '';
-  if (!rawUrl) return { ok: false, reason: 'missing-supabase-url' };
-  if (!serviceRoleKey) return { ok: false, reason: 'missing-service-role-key' };
-  try {
-    const url = new URL(rawUrl);
-    if (url.protocol !== 'https:' || url.username || url.password) {
-      return { ok: false, reason: 'invalid-supabase-url' };
-    }
-    return {
-      ok: true,
-      supabaseUrl: url.origin,
-      serviceRoleKey,
-      source: explicitUrl ? 'SUPABASE_URL' : 'VITE_SUPABASE_URL',
-    };
-  } catch {
-    return { ok: false, reason: 'invalid-supabase-url' };
-  }
+  return resolveSupabaseConfig(source);
 }
 
 function wantsProbe(url: string | undefined): boolean {
@@ -144,6 +124,42 @@ async function probeSupabase(supabaseUrl: string, serviceRoleKey: string): Promi
   }
 }
 
+/**
+ * A wrong-role credential must never look healthy. `products` is PUBLICLY
+ * readable — the storefront serves it to every anonymous visitor — so the
+ * anon key (valid JWT, correct project ref) completes the probe's HEAD read
+ * with HTTP 200. Success of that read is not evidence of a service-role
+ * configuration. The probe verdict is therefore gated on the credential
+ * SHAPE: a JWT whose `role` claim is not `service_role`, a publishable key or
+ * an unrecognised format fails closed with `key-role-not-service`, whatever
+ * the read returned. Only `sb_secret_*` (the modern secret-key format: full
+ * access, no role claim) or a JWT with `role: service_role` may pass. The
+ * role/format labels come from describeKey() (sanitized, names only) — the
+ * credential itself is never logged or returned.
+ */
+function gateProbeRole(result: ProbeResult, serviceRoleKey: string): ProbeResult {
+  const key = describeKey(serviceRoleKey);
+  const roleOk =
+    key.format === 'sb_secret' || (key.format === 'jwt' && key.role === 'service_role');
+  if (roleOk) return result;
+  const label = key.role ? `key ${key.format} role "${key.role}"` : `key format "${key.format}"`;
+  const message = sanitizeDiagnostic(`service-role key required (${label})`, 120);
+  logEvent('probe-error', {
+    endpoint: 'email-health',
+    code: 'key-role-not-service',
+    http_status: result.http_status ?? null,
+    message,
+  });
+  return {
+    ok: false,
+    latency_ms: result.latency_ms,
+    http_status: result.http_status ?? null,
+    code: 'key-role-not-service',
+    message,
+    hint: result.hint ?? null,
+  };
+}
+
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   const startedAt = Date.now();
   const snapshot = observeResponse(res);
@@ -162,7 +178,10 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     let probeResult: ProbeResult | string = 'not-requested (add ?probe=1)';
     if (wantsProbe(req.url)) {
       probeResult = probeConfig.ok
-        ? await probeSupabase(probeConfig.supabaseUrl, probeConfig.serviceRoleKey)
+        ? gateProbeRole(
+            await probeSupabase(probeConfig.supabaseUrl, probeConfig.serviceRoleKey),
+            probeConfig.serviceRoleKey
+          )
         : `unavailable: ${probeConfig.reason}`;
     }
 
@@ -171,12 +190,13 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
           configured: true,
           admin_inbox_configured: Boolean(env.env.adminNotificationEmail),
           supabase_host: host,
-          supabase_url_source: probeConfig.ok ? probeConfig.source : 'unknown',
+          supabase_url_source: probeConfig.ok ? probeConfig.supabaseUrlSource : 'unknown',
           key: {
             format: key?.format ?? 'unknown',
             role: key?.role ?? null,
             project_matches_url:
               host && key?.projectRef ? host.startsWith(`${key.projectRef}.`) : null,
+            source: probeConfig.ok ? probeConfig.serviceRoleKeySource : 'unknown',
           },
         }
       : { configured: false, reason: env.reason };

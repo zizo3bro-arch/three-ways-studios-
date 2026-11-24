@@ -9,6 +9,21 @@
 
 export type NotificationType = 'order-confirmation' | 'admin-new-order';
 
+/**
+ * Which variable supplied the server-side Supabase URL. Names only — the
+ * diagnostics report these, never a value. `TWS_SUPABASE_URL` is the dedicated
+ * pair (see resolveSupabaseConfig in env.ts); the other two are the legacy
+ * fallback.
+ */
+export type SupabaseUrlSource = 'TWS_SUPABASE_URL' | 'SUPABASE_URL' | 'VITE_SUPABASE_URL';
+
+/**
+ * Which variable supplied the server-side service-role key. Always the partner
+ * of the URL source: a TWS URL is never combined with a legacy key or vice
+ * versa (env.ts fails closed instead of mixing).
+ */
+export type ServiceRoleKeySource = 'TWS_SUPABASE_SERVICE_ROLE_KEY' | 'SUPABASE_SERVICE_ROLE_KEY';
+
 export interface EmailEnv {
   supabaseUrl: string;
   serviceRoleKey: string;
@@ -17,7 +32,9 @@ export interface EmailEnv {
   /** Studio inbox receiving admin-new-order notifications. Required there. */
   adminNotificationEmail: string | null;
   /** Which variable supplied supabaseUrl: diagnostics only, never a value. */
-  supabaseUrlSource?: 'SUPABASE_URL' | 'VITE_SUPABASE_URL';
+  supabaseUrlSource?: SupabaseUrlSource;
+  /** Which variable supplied serviceRoleKey: diagnostics only, never a value. */
+  serviceRoleKeySource?: ServiceRoleKeySource;
   claimLeaseSeconds: number;
   ipLimit: number;
   ipWindowSeconds: number;
